@@ -7,7 +7,7 @@
 [node name="Main" type="Node2D" unique_id=1303865999]
 script = ExtResource("1_0xm2m")
 
-[node name="MapView" type="CanvasLayer" parent="." unique_id=1618535737]
+[node name="MapView" type="Node2D" parent="." unique_id=193904099]
 script = ExtResource("2_h2yge")
 
 [node name="DeskView" type="Node2D" parent="." unique_id=1616267134]

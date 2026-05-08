@@ -26,6 +26,7 @@ var validation_panel: Panel
 var info_label: Label
 var btn_accept: Button
 var btn_reject: Button
+var btn_go_desk: Button # NOVO: Botao para ir a mesa
 
 # Variaveis temporarias para os custos calculados
 var temp_cost: int = 0
@@ -45,24 +46,32 @@ func _setup_astar() -> void:
 
 # Cria o painel fixo de validacao inteiramente por codigo
 func _setup_ui() -> void:
+	# NOVO: Botao fixo no canto superior esquerdo para ir a mesa
+	btn_go_desk = Button.new()
+	btn_go_desk.text = "Ir para a Mesa ->"
+	btn_go_desk.position = Vector2(20, 20)
+	btn_go_desk.size = Vector2(180, 40)
+	btn_go_desk.pressed.connect(_on_go_desk_pressed)
+	add_child(btn_go_desk)
+
 	# Criando o painel de fundo (Fixo no canto direito)
 	validation_panel = Panel.new()
 	validation_panel.position = Vector2(800, 50) 
-	validation_panel.size = Vector2(300, 220)
+	validation_panel.size = Vector2(300, 260) 
 	validation_panel.visible = false # Comeca escondido
 	add_child(validation_panel)
 
 	# Criando o texto de informacao
 	info_label = Label.new()
 	info_label.position = Vector2(15, 15)
-	info_label.size = Vector2(270, 120)
+	info_label.size = Vector2(270, 180) 
 	info_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	validation_panel.add_child(info_label)
 
 	# Botao Aprovar
 	btn_accept = Button.new()
 	btn_accept.text = "Aprovar Rota"
-	btn_accept.position = Vector2(15, 160)
+	btn_accept.position = Vector2(15, 200) 
 	btn_accept.size = Vector2(130, 40)
 	btn_accept.pressed.connect(_on_accept_pressed)
 	validation_panel.add_child(btn_accept)
@@ -70,10 +79,16 @@ func _setup_ui() -> void:
 	# Botao Rejeitar
 	btn_reject = Button.new()
 	btn_reject.text = "Cancelar"
-	btn_reject.position = Vector2(155, 160)
+	btn_reject.position = Vector2(155, 200) 
 	btn_reject.size = Vector2(130, 40)
 	btn_reject.pressed.connect(_on_reject_pressed)
 	validation_panel.add_child(btn_reject)
+
+# NOVO: Funcao para avisar o Diretor (main.gd) para trocar de tela
+func _on_go_desk_pressed() -> void:
+	var main_node = get_parent()
+	if main_node.has_method("go_to_desk"):
+		main_node.go_to_desk()
 
 # Captura os cliques e o arrastar do mouse
 func _unhandled_input(event: InputEvent) -> void:
