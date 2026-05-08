@@ -1,0 +1,10 @@
+[gd_scene format=3 uid="uid://kadfhwx3uxd2"]
+
+[ext_resource type="Script" uid="uid://bmx0fp0uy62jg" path="res://Main.gd" id="1_glv2v"]
+
+[node name="Main" type="Node2D" unique_id=1303865999]
+script = ExtResource("1_glv2v")
+
+[node name="MapView" type="CanvasLayer" parent="." unique_id=1618535737]
+
+[node name="DeskView" type="Node2D" parent="." unique_id=1616267134]
