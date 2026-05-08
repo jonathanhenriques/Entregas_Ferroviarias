@@ -1,10 +1,12 @@
 [gd_scene format=3 uid="uid://kadfhwx3uxd2"]
 
-[ext_resource type="Script" uid="uid://bmx0fp0uy62jg" path="res://Main.gd" id="1_glv2v"]
+[ext_resource type="Script" uid="uid://bmx0fp0uy62jg" path="res://main.gd" id="1_0xm2m"]
+[ext_resource type="Script" uid="uid://ctnfotsfooag" path="res://mapview.gd" id="2_h2yge"]
 
 [node name="Main" type="Node2D" unique_id=1303865999]
-script = ExtResource("1_glv2v")
+script = ExtResource("1_0xm2m")
 
 [node name="MapView" type="CanvasLayer" parent="." unique_id=1618535737]
+script = ExtResource("2_h2yge")
 
 [node name="DeskView" type="Node2D" parent="." unique_id=1616267134]
