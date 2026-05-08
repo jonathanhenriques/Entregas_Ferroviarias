@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" uid="uid://bmx0fp0uy62jg" path="res://main.gd" id="1_0xm2m"]
 [ext_resource type="Script" uid="uid://ctnfotsfooag" path="res://mapview.gd" id="2_h2yge"]
+[ext_resource type="Script" uid="uid://bygelwewtbbsk" path="res://deskview.gd" id="3_h2yge"]
 
 [node name="Main" type="Node2D" unique_id=1303865999]
 script = ExtResource("1_0xm2m")
@@ -10,3 +11,4 @@ script = ExtResource("1_0xm2m")
 script = ExtResource("2_h2yge")
 
 [node name="DeskView" type="Node2D" parent="." unique_id=1616267134]
+script = ExtResource("3_h2yge")
