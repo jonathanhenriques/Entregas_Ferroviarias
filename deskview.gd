@@ -1,26 +1,20 @@
 extends Node2D
 
-# Referencias visuais - Ofertas
 var contract_panel: Panel
 var contract_label: Label
 var btn_accept_contract: Button
 var btn_reject_contract: Button
 
-# Referencias visuais - Relatorio
 var report_panel: Panel
 var report_label: Label
 var btn_next_day: Button
 
-# Referencias visuais - Contratos Ativos (NOVO)
 var active_panel: Panel
-var active_label: Label
-var btn_cancel_first: Button
+var contracts_vbox: VBoxContainer 
 
-# Botoes e Fundo
 var bg_rect: ColorRect
 var btn_back_map: Button
 
-# Variaveis de controle do contrato do dia
 var current_offer_cargo: String = ""
 var current_contract_reward: int = 0
 var current_offer_duration: int = 0
@@ -28,89 +22,84 @@ var current_offer_duration: int = 0
 func _ready() -> void:
 	_setup_ui()
 	
-	# Conecta os sinais do GameManager para atualizar a UI
 	GameManager.money_changed.connect(_on_stats_changed)
 	GameManager.maintenance_updated.connect(_on_stats_changed)
 	GameManager.contracts_updated.connect(_on_contracts_updated)
 	GameManager.day_changed.connect(_on_day_changed)
 	
-	# Gera a interface pela primeira vez
+	visibility_changed.connect(_on_visibility_changed)
+	
 	_generate_new_contract()
 	_update_report_text()
 	_update_active_contracts_text()
 
 func _setup_ui() -> void:
-	# Fundo da mesa
 	bg_rect = ColorRect.new()
 	bg_rect.color = Color(0.25, 0.15, 0.1)
 	bg_rect.size = Vector2(1152, 648)
 	add_child(bg_rect)
 
-	# 1. Painel de Oferta (Esquerda)
+	# 1. Painel de Oferta
 	contract_panel = Panel.new()
 	contract_panel.position = Vector2(50, 150)
-	contract_panel.size = Vector2(320, 260)
+	contract_panel.size = Vector2(330, 320) # AUMENTADO para resolver sobreposicao
 	add_child(contract_panel)
 
 	contract_label = Label.new()
 	contract_label.position = Vector2(20, 20)
-	contract_label.size = Vector2(280, 170)
+	contract_label.size = Vector2(290, 230) # AUMENTADO para dar espaco
 	contract_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	contract_panel.add_child(contract_label)
 
 	btn_accept_contract = Button.new()
 	btn_accept_contract.text = "Aceitar"
-	btn_accept_contract.position = Vector2(20, 200)
+	btn_accept_contract.position = Vector2(20, 260) # DESCIDO
 	btn_accept_contract.size = Vector2(130, 40)
 	btn_accept_contract.pressed.connect(_on_accept_contract)
 	contract_panel.add_child(btn_accept_contract)
 
 	btn_reject_contract = Button.new()
 	btn_reject_contract.text = "Rejeitar"
-	btn_reject_contract.position = Vector2(170, 200)
+	btn_reject_contract.position = Vector2(180, 260) # DESCIDO
 	btn_reject_contract.size = Vector2(130, 40)
 	btn_reject_contract.pressed.connect(_on_reject_contract)
 	contract_panel.add_child(btn_reject_contract)
 
-	# 2. Painel do Relatorio Administrativo (Centro)
+	# 2. Painel do Relatorio Administrativo
 	report_panel = Panel.new()
 	report_panel.position = Vector2(400, 150)
-	report_panel.size = Vector2(320, 320)
+	report_panel.size = Vector2(330, 340)
 	add_child(report_panel)
 
 	report_label = Label.new()
 	report_label.position = Vector2(20, 20)
-	report_label.size = Vector2(280, 220)
+	report_label.size = Vector2(290, 240)
 	report_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	report_panel.add_child(report_label)
 
 	btn_next_day = Button.new()
 	btn_next_day.text = "Finalizar Dia"
-	btn_next_day.position = Vector2(20, 260)
-	btn_next_day.size = Vector2(280, 40)
+	btn_next_day.position = Vector2(20, 280)
+	btn_next_day.size = Vector2(290, 40)
 	btn_next_day.pressed.connect(_on_next_day_pressed)
 	report_panel.add_child(btn_next_day)
 
-	# 3. Painel de Contratos Ativos (Direita) - NOVO
+	# 3. Painel de Contratos Ativos (Dinamico)
 	active_panel = Panel.new()
 	active_panel.position = Vector2(750, 150)
-	active_panel.size = Vector2(350, 320)
+	active_panel.size = Vector2(370, 320) 
 	add_child(active_panel)
 
-	active_label = Label.new()
-	active_label.position = Vector2(20, 20)
-	active_label.size = Vector2(310, 220)
-	active_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	active_panel.add_child(active_label)
+	var title_label = Label.new()
+	title_label.text = "CONTRATOS ATIVOS (Frota)"
+	title_label.position = Vector2(20, 15)
+	active_panel.add_child(title_label)
 
-	btn_cancel_first = Button.new()
-	btn_cancel_first.text = "Rescindir 1o Contrato (Multa $200)"
-	btn_cancel_first.position = Vector2(20, 260)
-	btn_cancel_first.size = Vector2(310, 40)
-	btn_cancel_first.pressed.connect(_on_cancel_first_pressed)
-	active_panel.add_child(btn_cancel_first)
+	contracts_vbox = VBoxContainer.new()
+	contracts_vbox.position = Vector2(20, 50)
+	contracts_vbox.size = Vector2(330, 250)
+	active_panel.add_child(contracts_vbox)
 
-	# Botao para Voltar ao Mapa
 	btn_back_map = Button.new()
 	btn_back_map.text = "<- Voltar ao Mapa"
 	btn_back_map.position = Vector2(20, 20)
@@ -118,23 +107,36 @@ func _setup_ui() -> void:
 	btn_back_map.pressed.connect(_on_back_map_pressed)
 	add_child(btn_back_map)
 
-# Cria uma oferta de frete com prazos aleatorios
 func _generate_new_contract() -> void:
 	var products = ["Madeira", "Carvao", "Passageiros", "Aco", "Gado"]
 	current_offer_cargo = products[randi() % products.size()]
 	current_contract_reward = randi_range(80, 300)
-	current_offer_duration = randi_range(3, 7) # NOVO: Validade entre 3 e 7 dias
+	current_offer_duration = randi_range(3, 7)
 	
+	contract_panel.visible = true
+	_update_offer_ui()
+
+func _update_offer_ui() -> void:
+	if not contract_panel.visible: return
+		
 	var text = "OFERTA DE CONTRATO (NOVO)\n\n"
 	text += "Carga Solicitada: " + current_offer_cargo + "\n"
+	text += "Rota Exigida: Cidade Azul <-> Vermelha\n"
 	text += "Pagamento Oferecido: +$" + str(current_contract_reward) + " / dia\n"
 	text += "Prazo do Frete: " + str(current_offer_duration) + " dias\n\n"
-	text += "Deseja assumir esta operacao?"
 	
+	if not GameManager.has_active_route:
+		text += "[ BLOQUEADO: Requer rota concluida ]"
+		btn_accept_contract.disabled = true
+	elif GameManager.active_contracts.size() >= GameManager.MAX_CONTRACTS:
+		text += "[ BLOQUEADO: Limite de " + str(GameManager.MAX_CONTRACTS) + " vagoes na frota atingido ]"
+		btn_accept_contract.disabled = true
+	else:
+		text += "Deseja assumir esta operacao?"
+		btn_accept_contract.disabled = false
+		
 	contract_label.text = text
-	contract_panel.visible = true
 
-# Cria um dicionario e adiciona a matriz de contratos ativos
 func _on_accept_contract() -> void:
 	var new_contract = {
 		"cargo": current_offer_cargo,
@@ -142,32 +144,42 @@ func _on_accept_contract() -> void:
 		"days_left": current_offer_duration
 	}
 	GameManager.active_contracts.append(new_contract)
-	GameManager.contracts_updated.emit() # Avisa a interface para redesenhar a lista
+	GameManager.contracts_updated.emit()
 	contract_panel.visible = false
 
 func _on_reject_contract() -> void:
 	contract_panel.visible = false
 
-# Rescinde o contrato mais antigo da lista (indice 0) pagando 200 de multa
-func _on_cancel_first_pressed() -> void:
-	if GameManager.active_contracts.size() > 0:
-		GameManager.cancel_contract(0, 200)
-
-# Monta o texto visualizando o que esta na lista global
 func _update_active_contracts_text() -> void:
-	var text = "CONTRATOS ATIVOS\n\n"
+	for child in contracts_vbox.get_children():
+		contracts_vbox.remove_child(child)
+		child.queue_free()
 	
 	if GameManager.active_contracts.size() == 0:
-		text += "Nenhum contrato ativo no momento.\nCuidado com a manutencao ociosa!"
-		btn_cancel_first.disabled = true
+		var empty_label = Label.new()
+		empty_label.text = "\nNenhum frete em andamento.\nConstrua trilhos e aceite ofertas."
+		contracts_vbox.add_child(empty_label)
 	else:
-		btn_cancel_first.disabled = false
-		var index = 1
+		var index = 0
 		for c in GameManager.active_contracts:
-			text += str(index) + ". " + c["cargo"] + " (+$" + str(c["reward"]) + "/dia) - Faltam " + str(c["days_left"]) + " dias\n"
-			index += 1
+			var hbox = HBoxContainer.new()
 			
-	active_label.text = text
+			var c_label = Label.new()
+			c_label.text = str(index + 1) + ". " + c["cargo"] + " (+$" + str(c["reward"]) + ")\nRestam: " + str(c["days_left"]) + " d"
+			c_label.custom_minimum_size = Vector2(230, 0)
+			hbox.add_child(c_label)
+			
+			var penalty = int((c["reward"] * c["days_left"]) * 0.20)
+			var btn_cancel = Button.new()
+			btn_cancel.text = "❌ (-$" + str(penalty) + ")"
+			btn_cancel.pressed.connect(_on_cancel_dynamic.bind(index))
+			hbox.add_child(btn_cancel)
+			
+			contracts_vbox.add_child(hbox)
+			index += 1
+
+func _on_cancel_dynamic(idx: int) -> void:
+	GameManager.cancel_contract(idx)
 
 func _update_report_text() -> void:
 	var current_income = GameManager.get_daily_income()
@@ -176,28 +188,42 @@ func _update_report_text() -> void:
 	var text = "RELATORIO ADMINISTRATIVO\n\n"
 	text += "Dia de Operacao: " + str(GameManager.current_day) + "\n"
 	text += "Saldo em Caixa: $" + str(GameManager.money) + "\n\n"
+	
+	if GameManager.active_contracts.size() > 0 and not GameManager.has_active_route:
+		text += "[ALERTA: Linha destruida! Lucro bloqueado.]\n\n"
+	
 	text += "Receita Diaria: +$" + str(current_income) + "\n"
 	text += "Manutencao Diaria: -$" + str(GameManager.daily_maintenance) + "\n"
 	text += "----------------------------------\n"
-	text += "Lucro Liquido Projetado: $" + str(net_profit) + "\n"
+	
+	# INSERCAO DO AVISO DE "(Sem rota)"
+	if GameManager.active_contracts.size() > 0 and not GameManager.has_active_route:
+		text += "Lucro Liquido Projetado: $0 (Sem rota)\n"
+	else:
+		text += "Lucro Liquido Projetado: $" + str(net_profit) + "\n"
 	
 	if net_profit < 0 and abs(net_profit) > GameManager.money:
 		text += "\nAVISO: O saldo nao cobre a operacao. Finalizar o dia causara FALENCIA!"
 		
 	report_label.text = text
 
-# Diferentes reacoes baseadas em qual sinal foi disparado
 func _on_stats_changed(_new_value) -> void:
 	_update_report_text()
 
 func _on_contracts_updated() -> void:
 	_update_report_text()
 	_update_active_contracts_text()
+	_update_offer_ui() 
 
 func _on_day_changed(_new_day) -> void:
 	_update_report_text()
 	_update_active_contracts_text()
-	_generate_new_contract()
+	_generate_new_contract() 
+
+func _on_visibility_changed() -> void:
+	if visible:
+		_update_offer_ui() 
+		_update_report_text()
 
 func _on_next_day_pressed() -> void:
 	GameManager.end_day()
