@@ -15,7 +15,8 @@ var is_dragging: bool = false
 var drag_start: Vector2i
 var drag_current: Vector2i
 var tentative_path: Array[Vector2i] = []
-var confirmed_path: Array[Vector2i] = []
+
+var confirmed_routes: Array = [] 
 
 var validation_panel: Panel
 var info_label: Label
@@ -47,26 +48,26 @@ func _setup_ui() -> void:
 
 	validation_panel = Panel.new()
 	validation_panel.position = Vector2(800, 50) 
-	validation_panel.size = Vector2(300, 350) # AUMENTADO para resolver sobreposicao
+	validation_panel.size = Vector2(300, 350) 
 	validation_panel.visible = false
 	add_child(validation_panel)
 
 	info_label = Label.new()
 	info_label.position = Vector2(15, 15)
-	info_label.size = Vector2(270, 270) # AUMENTADO para dar mais espaco ao texto
+	info_label.size = Vector2(270, 270) 
 	info_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	validation_panel.add_child(info_label)
 
 	btn_accept = Button.new()
 	btn_accept.text = "Aprovar Rota"
-	btn_accept.position = Vector2(15, 290) # DESCIDO para evitar o texto
+	btn_accept.position = Vector2(15, 290) 
 	btn_accept.size = Vector2(130, 40)
 	btn_accept.pressed.connect(_on_accept_pressed)
 	validation_panel.add_child(btn_accept)
 
 	btn_reject = Button.new()
 	btn_reject.text = "Cancelar"
-	btn_reject.position = Vector2(155, 290) # DESCIDO para evitar o texto
+	btn_reject.position = Vector2(155, 290) 
 	btn_reject.size = Vector2(130, 40)
 	btn_reject.pressed.connect(_on_reject_pressed)
 	validation_panel.add_child(btn_reject)
@@ -95,11 +96,32 @@ func _unhandled_input(event: InputEvent) -> void:
 					queue_redraw()
 		
 		elif event.button_index == MOUSE_BUTTON_RIGHT and event.is_pressed():
-			tentative_path.clear()
-			confirmed_path.clear()
-			GameManager.daily_maintenance = 0
-			GameManager.has_active_route = false 
-			queue_redraw()
+			var cell = _get_cell_under_mouse(event.position)
+			var deleted_something = false
+			
+			if tentative_path.has(cell):
+				tentative_path.clear()
+				deleted_something = true
+			else:
+				for i in range(confirmed_routes.size() - 1, -1, -1):
+					if confirmed_routes[i].has(cell):
+						var route_length = confirmed_routes[i].size()
+						
+						# CALCULO DO REEMBOLSO E ABATIMENTO DE MANUTENCAO
+						var maint_cost = route_length * MAINTENANCE_PER_KM
+						var build_refund = route_length * COST_PER_KM
+						
+						GameManager.daily_maintenance -= maint_cost
+						GameManager.money += build_refund # Devolve o dinheiro pro caixa!
+						
+						confirmed_routes.remove_at(i)
+						deleted_something = true
+						break 
+			
+			if deleted_something:
+				if confirmed_routes.size() == 0:
+					GameManager.has_active_route = false
+				queue_redraw()
 
 	elif event is InputEventMouseMotion and is_dragging:
 		var cell = _get_cell_under_mouse(event.position)
@@ -141,7 +163,7 @@ func _on_accept_pressed() -> void:
 		GameManager.money -= temp_cost
 		GameManager.daily_maintenance += temp_maintenance
 		
-		confirmed_path.append_array(tentative_path)
+		confirmed_routes.append(tentative_path.duplicate())
 		tentative_path.clear()
 		
 		GameManager.has_active_route = true 
@@ -164,10 +186,46 @@ func _draw() -> void:
 	for y in range(GRID_HEIGHT + 1):
 		draw_line(Vector2(0, y * TILE_SIZE), Vector2(GRID_WIDTH * TILE_SIZE, y * TILE_SIZE), Color(0.2, 0.2, 0.2), 1.0)
 
-	for cell in confirmed_path:
-		draw_rect(Rect2(cell.x * TILE_SIZE + 16, cell.y * TILE_SIZE + 16, 32, 32), Color.DARK_GREEN)
-	for cell in tentative_path:
-		draw_rect(Rect2(cell.x * TILE_SIZE + 16, cell.y * TILE_SIZE + 16, 32, 32), Color.YELLOW)
+	# Passa true para is_preview se for amarelo, false se for o trilho aprovado
+	for route in confirmed_routes:
+		_draw_custom_track(route, false) 
+
+	_draw_custom_track(tentative_path, true)
 
 	draw_rect(Rect2(city_a.x * TILE_SIZE, city_a.y * TILE_SIZE, TILE_SIZE, TILE_SIZE), Color.DODGER_BLUE)
 	draw_rect(Rect2(city_b.x * TILE_SIZE, city_b.y * TILE_SIZE, TILE_SIZE, TILE_SIZE), Color.CRIMSON)
+
+# Funcao de desenho vetorial REFINADA para simular linha fina
+func _draw_custom_track(path: Array, is_preview: bool) -> void:
+	if path.size() == 0: return
+	
+	# Cores baseadas no estado da rota
+	var line_color = Color.YELLOW if is_preview else Color.BLACK
+	var line_width = 2.0 # Linha bem fina, como na referencia
+
+	if path.size() == 1:
+		draw_circle(Vector2(path[0].x * TILE_SIZE + TILE_SIZE/2.0, path[0].y * TILE_SIZE + TILE_SIZE/2.0), 4.0, line_color)
+		return
+
+	var points = PackedVector2Array()
+	for cell in path:
+		points.append(Vector2(cell.x * TILE_SIZE + TILE_SIZE/2.0, cell.y * TILE_SIZE + TILE_SIZE/2.0))
+
+	# Desenha a linha central fina
+	draw_polyline(points, line_color, line_width, true)
+
+	# Desenha os tracinhos (dormentes)
+	for i in range(points.size() - 1):
+		var p1 = points[i]
+		var p2 = points[i+1]
+		var dir = (p2 - p1).normalized()
+		var normal = Vector2(-dir.y, dir.x) 
+		
+		var segment_length = p1.distance_to(p2)
+		var spacing = 12.0 # Distancia entre um tracinho e outro
+		var num_ties = int(segment_length / spacing)
+		
+		for j in range(1, num_ties + 1):
+			var tie_center = p1 + dir * (j * spacing)
+			# Tracinhos curtos (5 pixels para cada lado) e finos
+			draw_line(tie_center - normal * 5, tie_center + normal * 5, line_color, line_width)
