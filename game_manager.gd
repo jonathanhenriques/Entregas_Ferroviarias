@@ -25,10 +25,12 @@ var active_contracts: Array = []
 var has_active_route: bool = false
 const MAX_CONTRACTS: int = 3 
 
-# CORRECAO: O lucro agora depende inteiramente da existencia da rota!
+# NOVO: Custo fixo diario para evitar que o jogador pule dias infinitamente
+const BASE_COST: int = 25 
+
 func get_daily_income() -> int:
 	if not has_active_route:
-		return 0 # Sem trilhos = sem dinheiro
+		return 0 
 		
 	var total = 0
 	for c in active_contracts:
@@ -45,6 +47,7 @@ func reset_game() -> void:
 func end_day() -> void:
 	money += get_daily_income()
 	money -= daily_maintenance
+	money -= BASE_COST # Desconta as taxas administrativas fixas
 	
 	var contracts_to_keep = []
 	for c in active_contracts:

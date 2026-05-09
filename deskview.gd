@@ -42,25 +42,25 @@ func _setup_ui() -> void:
 	# 1. Painel de Oferta
 	contract_panel = Panel.new()
 	contract_panel.position = Vector2(50, 150)
-	contract_panel.size = Vector2(330, 320) # AUMENTADO para resolver sobreposicao
+	contract_panel.size = Vector2(330, 370) # l x a do painel
 	add_child(contract_panel)
 
 	contract_label = Label.new()
 	contract_label.position = Vector2(20, 20)
-	contract_label.size = Vector2(290, 230) # AUMENTADO para dar espaco
+	contract_label.size = Vector2(290, 230) 
 	contract_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	contract_panel.add_child(contract_label)
 
 	btn_accept_contract = Button.new()
 	btn_accept_contract.text = "Aceitar"
-	btn_accept_contract.position = Vector2(20, 260) # DESCIDO
+	btn_accept_contract.position = Vector2(20, 290) 
 	btn_accept_contract.size = Vector2(130, 40)
 	btn_accept_contract.pressed.connect(_on_accept_contract)
 	contract_panel.add_child(btn_accept_contract)
 
 	btn_reject_contract = Button.new()
 	btn_reject_contract.text = "Rejeitar"
-	btn_reject_contract.position = Vector2(180, 260) # DESCIDO
+	btn_reject_contract.position = Vector2(180, 290) 
 	btn_reject_contract.size = Vector2(130, 40)
 	btn_reject_contract.pressed.connect(_on_reject_contract)
 	contract_panel.add_child(btn_reject_contract)
@@ -68,7 +68,7 @@ func _setup_ui() -> void:
 	# 2. Painel do Relatorio Administrativo
 	report_panel = Panel.new()
 	report_panel.position = Vector2(400, 150)
-	report_panel.size = Vector2(330, 340)
+	report_panel.size = Vector2(330, 470) # l x a
 	add_child(report_panel)
 
 	report_label = Label.new()
@@ -79,7 +79,7 @@ func _setup_ui() -> void:
 
 	btn_next_day = Button.new()
 	btn_next_day.text = "Finalizar Dia"
-	btn_next_day.position = Vector2(20, 280)
+	btn_next_day.position = Vector2(20, 420)
 	btn_next_day.size = Vector2(290, 40)
 	btn_next_day.pressed.connect(_on_next_day_pressed)
 	report_panel.add_child(btn_next_day)
@@ -126,7 +126,7 @@ func _update_offer_ui() -> void:
 	text += "Prazo do Frete: " + str(current_offer_duration) + " dias\n\n"
 	
 	if not GameManager.has_active_route:
-		text += "[ BLOQUEADO: Requer rota concluida ]"
+		text += "[ BLOQUEADO: Requer rota concluida no mapa ]"
 		btn_accept_contract.disabled = true
 	elif GameManager.active_contracts.size() >= GameManager.MAX_CONTRACTS:
 		text += "[ BLOQUEADO: Limite de " + str(GameManager.MAX_CONTRACTS) + " vagoes na frota atingido ]"
@@ -136,6 +136,14 @@ func _update_offer_ui() -> void:
 		btn_accept_contract.disabled = false
 		
 	contract_label.text = text
+
+	# CORRECAO DE ONBOARDING: Trava o botao de rejeitar no Dia 1
+	if GameManager.current_day == 1:
+		btn_reject_contract.disabled = true
+		btn_reject_contract.text = "Rejeitar (Bloq.)"
+	else:
+		btn_reject_contract.disabled = false
+		btn_reject_contract.text = "Rejeitar"
 
 func _on_accept_contract() -> void:
 	var new_contract = {
@@ -183,7 +191,8 @@ func _on_cancel_dynamic(idx: int) -> void:
 
 func _update_report_text() -> void:
 	var current_income = GameManager.get_daily_income()
-	var net_profit = current_income - GameManager.daily_maintenance
+	var total_expenses = GameManager.daily_maintenance + GameManager.BASE_COST
+	var net_profit = current_income - total_expenses
 	
 	var text = "RELATORIO ADMINISTRATIVO\n\n"
 	text += "Dia de Operacao: " + str(GameManager.current_day) + "\n"
@@ -193,12 +202,12 @@ func _update_report_text() -> void:
 		text += "[ALERTA: Linha destruida! Lucro bloqueado.]\n\n"
 	
 	text += "Receita Diaria: +$" + str(current_income) + "\n"
-	text += "Manutencao Diaria: -$" + str(GameManager.daily_maintenance) + "\n"
+	text += "Manutencao da Rota: -$" + str(GameManager.daily_maintenance) + "\n"
+	text += "Taxas Administrativas: -$" + str(GameManager.BASE_COST) + "\n"
 	text += "----------------------------------\n"
 	
-	# INSERCAO DO AVISO DE "(Sem rota)"
 	if GameManager.active_contracts.size() > 0 and not GameManager.has_active_route:
-		text += "Lucro Liquido Projetado: $0 (Sem rota)\n"
+		text += "Lucro Liquido Projetado: -$" + str(total_expenses) + " (Sem rota)\n"
 	else:
 		text += "Lucro Liquido Projetado: $" + str(net_profit) + "\n"
 	
@@ -206,6 +215,14 @@ func _update_report_text() -> void:
 		text += "\nAVISO: O saldo nao cobre a operacao. Finalizar o dia causara FALENCIA!"
 		
 	report_label.text = text
+
+	# CORRECAO DE ONBOARDING: Trava o botao de passar o dia se nao houver contrato no Dia 1
+	if GameManager.current_day == 1 and GameManager.active_contracts.size() == 0:
+		btn_next_day.disabled = true
+		btn_next_day.text = "Aceite uma oferta para iniciar"
+	else:
+		btn_next_day.disabled = false
+		btn_next_day.text = "Finalizar Dia"
 
 func _on_stats_changed(_new_value) -> void:
 	_update_report_text()
