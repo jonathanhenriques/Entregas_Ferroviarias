@@ -15,7 +15,11 @@ const BIOME_DATA = {
 	Biome.RIVER: {"build": 600, "maint": 15, "color": Color(0.3, 0.6, 0.8)} 
 }
 
+# NOVO: O valor cobrado por cada trecho que entra na zona criminal
+const GANG_TOLL_RATE: int = 100 
+
 var biome_map: Dictionary = {}
+var gang_map: Dictionary = {} # NOVO: Guarda os ladrilhos criminosos
 
 var city_a: Vector2i = Vector2i(-1, -1) 
 var city_b: Vector2i = Vector2i(-1, -1) 
@@ -48,12 +52,13 @@ func _on_visibility_changed() -> void:
 
 func _generate_biomes() -> void:
 	biome_map.clear()
+	gang_map.clear()
 	city_a = Vector2i(-1, -1)
 	city_b = Vector2i(-1, -1)
 	city_c = Vector2i(-1, -1)
 	
-	# Agora o construtor busca os graficos no novo LevelData!
-	var layout = LevelData.LEVELS[GameManager.current_level]["map_layout"]
+	var level_info = LevelData.LEVELS[GameManager.current_level]
+	var layout = level_info["map_layout"]
 	
 	grid_height = layout.size()
 	grid_width = layout[0].length() if grid_height > 0 else 0
@@ -64,14 +69,10 @@ func _generate_biomes() -> void:
 			var char = row[x]
 			var cell = Vector2i(x, y)
 			
-			if char == ".":
-				biome_map[cell] = Biome.PLAIN
-			elif char == "F":
-				biome_map[cell] = Biome.FOREST
-			elif char == "M":
-				biome_map[cell] = Biome.MOUNTAIN
-			elif char == "R":
-				biome_map[cell] = Biome.RIVER
+			if char == ".": biome_map[cell] = Biome.PLAIN
+			elif char == "F": biome_map[cell] = Biome.FOREST
+			elif char == "M": biome_map[cell] = Biome.MOUNTAIN
+			elif char == "R": biome_map[cell] = Biome.RIVER
 			elif char == "A":
 				biome_map[cell] = Biome.PLAIN 
 				city_a = cell
@@ -83,6 +84,15 @@ func _generate_biomes() -> void:
 				city_c = cell
 			else:
 				biome_map[cell] = Biome.PLAIN
+
+	# NOVO: Le as Zonas de Gangue se elas existirem no mapa
+	if level_info.has("gang_layout"):
+		var g_layout = level_info["gang_layout"]
+		for y in range(g_layout.size()):
+			var row = g_layout[y]
+			for x in range(row.length()):
+				if row[x] == "G":
+					gang_map[Vector2i(x, y)] = true
 
 func _setup_ui() -> void:
 	ui_layer = CanvasLayer.new()
@@ -203,9 +213,21 @@ func _get_orthogonal_path(start: Vector2i, end: Vector2i) -> Array[Vector2i]:
 
 func _update_network_status() -> void:
 	var built_tiles = {}
+	var current_gang_toll = 0
+	
 	for route in confirmed_routes:
+		var has_gang = false
 		for cell in route:
 			built_tiles[cell] = true
+			if gang_map.has(cell):
+				has_gang = true
+				
+		# Se ESTE pedaco de trilho pisou no gangue, cobra pedagio!
+		if has_gang:
+			current_gang_toll += GANG_TOLL_RATE
+			
+	# Atualiza o extorsao diaria baseada nos trilhos vivos
+	GameManager.daily_gang_toll = current_gang_toll
 			
 	if city_a != Vector2i(-1, -1): built_tiles[city_a] = true
 	if city_b != Vector2i(-1, -1): built_tiles[city_b] = true
@@ -259,6 +281,7 @@ func _calculate_and_show_validation() -> void:
 	var count_tunnels = 0
 	var count_bridges = 0
 	var count_forests = 0
+	var has_gang = false
 
 	for cell in tentative_path:
 		var b = biome_map.get(cell, Biome.PLAIN)
@@ -268,10 +291,17 @@ func _calculate_and_show_validation() -> void:
 		if b == Biome.MOUNTAIN: count_tunnels += 1
 		elif b == Biome.RIVER: count_bridges += 1
 		elif b == Biome.FOREST: count_forests += 1
+		
+		if gang_map.has(cell):
+			has_gang = true
 
 	var text = "RELATORIO DE CONSTRUCAO\n\n"
 	
 	btn_accept.disabled = false
+	
+	if has_gang:
+		text += "[!] AVISO: Rota cruza territorio de Gangues!\n"
+		text += "    Pedagio exigido: +$" + str(GANG_TOLL_RATE) + " / dia\n\n"
 
 	text += "Distancia Total do Trecho: " + str(distance) + " km\n"
 	text += "Custo da Obra: $" + str(temp_cost) + "\n"
@@ -317,6 +347,10 @@ func _draw() -> void:
 			var b = biome_map.get(cell, Biome.PLAIN)
 			var color = BIOME_DATA[b]["color"]
 			draw_rect(Rect2(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE), color)
+			
+	# NOVO: Desenha a zona dos gangues (Vermelho transparente) por cima do mapa!
+	for cell in gang_map.keys():
+		draw_rect(Rect2(cell.x * TILE_SIZE, cell.y * TILE_SIZE, TILE_SIZE, TILE_SIZE), Color(0.8, 0.1, 0.1, 0.4))
 
 	for x in range(grid_width + 1):
 		draw_line(Vector2(x * TILE_SIZE, 0), Vector2(x * TILE_SIZE, grid_height * TILE_SIZE), Color(0, 0, 0, 0.1), 1.0)

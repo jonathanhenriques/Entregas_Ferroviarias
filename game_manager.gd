@@ -25,6 +25,9 @@ var daily_maintenance: int = 0 :
 		daily_maintenance = value
 		maintenance_updated.emit(daily_maintenance)
 
+# NOVO: O valor diario extorquido pela mafia
+var daily_gang_toll: int = 0
+
 var active_contracts: Array = []
 const MAX_CONTRACTS: int = 3 
 const BASE_COST: int = 25 
@@ -42,6 +45,7 @@ func reset_game() -> void:
 	money = lvl_data["budget"] 
 	current_day = 1
 	daily_maintenance = 0
+	daily_gang_toll = 0
 	active_contracts.clear()
 	network_connections.clear()
 
@@ -49,6 +53,7 @@ func end_day() -> void:
 	money += get_daily_income()
 	money -= daily_maintenance
 	money -= BASE_COST 
+	money -= daily_gang_toll # A mafia recolhe o dinheiro aqui!
 	
 	var contracts_to_keep = []
 	for c in active_contracts:

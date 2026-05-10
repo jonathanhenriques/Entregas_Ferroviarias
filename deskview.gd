@@ -1,6 +1,6 @@
 extends Node2D
 
-var ui_layer: CanvasLayer # NOVO: O vidro protetor da interface
+var ui_layer: CanvasLayer
 
 var contract_panel: Panel
 var contract_label: Label
@@ -44,12 +44,12 @@ func _setup_ui() -> void:
 	bg_rect = ColorRect.new()
 	bg_rect.color = Color(0.25, 0.15, 0.1)
 	bg_rect.size = Vector2(1152, 648)
-	ui_layer.add_child(bg_rect) # Adicionado ao CanvasLayer!
+	ui_layer.add_child(bg_rect)
 
 	contract_panel = Panel.new()
 	contract_panel.position = Vector2(50, 150)
 	contract_panel.size = Vector2(330, 320) 
-	ui_layer.add_child(contract_panel) # Adicionado ao CanvasLayer!
+	ui_layer.add_child(contract_panel)
 
 	contract_label = Label.new()
 	contract_label.position = Vector2(20, 20)
@@ -74,12 +74,14 @@ func _setup_ui() -> void:
 	report_panel = Panel.new()
 	report_panel.position = Vector2(400, 150)
 	report_panel.size = Vector2(330, 340)
-	ui_layer.add_child(report_panel) # Adicionado ao CanvasLayer!
+	ui_layer.add_child(report_panel)
 
 	report_label = Label.new()
 	report_label.position = Vector2(20, 20)
 	report_label.size = Vector2(290, 240)
 	report_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	# Permite usar tags de cor BBCode
+	report_label.text_direction = Control.TEXT_DIRECTION_LTR
 	report_panel.add_child(report_label)
 
 	btn_next_day = Button.new()
@@ -92,7 +94,7 @@ func _setup_ui() -> void:
 	active_panel = Panel.new()
 	active_panel.position = Vector2(750, 150)
 	active_panel.size = Vector2(370, 320) 
-	ui_layer.add_child(active_panel) # Adicionado ao CanvasLayer!
+	ui_layer.add_child(active_panel)
 
 	var title_label = Label.new()
 	title_label.text = "CONTRATOS ATIVOS (Frota)"
@@ -109,7 +111,7 @@ func _setup_ui() -> void:
 	btn_back_map.position = Vector2(20, 20)
 	btn_back_map.size = Vector2(180, 40)
 	btn_back_map.pressed.connect(_on_back_map_pressed)
-	ui_layer.add_child(btn_back_map) # Adicionado ao CanvasLayer!
+	ui_layer.add_child(btn_back_map)
 
 func _generate_new_contract() -> void:
 	var products = ["Madeira", "Carvao", "Passageiros", "Aco", "Gado"]
@@ -214,7 +216,8 @@ func _on_cancel_dynamic(idx: int) -> void:
 
 func _update_report_text() -> void:
 	var current_income = GameManager.get_daily_income()
-	var total_expenses = GameManager.daily_maintenance + GameManager.BASE_COST
+	# NOVO: Inclui o pedagio do gangue na conta final
+	var total_expenses = GameManager.daily_maintenance + GameManager.BASE_COST + GameManager.daily_gang_toll
 	var net_profit = current_income - total_expenses
 	
 	var text = "RELATORIO ADMINISTRATIVO\n\n"
@@ -228,11 +231,16 @@ func _update_report_text() -> void:
 			break
 			
 	if has_broken_route:
-		text += "[ALERTA: Trecho vital destruido! Alguns trens estao parados e perdendo lucro.]\n\n"
+		text += "[ALERTA: Trecho vital destruido! Alguns trens estao parados.]\n\n"
 	
 	text += "Receita Diaria: +$" + str(current_income) + "\n"
 	text += "Manutencao da Rota: -$" + str(GameManager.daily_maintenance) + "\n"
 	text += "Taxas Administrativas: -$" + str(GameManager.BASE_COST) + "\n"
+	
+	# NOVO: Se estiver pagando propina, mostra em vermelho (usando o padrao do label)
+	if GameManager.daily_gang_toll > 0:
+		text += "Pagamento de Propinas: -$" + str(GameManager.daily_gang_toll) + "\n"
+		
 	text += "----------------------------------\n"
 	text += "Lucro Liquido Projetado: $" + str(net_profit) + "\n"
 	
@@ -261,7 +269,6 @@ func _on_day_changed(_new_day) -> void:
 	_update_active_contracts_text()
 	_generate_new_contract() 
 
-# O segredo do CanvasLayer: Sincroniza a visibilidade do vidro com a cena!
 func _on_visibility_changed() -> void:
 	if ui_layer:
 		ui_layer.visible = visible
