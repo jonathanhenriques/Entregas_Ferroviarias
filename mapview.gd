@@ -3,7 +3,6 @@ extends Node2D
 var ui_layer: CanvasLayer
 
 const TILE_SIZE: int = 32
-# As variaveis de tamanho deixaram de ser constantes. Agora o mapa adapta-se ao seu texto!
 var grid_width: int = 0
 var grid_height: int = 0
 
@@ -18,7 +17,6 @@ const BIOME_DATA = {
 
 var biome_map: Dictionary = {}
 
-# Iniciamos as cidades no "vazio". Elas so aparecem se você as digitar no mapa.
 var city_a: Vector2i = Vector2i(-1, -1) 
 var city_b: Vector2i = Vector2i(-1, -1) 
 var city_c: Vector2i = Vector2i(-1, -1) 
@@ -48,15 +46,14 @@ func _on_visibility_changed() -> void:
 	if ui_layer:
 		ui_layer.visible = visible
 
-# A MAGIA ACONTECE AQUI: O leitor de ASCII Art
 func _generate_biomes() -> void:
 	biome_map.clear()
 	city_a = Vector2i(-1, -1)
 	city_b = Vector2i(-1, -1)
 	city_c = Vector2i(-1, -1)
 	
-	# Pede ao GameManager o mapa da fase atual
-	var layout = GameManager.level_database[GameManager.current_level]["map_layout"]
+	# Agora o construtor busca os graficos no novo LevelData!
+	var layout = LevelData.LEVELS[GameManager.current_level]["map_layout"]
 	
 	grid_height = layout.size()
 	grid_width = layout[0].length() if grid_height > 0 else 0
@@ -76,7 +73,7 @@ func _generate_biomes() -> void:
 			elif char == "R":
 				biome_map[cell] = Biome.RIVER
 			elif char == "A":
-				biome_map[cell] = Biome.PLAIN # O chao por baixo da cidade e planicie
+				biome_map[cell] = Biome.PLAIN 
 				city_a = cell
 			elif char == "B":
 				biome_map[cell] = Biome.PLAIN
@@ -85,7 +82,7 @@ func _generate_biomes() -> void:
 				biome_map[cell] = Biome.PLAIN
 				city_c = cell
 			else:
-				biome_map[cell] = Biome.PLAIN # Segurança caso digite uma letra errada
+				biome_map[cell] = Biome.PLAIN
 
 func _setup_ui() -> void:
 	ui_layer = CanvasLayer.new()
@@ -216,7 +213,6 @@ func _update_network_status() -> void:
 	
 	var connections = []
 	
-	# So testa conexao se a cidade existir no mapa
 	if city_a != Vector2i(-1, -1) and city_b != Vector2i(-1, -1):
 		if _bfs_check(city_a, city_b, built_tiles): 
 			connections.append("Azul-Vermelha")
@@ -315,7 +311,6 @@ func _get_cell_under_mouse(mouse_pos: Vector2) -> Vector2i:
 	return Vector2i(mouse_pos.x / TILE_SIZE, mouse_pos.y / TILE_SIZE)
 
 func _draw() -> void:
-	# Desenha Biomas
 	for x in range(grid_width):
 		for y in range(grid_height):
 			var cell = Vector2i(x, y)
@@ -323,19 +318,16 @@ func _draw() -> void:
 			var color = BIOME_DATA[b]["color"]
 			draw_rect(Rect2(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE), color)
 
-	# Desenha Grade
 	for x in range(grid_width + 1):
 		draw_line(Vector2(x * TILE_SIZE, 0), Vector2(x * TILE_SIZE, grid_height * TILE_SIZE), Color(0, 0, 0, 0.1), 1.0)
 	for y in range(grid_height + 1):
 		draw_line(Vector2(0, y * TILE_SIZE), Vector2(grid_width * TILE_SIZE, y * TILE_SIZE), Color(0, 0, 0, 0.1), 1.0)
 
-	# Desenha Rotas
 	for route in confirmed_routes:
 		_draw_custom_track(route, false) 
 
 	_draw_custom_track(tentative_path, true)
 
-	# Desenha Cidades (So desenha se elas existirem no layout)
 	if city_a != Vector2i(-1, -1):
 		draw_rect(Rect2(city_a.x * TILE_SIZE, city_a.y * TILE_SIZE, TILE_SIZE, TILE_SIZE), Color.DODGER_BLUE)
 	if city_b != Vector2i(-1, -1):

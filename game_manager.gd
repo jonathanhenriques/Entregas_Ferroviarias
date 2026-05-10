@@ -7,38 +7,8 @@ signal contracts_updated()
 signal game_over(is_victory: bool, message: String)
 
 var current_level: int = 1
-
-# O NOSSO NOVO SISTEMA DE FASES (BASE DE DADOS)
-var level_database = {
-	1: {
-		"name": "O Vale do Rio (Tutorial)",
-		"budget": 1500,
-		"goal": 4000,
-		"map_layout": [
-			# 36 colunas, 20 linhas (Este é o mapa V18 escrito em texto!)
-			"...............FFFFF................",
-			"...............FFFFF................",
-			"...............FFFFF................",
-			"...............FFFFF..........C.....",
-			"........RR.....MMMM.................",
-			"........RR.....MMMM.................",
-			"........RR.....MMMM.................",
-			"........RR.....MMMM.................",
-			"........RR.....MMMM.................",
-			"........RR.....MMMM.................",
-			"..A.....RR.....MMMM....B............",
-			"........RR.....MMMM.................",
-			"........RR.....MMMM.................",
-			"........RR.....MMMM.................",
-			"........RR.....MMMM.................",
-			"........RR.....MMMM.................",
-			".......FFFF....MMMM.................",
-			".......FFFF....MMMM.................",
-			".......FFFF....MMMM.................",
-			".......FFFF....MMMM................."
-		]
-	}
-}
+var highest_unlocked_level: int = 1
+var start_in_world_map: bool = true 
 
 var money: int = 1500 :
 	set(value):
@@ -58,7 +28,6 @@ var daily_maintenance: int = 0 :
 var active_contracts: Array = []
 const MAX_CONTRACTS: int = 3 
 const BASE_COST: int = 25 
-
 var network_connections: Array = []
 
 func get_daily_income() -> int:
@@ -69,8 +38,8 @@ func get_daily_income() -> int:
 	return total
 
 func reset_game() -> void:
-	var lvl_data = level_database[current_level]
-	money = lvl_data["budget"] # Agora le o orcamento da fase atual!
+	var lvl_data = LevelData.LEVELS[current_level]
+	money = lvl_data["budget"] 
 	current_day = 1
 	daily_maintenance = 0
 	active_contracts.clear()
@@ -91,12 +60,11 @@ func end_day() -> void:
 	contracts_updated.emit()
 	
 	current_day += 1
-	
-	var lvl_data = level_database[current_level]
+	var lvl_data = LevelData.LEVELS[current_level]
 	
 	if money < 0:
 		trigger_bankruptcy()
-	elif money >= lvl_data["goal"]: # Agora le a meta da fase atual!
+	elif money >= lvl_data["goal"]: 
 		trigger_victory()
 
 func cancel_contract(index: int) -> void:
@@ -104,15 +72,17 @@ func cancel_contract(index: int) -> void:
 		var c = active_contracts[index]
 		var total_projected_value = c["reward"] * c["days_left"]
 		var penalty = int(total_projected_value * 0.20)
-		
 		money -= penalty
 		active_contracts.remove_at(index)
 		contracts_updated.emit()
 
 func trigger_bankruptcy() -> void:
-	var msg = "FALENCIA!\n\nO seu saldo ficou negativo. Os investidores retiraram o apoio e a sua empresa ferroviaria fechou."
+	var msg = "FALENCIA!\n\nO seu saldo ficou negativo. A sua empresa fechou as portas nesta regiao."
 	game_over.emit(false, msg)
 
 func trigger_victory() -> void:
-	var msg = "VITORIA!\n\nAtingiu a meta da regiao! A sua expansao para a proxima area foi autorizada."
+	if current_level == highest_unlocked_level and LevelData.LEVELS.has(current_level + 1):
+		highest_unlocked_level += 1
+		
+	var msg = "VITORIA!\n\nAtingiu a meta da regiao! O governo autorizou a sua expansao."
 	game_over.emit(true, msg)
