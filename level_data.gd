@@ -83,8 +83,9 @@ const LEVELS = {
 		],
 		"companies": [
 			{"name": "Fazenda Trigo Dourado", "type": "Ganha-Pao", "base_reward": 130, "phone": "555-0303", "cargo": "Trigo", "route_id": "Azul-Vermelha", "route_name": "Azul <-> Vermelha"},
-			{"name": "Banco Central", "type": "Expresso", "base_reward": 200, "phone": "555-0404", "cargo": "Cofres de Ouro", "route_id": "Vermelha-Verde", "route_name": "Vermelha <-> Verde"},
-			{"name": "Sindicato Oculto", "type": "VIP", "base_reward": 400, "phone": "555-0999", "cargo": "Carga Suspeita", "route_id": "Azul-Verde", "route_name": "Azul <-> Verde"}
+			{"name": "Banco Central", "type": "Expresso", "base_reward": 250, "phone": "555-0404", "cargo": "Ouro", "route_id": "Vermelha-Verde", "route_name": "Vermelha <-> Verde", "max_dist": 22},
+			{"name": "Sindicato Oculto", "type": "VIP", "base_reward": 500, "phone": "555-0999", "cargo": "Carga Suspeita", "route_id": "Azul-Verde", "route_name": "Azul <-> Verde"},
+			{"name": "ONG Caminho Verde", "type": "Ecologico", "base_reward": 200, "phone": "555-7777", "cargo": "Sementes Raras", "route_id": "Vermelha-Verde", "route_name": "Vermelha <-> Verde"}
 		]
 	}
 }

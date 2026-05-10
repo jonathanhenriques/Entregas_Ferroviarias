@@ -3,7 +3,7 @@ class_name CutsceneDialog
 
 signal contract_accepted(final_reward)
 signal contract_rejected()
-signal call_closed() # NOVO: Para quando voce apenas leva uma bronca e desliga
+signal call_closed() 
 
 var overlay: ColorRect
 var dialog_box: ColorRect 
@@ -12,7 +12,7 @@ var text_label: Label
 
 var btn_accept: Button
 var btn_reject: Button
-var btn_close: Button # NOVO: Botao unico para rejeicoes/furia
+var btn_close: Button 
 
 var silhouette_body: ColorRect
 var silhouette_head: ColorRect
@@ -93,9 +93,7 @@ func _setup_visuals() -> void:
 	btn_close.pressed.connect(_on_close)
 	dialog_box.add_child(btn_close)
 
-# --- TIPOS DE CHAMADA ---
 
-# Chamada Normal (Negociacao)
 func start_call(company_name: String, company_type: String, company_cargo: String, base_reward: int) -> void:
 	_reset_ui()
 	var dice = randi_range(1, 6)
@@ -109,21 +107,23 @@ func start_call(company_name: String, company_type: String, company_cargo: Strin
 
 	_type_next_char(true)
 
-
-
-# Rejeicao (Tentou ligar sem ter trilhos)
-func start_rejection_call(company_name: String) -> void:
+# NOVO: Recebe o motivo personalizado do erro
+func start_rejection_call(company_name: String, custom_reason: String = "") -> void:
 	_reset_ui()
 	name_label.text = "[ TRANSMISSAO: " + company_name.to_upper() + " ]"
 	name_label.add_theme_color_override("font_color", Color.INDIAN_RED)
 	
-	full_text = "Voce esta a brincar comigo? Acabei de ver os relatorios dos fiscais...\n"
-	full_text += "A sua empresa NAO TEM infraestrutura construida nesta regiao!\n"
-	full_text += "Vou bloquear o seu numero. So ligue quando for profissional."
+	if custom_reason == "":
+		full_text = "Voce esta a brincar comigo? Acabei de ver os relatorios dos fiscais...\n"
+		full_text += "A sua empresa NAO TEM infraestrutura construida nesta regiao!\n"
+		full_text += "Vou bloquear o seu numero. So ligue quando for profissional."
+	else:
+		full_text = "Avaliamos a sua rota e nao podemos fechar negocio!\n"
+		full_text += custom_reason + "\n"
+		full_text += "Refaca os trilhos e volte a ligar. Ate la, estao bloqueados."
 	
 	_type_next_char(false)
 
-# Furia (Apagou um trilho em uso)
 func start_angry_call() -> void:
 	_reset_ui()
 	name_label.text = "[ TRANSMISSAO: CLIENTE FURIOSO ]"

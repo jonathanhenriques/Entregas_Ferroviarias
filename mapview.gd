@@ -15,11 +15,10 @@ const BIOME_DATA = {
 	Biome.RIVER: {"build": 600, "maint": 15, "color": Color(0.3, 0.6, 0.8)} 
 }
 
-# NOVO: O valor cobrado por cada trecho que entra na zona criminal
 const GANG_TOLL_RATE: int = 100 
 
 var biome_map: Dictionary = {}
-var gang_map: Dictionary = {} # NOVO: Guarda os ladrilhos criminosos
+var gang_map: Dictionary = {} 
 
 var city_a: Vector2i = Vector2i(-1, -1) 
 var city_b: Vector2i = Vector2i(-1, -1) 
@@ -85,7 +84,6 @@ func _generate_biomes() -> void:
 			else:
 				biome_map[cell] = Biome.PLAIN
 
-	# NOVO: Le as Zonas de Gangue se elas existirem no mapa
 	if level_info.has("gang_layout"):
 		var g_layout = level_info["gang_layout"]
 		for y in range(g_layout.size()):
@@ -159,7 +157,6 @@ func _unhandled_input(event: InputEvent) -> void:
 			var cell = _get_cell_under_mouse(event.position)
 			var deleted_something = false
 			
-			# CORREÇÃO: Declarar a variável no escopo principal do clique direito!
 			var old_connections = GameManager.network_connections.duplicate()
 			
 			if tentative_path.has(cell):
@@ -183,16 +180,15 @@ func _unhandled_input(event: InputEvent) -> void:
 			
 			if deleted_something:
 				_update_network_status() 
-				
-				# A ARMADILHA (Agora o old_connections existe aqui!)
 				var lost_contracts = []
 				for i in range(GameManager.active_contracts.size()):
 					var c = GameManager.active_contracts[i]
-					if c["route_id"] in old_connections and not (c["route_id"] in GameManager.network_connections):
+					# Avallia se o trem parou de operar por causa do trilho deletado
+					if c["route_id"] in old_connections and not GameManager.is_contract_operating(c):
 						lost_contracts.append(i)
 				
 				if lost_contracts.size() > 0:
-					GameManager.pendent_angry_call = true # Arma a cutscene furiosa!
+					GameManager.pendent_angry_call = true 
 					for i in range(lost_contracts.size() - 1, -1, -1):
 						GameManager.cancel_contract(lost_contracts[i])
 				
@@ -215,9 +211,6 @@ func _unhandled_input(event: InputEvent) -> void:
 						tentative_path.append(p)
 				queue_redraw()
 
-
-
-
 func _get_orthogonal_path(start: Vector2i, end: Vector2i) -> Array[Vector2i]:
 	var path: Array[Vector2i] = []
 	var current = start
@@ -239,12 +232,9 @@ func _update_network_status() -> void:
 			built_tiles[cell] = true
 			if gang_map.has(cell):
 				has_gang = true
-				
-		# Se ESTE pedaco de trilho pisou no gangue, cobra pedagio!
 		if has_gang:
 			current_gang_toll += GANG_TOLL_RATE
 			
-	# Atualiza o extorsao diaria baseada nos trilhos vivos
 	GameManager.daily_gang_toll = current_gang_toll
 			
 	if city_a != Vector2i(-1, -1): built_tiles[city_a] = true
@@ -252,44 +242,77 @@ func _update_network_status() -> void:
 	if city_c != Vector2i(-1, -1): built_tiles[city_c] = true
 	
 	var connections = []
+	var stats = {}
 	
 	if city_a != Vector2i(-1, -1) and city_b != Vector2i(-1, -1):
-		if _bfs_check(city_a, city_b, built_tiles): 
+		var res = _get_route_capabilities(city_a, city_b, built_tiles)
+		if not res.is_empty():
 			connections.append("Azul-Vermelha")
 			connections.append("Vermelha-Azul")
+			stats["Azul-Vermelha"] = res
+			stats["Vermelha-Azul"] = res
 			
 	if city_a != Vector2i(-1, -1) and city_c != Vector2i(-1, -1):
-		if _bfs_check(city_a, city_c, built_tiles): 
+		var res = _get_route_capabilities(city_a, city_c, built_tiles)
+		if not res.is_empty():
 			connections.append("Azul-Verde")
 			connections.append("Verde-Azul")
+			stats["Azul-Verde"] = res
+			stats["Verde-Azul"] = res
 			
 	if city_b != Vector2i(-1, -1) and city_c != Vector2i(-1, -1):
-		if _bfs_check(city_b, city_c, built_tiles): 
+		var res = _get_route_capabilities(city_b, city_c, built_tiles)
+		if not res.is_empty():
 			connections.append("Vermelha-Verde")
 			connections.append("Verde-Vermelha")
+			stats["Vermelha-Verde"] = res
+			stats["Verde-Vermelha"] = res
 		
 	GameManager.network_connections = connections
+	GameManager.network_stats = stats
 	GameManager.contracts_updated.emit() 
 
-func _bfs_check(start_node: Vector2i, target_node: Vector2i, valid_tiles: Dictionary) -> bool:
-	var queue = [start_node]
+# =======================================
+# ALGORITMO DE 3 VARRIMENTOS (A MÁGICA 3.3)
+# =======================================
+func _get_route_capabilities(start_node: Vector2i, target_node: Vector2i, valid_tiles: Dictionary) -> Dictionary:
+	var shortest_dist = _bfs_shortest_dist(start_node, target_node, valid_tiles, false, false)
+	if shortest_dist == -1: return {} # Nao tem trilho conectando
+
+	var avoids_gangs = _bfs_shortest_dist(start_node, target_node, valid_tiles, true, false) != -1
+	var avoids_forests = _bfs_shortest_dist(start_node, target_node, valid_tiles, false, true) != -1
+
+	return {
+		"dist": shortest_dist,
+		"gangs": 0 if avoids_gangs else 1,
+		"forests": 0 if avoids_forests else 1
+	}
+
+func _bfs_shortest_dist(start_node: Vector2i, target_node: Vector2i, valid_tiles: Dictionary, avoid_gangs: bool, avoid_forests: bool) -> int:
+	var queue = [{"cell": start_node, "dist": 0}]
 	var visited = {start_node: true}
 
 	while queue.size() > 0:
 		var curr = queue.pop_front()
-		if curr == target_node:
-			return true
+		var cell = curr["cell"]
+
+		if cell == target_node:
+			return curr["dist"]
 
 		var neighbors = [
-			curr + Vector2i.UP, curr + Vector2i.DOWN,
-			curr + Vector2i.LEFT, curr + Vector2i.RIGHT
+			cell + Vector2i.UP, cell + Vector2i.DOWN,
+			cell + Vector2i.LEFT, cell + Vector2i.RIGHT
 		]
 		for n in neighbors:
 			if valid_tiles.has(n) and not visited.has(n):
+				if avoid_gangs and gang_map.has(n): continue
+				if avoid_forests and biome_map.get(n, Biome.PLAIN) == Biome.FOREST: continue
+
 				visited[n] = true
-				queue.push_back(n)
-				
-	return false
+				queue.push_back({"cell": n, "dist": curr["dist"] + 1})
+
+	return -1
+
 
 func _calculate_and_show_validation() -> void:
 	var distance = tentative_path.size()
@@ -366,7 +389,6 @@ func _draw() -> void:
 			var color = BIOME_DATA[b]["color"]
 			draw_rect(Rect2(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE), color)
 			
-	# NOVO: Desenha a zona dos gangues (Vermelho transparente) por cima do mapa!
 	for cell in gang_map.keys():
 		draw_rect(Rect2(cell.x * TILE_SIZE, cell.y * TILE_SIZE, TILE_SIZE, TILE_SIZE), Color(0.8, 0.1, 0.1, 0.4))
 

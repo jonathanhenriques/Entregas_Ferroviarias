@@ -178,7 +178,6 @@ func _load_agenda_contacts() -> void:
 func _on_company_selected(company_data: Dictionary) -> void:
 	selected_company_data = company_data
 	
-	# NOVO VISUAL DA AGENDA: Revela a Demanda e a Rota antes de Ligar!
 	active_contact_label.text = "Empresa: " + company_data["name"] + "\n"
 	active_contact_label.text += "Telefone: ☎ " + company_data["phone"] + "\n\n"
 	active_contact_label.text += "Demanda: " + company_data["cargo"] + " [" + company_data["type"] + "]\n"
@@ -193,36 +192,67 @@ func _on_company_selected(company_data: Dictionary) -> void:
 		
 	btn_call.visible = true
 
-
-
+# =======================================
+# A AUDITORIA NO TELEFONE (VALIDAÇÃO 3.3)
+# =======================================
 func _on_phone_call_pressed() -> void:
 	if not selected_company_data.is_empty():
-		var has_route = selected_company_data["route_id"] in GameManager.network_connections
-		var is_daily = "(Diario)" in selected_company_data["name"]
+		var route_id = selected_company_data["route_id"]
+		var c_type = selected_company_data["type"]
 		
-		# EXCECAO DE GAME DESIGN: O Corretor Diario aceita negociar no Dia 1 sem exigir trilhos prontos!
+		var has_route = route_id in GameManager.network_connections
+		var is_daily = "(Diario)" in selected_company_data["name"]
 		var is_day_one_exception = (GameManager.current_day == 1 and is_daily)
 		
-		# A VERDADEIRA BLINDAGEM: Verifica se a rota esta concluida (com a nossa excecao)
-		if not has_route and not is_day_one_exception:
-			phone_cutscene.start_rejection_call(selected_company_data["name"])
+		var route_valid = false
+		var reject_reason = ""
+		
+		if has_route:
+			var stats = GameManager.network_stats.get(route_id, {})
+			
+			if c_type == "Expresso":
+				var limit = selected_company_data.get("max_dist", 999)
+				if stats.get("dist", 999) > limit:
+					reject_reason = "A sua rota (" + str(stats["dist"]) + " km) excede o nosso limite de " + str(limit) + " km!"
+				else:
+					route_valid = true
+			elif c_type == "VIP":
+				if stats.get("gangs", 0) > 0:
+					reject_reason = "A sua rota cruza territorio de gangues! Nossos clientes exigem seguranca total."
+				elif GameManager.active_contracts.size() > 0:
+					reject_reason = "Exigimos EXCLUSIVIDADE! Cancele os seus outros contratos reles antes de nos ligar."
+				else:
+					route_valid = true
+			elif c_type == "Ecologico":
+				if stats.get("forests", 0) > 0:
+					reject_reason = "A sua rota causou desmatamento! Refaca os trilhos desviando das florestas."
+				else:
+					route_valid = true
+			else:
+				route_valid = true # Contratos Ganha-Pao nao exigem nada alem da ligacao
+
+		# Bloqueia se nao tem rota (e nao é excecao), OU se tem rota mas ela chumbou na auditoria!
+		if (not has_route and not is_day_one_exception) or (has_route and not route_valid):
+			phone_cutscene.start_rejection_call(selected_company_data["name"], reject_reason)
 			GameManager.company_cooldowns[selected_company_data["name"]] = 1 
 			_clear_selection()
 		else:
 			phone_cutscene.start_call(selected_company_data["name"], selected_company_data["type"], selected_company_data["cargo"], selected_company_data["base_reward"])
 
-
-
-
 func _on_cutscene_accepted(final_reward: int) -> void:
 	var new_contract = {
 		"company_name": selected_company_data["name"], 
+		"type": selected_company_data["type"], 
 		"cargo": selected_company_data["cargo"], 
 		"route_id": selected_company_data["route_id"], 
 		"route_name": selected_company_data["route_name"],
 		"reward": final_reward,
 		"days_left": randi_range(5, 10)
 	}
+	# Guarda o limite de distancia para manter a validacao viva
+	if selected_company_data.has("max_dist"):
+		new_contract["max_dist"] = selected_company_data["max_dist"]
+		
 	GameManager.active_contracts.append(new_contract)
 	GameManager.contracts_updated.emit()
 	_clear_selection()
@@ -241,6 +271,9 @@ func _clear_selection() -> void:
 	active_contact_label.text = ""
 	btn_call.visible = false
 
+# =======================================
+# INTERFACE DE ERROS EXPLICITOS
+# =======================================
 func _update_active_contracts_text() -> void:
 	for child in contracts_vbox.get_children():
 		contracts_vbox.remove_child(child)
@@ -255,18 +288,35 @@ func _update_active_contracts_text() -> void:
 		var index = 0
 		for c in GameManager.active_contracts:
 			var hbox = HBoxContainer.new()
-			var is_active = c["route_id"] in GameManager.network_connections
 			
+			var is_active = GameManager.is_contract_operating(c)
+			var status = ""
 			var c_label = Label.new()
-			var status = "(+$" + str(c["reward"]) + ")" if is_active else "[PARADO $0]"
+			
+			if is_active:
+				status = "(+$" + str(c["reward"]) + ")"
+				c_label.add_theme_color_override("font_color", Color.DARK_SLATE_GRAY)
+			else:
+				c_label.add_theme_color_override("font_color", Color.INDIAN_RED)
+				if not (c["route_id"] in GameManager.network_connections):
+					status = "[PARADO: SEM ROTA]"
+				else:
+					# Informa exatamente qual regra o jogador quebrou!
+					var type = c.get("type", "")
+					var stats = GameManager.network_stats.get(c["route_id"], {})
+					if type == "Expresso" and stats.get("dist", 999) > c.get("max_dist", 999):
+						status = "[PARADO: ROTA LONGA]"
+					elif type == "VIP" and GameManager.active_contracts.size() > 1:
+						status = "[PARADO: FIM EXCLUSIVIDADE]"
+					elif type == "VIP" and stats.get("gangs", 0) > 0:
+						status = "[PARADO: GANGUES NA LINHA]"
+					elif type == "Ecologico" and stats.get("forests", 0) > 0:
+						status = "[PARADO: CRIME AMBIENTAL]"
+					else:
+						status = "[PARADO: ILEGAL]"
 			
 			c_label.text = str(index + 1) + ". " + c["cargo"] + "\n" + c["route_name"] + " " + status + "\nFaltam: " + str(c["days_left"]) + "d"
 			c_label.custom_minimum_size = Vector2(230, 0)
-			
-			if not is_active:
-				c_label.add_theme_color_override("font_color", Color.INDIAN_RED)
-			else:
-				c_label.add_theme_color_override("font_color", Color.DARK_SLATE_GRAY)
 				
 			hbox.add_child(c_label)
 			
@@ -292,16 +342,21 @@ func _update_report_text() -> void:
 	text += "Saldo em Caixa: $" + str(GameManager.money) + "\n\n"
 	
 	var has_broken_route = false
+	var has_invalid_route = false
 	var has_operating_contract = false 
 	
 	for c in GameManager.active_contracts:
 		if not (c["route_id"] in GameManager.network_connections):
 			has_broken_route = true
+		elif not GameManager.is_contract_operating(c):
+			has_invalid_route = true
 		else:
 			has_operating_contract = true
 			
 	if has_broken_route:
 		text += "[!] Trecho vital destruido. Trens parados.\n\n"
+	if has_invalid_route:
+		text += "[!] Trem retido na estacao. Padroes de qualidade nao atingidos.\n\n"
 	
 	text += "Receita Diaria: +$" + str(current_income) + "\n"
 	text += "Manutencao da Rota: -$" + str(GameManager.daily_maintenance) + "\n"
