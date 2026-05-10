@@ -6,7 +6,41 @@ signal maintenance_updated(new_maintenance)
 signal contracts_updated() 
 signal game_over(is_victory: bool, message: String)
 
-var money: int = 1000 :
+var current_level: int = 1
+
+# O NOSSO NOVO SISTEMA DE FASES (BASE DE DADOS)
+var level_database = {
+	1: {
+		"name": "O Vale do Rio (Tutorial)",
+		"budget": 1500,
+		"goal": 4000,
+		"map_layout": [
+			# 36 colunas, 20 linhas (Este é o mapa V18 escrito em texto!)
+			"...............FFFFF................",
+			"...............FFFFF................",
+			"...............FFFFF................",
+			"...............FFFFF..........C.....",
+			"........RR.....MMMM.................",
+			"........RR.....MMMM.................",
+			"........RR.....MMMM.................",
+			"........RR.....MMMM.................",
+			"........RR.....MMMM.................",
+			"........RR.....MMMM.................",
+			"..A.....RR.....MMMM....B............",
+			"........RR.....MMMM.................",
+			"........RR.....MMMM.................",
+			"........RR.....MMMM.................",
+			"........RR.....MMMM.................",
+			"........RR.....MMMM.................",
+			".......FFFF....MMMM.................",
+			".......FFFF....MMMM.................",
+			".......FFFF....MMMM.................",
+			".......FFFF....MMMM................."
+		]
+	}
+}
+
+var money: int = 1500 :
 	set(value):
 		money = value
 		money_changed.emit(money)
@@ -22,32 +56,30 @@ var daily_maintenance: int = 0 :
 		maintenance_updated.emit(daily_maintenance)
 
 var active_contracts: Array = []
-var has_active_route: bool = false
 const MAX_CONTRACTS: int = 3 
-
-# NOVO: Custo fixo diario para evitar que o jogador pule dias infinitamente
 const BASE_COST: int = 25 
 
+var network_connections: Array = []
+
 func get_daily_income() -> int:
-	if not has_active_route:
-		return 0 
-		
 	var total = 0
 	for c in active_contracts:
-		total += c["reward"]
+		if c["route_id"] in network_connections:
+			total += c["reward"]
 	return total
 
 func reset_game() -> void:
-	money = 1000
+	var lvl_data = level_database[current_level]
+	money = lvl_data["budget"] # Agora le o orcamento da fase atual!
 	current_day = 1
 	daily_maintenance = 0
 	active_contracts.clear()
-	has_active_route = false
+	network_connections.clear()
 
 func end_day() -> void:
 	money += get_daily_income()
 	money -= daily_maintenance
-	money -= BASE_COST # Desconta as taxas administrativas fixas
+	money -= BASE_COST 
 	
 	var contracts_to_keep = []
 	for c in active_contracts:
@@ -60,9 +92,11 @@ func end_day() -> void:
 	
 	current_day += 1
 	
+	var lvl_data = level_database[current_level]
+	
 	if money < 0:
 		trigger_bankruptcy()
-	elif money >= 3000:
+	elif money >= lvl_data["goal"]: # Agora le a meta da fase atual!
 		trigger_victory()
 
 func cancel_contract(index: int) -> void:
@@ -76,9 +110,9 @@ func cancel_contract(index: int) -> void:
 		contracts_updated.emit()
 
 func trigger_bankruptcy() -> void:
-	var msg = "FALENCIA!\n\nSeu saldo ficou negativo. Os investidores retiraram o apoio e sua empresa ferroviaria foi fechada."
+	var msg = "FALENCIA!\n\nO seu saldo ficou negativo. Os investidores retiraram o apoio e a sua empresa ferroviaria fechou."
 	game_over.emit(false, msg)
 
 func trigger_victory() -> void:
-	var msg = "VITORIA!\n\nVoce atingiu a meta de $3000 em caixa! Sua operacao logistica e um sucesso absoluto na regiao."
+	var msg = "VITORIA!\n\nAtingiu a meta da regiao! A sua expansao para a proxima area foi autorizada."
 	game_over.emit(true, msg)
