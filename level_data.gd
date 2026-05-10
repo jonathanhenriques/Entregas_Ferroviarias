@@ -27,6 +27,10 @@ const LEVELS = {
 			".......FFFF....MMMM.................",
 			".......FFFF....MMMM.................",
 			".......FFFF....MMMM................."
+		],
+		"companies": [
+			{"name": "Serraria do Vale", "type": "Ganha-Pao", "base_reward": 100, "phone": "555-0101", "cargo": "Madeira", "route_id": "Azul-Vermelha", "route_name": "Azul <-> Vermelha"},
+			{"name": "Mina de Carvao Sul", "type": "Ganha-Pao", "base_reward": 120, "phone": "555-0202", "cargo": "Carvao Bruto", "route_id": "Azul-Verde", "route_name": "Azul <-> Verde"}
 		]
 	},
 	2: {
@@ -76,6 +80,11 @@ const LEVELS = {
 			"........GGGGGGGGGGGGGGGGGG..........",
 			"....................................",
 			"...................................."
+		],
+		"companies": [
+			{"name": "Fazenda Trigo Dourado", "type": "Ganha-Pao", "base_reward": 130, "phone": "555-0303", "cargo": "Trigo", "route_id": "Azul-Vermelha", "route_name": "Azul <-> Vermelha"},
+			{"name": "Banco Central", "type": "Expresso", "base_reward": 200, "phone": "555-0404", "cargo": "Cofres de Ouro", "route_id": "Vermelha-Verde", "route_name": "Vermelha <-> Verde"},
+			{"name": "Sindicato Oculto", "type": "VIP", "base_reward": 400, "phone": "555-0999", "cargo": "Carga Suspeita", "route_id": "Azul-Verde", "route_name": "Azul <-> Verde"}
 		]
 	}
 }

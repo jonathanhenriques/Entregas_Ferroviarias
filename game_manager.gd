@@ -25,13 +25,19 @@ var daily_maintenance: int = 0 :
 		daily_maintenance = value
 		maintenance_updated.emit(daily_maintenance)
 
-# NOVO: O valor diario extorquido pela mafia
 var daily_gang_toll: int = 0
 
 var active_contracts: Array = []
 const MAX_CONTRACTS: int = 3 
 const BASE_COST: int = 25 
 var network_connections: Array = []
+
+# =======================================
+# NOVO: SISTEMAS DE SANCÕES E EVENTOS
+# =======================================
+var company_cooldowns: Dictionary = {} # Guarda quem está chateado consigo e por quantos dias
+var pendent_angry_call: bool = false # Gatilho para a cutscene de fúria
+var daily_generic_companies: Array = [] # Corretores independentes gerados por dia
 
 func get_daily_income() -> int:
 	var total = 0
@@ -48,12 +54,15 @@ func reset_game() -> void:
 	daily_gang_toll = 0
 	active_contracts.clear()
 	network_connections.clear()
+	company_cooldowns.clear()
+	pendent_angry_call = false
+	_generate_daily_generics()
 
 func end_day() -> void:
 	money += get_daily_income()
 	money -= daily_maintenance
 	money -= BASE_COST 
-	money -= daily_gang_toll # A mafia recolhe o dinheiro aqui!
+	money -= daily_gang_toll 
 	
 	var contracts_to_keep = []
 	for c in active_contracts:
@@ -62,15 +71,51 @@ func end_day() -> void:
 			contracts_to_keep.append(c)
 			
 	active_contracts = contracts_to_keep
+	
+	# Reduz o tempo de castigo das empresas
+	var new_cooldowns = {}
+	for company in company_cooldowns.keys():
+		if company_cooldowns[company] > 1:
+			new_cooldowns[company] = company_cooldowns[company] - 1
+	company_cooldowns = new_cooldowns
+	
+	_generate_daily_generics() # Novos corretores para o novo dia!
+	
 	contracts_updated.emit()
-	
 	current_day += 1
-	var lvl_data = LevelData.LEVELS[current_level]
 	
+	var lvl_data = LevelData.LEVELS[current_level]
 	if money < 0:
 		trigger_bankruptcy()
 	elif money >= lvl_data["goal"]: 
 		trigger_victory()
+
+# Gera uma empresa genérica para tapar buracos
+func _generate_daily_generics() -> void:
+	daily_generic_companies.clear()
+	var gen_names = ["Comerciante Local", "Fazendeiro Independente", "Investidor Forasteiro", "Cooperativa Agricola"]
+	var gen_types = ["Ganha-Pao", "Expresso"]
+	var cargos = ["Suprimentos", "Materiais", "Maquinario", "Gado"]
+	
+	# O corretor sorteia a rota que ele quer
+	var possible_routes = [
+		{"id": "Azul-Vermelha", "name": "Azul <-> Vermelha"},
+		{"id": "Azul-Verde", "name": "Azul <-> Verde"},
+		{"id": "Vermelha-Verde", "name": "Vermelha <-> Verde"}
+	]
+	var r = possible_routes[randi() % possible_routes.size()]
+	
+	daily_generic_companies.append({
+		"name": gen_names[randi() % gen_names.size()] + " (Diario)",
+		"type": gen_types[randi() % gen_types.size()],
+		"base_reward": randi_range(80, 160),
+		"phone": "555-" + str(randi_range(100, 999)),
+		"cargo": cargos[randi() % cargos.size()],
+		"route_id": r["id"],
+		"route_name": r["name"]
+	})
+
+
 
 func cancel_contract(index: int) -> void:
 	if index >= 0 and index < active_contracts.size():

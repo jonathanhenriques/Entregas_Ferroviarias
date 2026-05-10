@@ -159,6 +159,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			var cell = _get_cell_under_mouse(event.position)
 			var deleted_something = false
 			
+			# CORREÇÃO: Declarar a variável no escopo principal do clique direito!
+			var old_connections = GameManager.network_connections.duplicate()
+			
 			if tentative_path.has(cell):
 				tentative_path.clear()
 				deleted_something = true
@@ -174,13 +177,25 @@ func _unhandled_input(event: InputEvent) -> void:
 						
 						GameManager.daily_maintenance -= maint_refund
 						GameManager.money += build_refund 
-						
 						confirmed_routes.remove_at(i)
 						deleted_something = true
 						break 
 			
 			if deleted_something:
 				_update_network_status() 
+				
+				# A ARMADILHA (Agora o old_connections existe aqui!)
+				var lost_contracts = []
+				for i in range(GameManager.active_contracts.size()):
+					var c = GameManager.active_contracts[i]
+					if c["route_id"] in old_connections and not (c["route_id"] in GameManager.network_connections):
+						lost_contracts.append(i)
+				
+				if lost_contracts.size() > 0:
+					GameManager.pendent_angry_call = true # Arma a cutscene furiosa!
+					for i in range(lost_contracts.size() - 1, -1, -1):
+						GameManager.cancel_contract(lost_contracts[i])
+				
 				queue_redraw()
 
 	elif event is InputEventMouseMotion and is_dragging:
@@ -199,6 +214,9 @@ func _unhandled_input(event: InputEvent) -> void:
 					else:
 						tentative_path.append(p)
 				queue_redraw()
+
+
+
 
 func _get_orthogonal_path(start: Vector2i, end: Vector2i) -> Array[Vector2i]:
 	var path: Array[Vector2i] = []
