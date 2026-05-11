@@ -11,23 +11,15 @@ var diretrizes_bar: ProgressBar
 
 var companies_vbox: VBoxContainer
 
-# ================================
-# NOVO: A PASTA DIEGETICA CENTRAL
-# ================================
 var folder_rect: ColorRect
 var folder_title: Label
 var folder_route: Label
-
-# Documento Padrão
 var doc_standard: ColorRect
 var std_label: Label
 var btn_call_std: Button
-
-# Documento Urgente
 var doc_urgent: ColorRect
 var urg_label: Label
 var btn_call_urg: Button
-
 var btn_close_folder: Button
 
 var report_label: Label
@@ -36,11 +28,19 @@ var contracts_vbox: VBoxContainer
 
 var bg_rect: ColorRect
 var btn_back_map: Button
+var btn_organize: Button # NOVO: O Botao de arrumar a mesa
 
 var phone_cutscene: CutsceneDialog
 
 var selected_company_data: Dictionary 
-var is_negotiating_urgency: bool = false # Sabe o que voce clicou
+var is_negotiating_urgency: bool = false 
+
+# =======================================
+# VARIAVEIS DA MESA TÁCTIL (ARRASTAR)
+# =======================================
+var dragged_panel: Control = null
+var drag_offset: Vector2 = Vector2.ZERO
+var original_transforms: Dictionary = {}
 
 func _ready() -> void:
 	_setup_ui()
@@ -73,7 +73,15 @@ func _setup_ui() -> void:
 	btn_back_map.size = Vector2(180, 40)
 	btn_back_map.pressed.connect(_on_back_map_pressed)
 	ui_layer.add_child(btn_back_map)
+	
+	btn_organize = Button.new()
+	btn_organize.text = "Arrumar a Mesa"
+	btn_organize.position = Vector2(20, 70)
+	btn_organize.size = Vector2(180, 40)
+	btn_organize.pressed.connect(_on_organize_pressed)
+	ui_layer.add_child(btn_organize)
 
+	# DIRETRIZES (HUD FIXO, NAO ARRASTAVEL)
 	diretrizes_rect = ColorRect.new()
 	diretrizes_rect.color = Color(0.6, 0.15, 0.15) 
 	diretrizes_rect.size = Vector2(870, 50)
@@ -105,16 +113,18 @@ func _setup_ui() -> void:
 	diretrizes_bar.add_theme_stylebox_override("fill", fg_bar)
 	diretrizes_rect.add_child(diretrizes_bar)
 
-	# AGENDA TELEFONICA
+	# AGENDA TELEFONICA (ARRASTAVEL)
 	agenda_rect = ColorRect.new()
 	agenda_rect.color = Color(0.85, 0.8, 0.6) 
 	agenda_rect.size = Vector2(300, 400)
-	agenda_rect.position = Vector2(40, 100)
+	agenda_rect.position = Vector2(40, 130)
 	ui_layer.add_child(agenda_rect)
+	_make_draggable(agenda_rect)
 	
 	var lombada = ColorRect.new()
 	lombada.color = Color(0.1, 0.1, 0.1) 
 	lombada.size = Vector2(30, 400)
+	lombada.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	agenda_rect.add_child(lombada)
 	
 	var agenda_title = Label.new()
@@ -126,19 +136,22 @@ func _setup_ui() -> void:
 	companies_vbox = VBoxContainer.new()
 	companies_vbox.position = Vector2(40, 60)
 	companies_vbox.size = Vector2(240, 320)
+	companies_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	agenda_rect.add_child(companies_vbox)
 
-	# PRANCHETA DE RELATORIOS (Atrás da pasta)
+	# PRANCHETA DE RELATORIOS (ARRASTAVEL)
 	clipboard_rect = ColorRect.new()
 	clipboard_rect.color = Color(0.95, 0.95, 0.9) 
 	clipboard_rect.size = Vector2(350, 400)
-	clipboard_rect.position = Vector2(410, 100)
+	clipboard_rect.position = Vector2(410, 130)
 	ui_layer.add_child(clipboard_rect)
+	_make_draggable(clipboard_rect)
 	
 	var clipe_metal = ColorRect.new()
 	clipe_metal.color = Color(0.5, 0.5, 0.55) 
 	clipe_metal.size = Vector2(150, 20)
 	clipe_metal.position = Vector2(100, 0)
+	clipe_metal.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	clipboard_rect.add_child(clipe_metal)
 
 	report_label = Label.new()
@@ -155,21 +168,40 @@ func _setup_ui() -> void:
 	btn_next_day.pressed.connect(_on_next_day_pressed)
 	clipboard_rect.add_child(btn_next_day)
 
-	# =======================================
-	# A PASTA DIEGETICA (Oculta por padrao)
-	# =======================================
+	# FROTA ATIVA (ARRASTAVEL)
+	active_paper_rect = ColorRect.new()
+	active_paper_rect.color = Color(0.85, 0.9, 0.95) 
+	active_paper_rect.size = Vector2(330, 400)
+	active_paper_rect.position = Vector2(790, 130)
+	ui_layer.add_child(active_paper_rect)
+	_make_draggable(active_paper_rect)
+
+	var active_title = Label.new()
+	active_title.text = "FROTA: 3 LOCOMOTIVAS A CARVAO" 
+	active_title.add_theme_color_override("font_color", Color.BLACK)
+	active_title.position = Vector2(20, 20)
+	active_paper_rect.add_child(active_title)
+
+	contracts_vbox = VBoxContainer.new()
+	contracts_vbox.position = Vector2(20, 50)
+	contracts_vbox.size = Vector2(290, 330)
+	contracts_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	active_paper_rect.add_child(contracts_vbox)
+
+	# A PASTA DIEGETICA (ARRASTAVEL E OCULTA)
 	folder_rect = ColorRect.new()
-	folder_rect.color = Color(0.8, 0.65, 0.4) # Cor da Pasta Parda
+	folder_rect.color = Color(0.8, 0.65, 0.4) 
 	folder_rect.size = Vector2(440, 480)
-	folder_rect.position = Vector2(360, 65) # Cobre a prancheta
+	folder_rect.position = Vector2(360, 95) 
 	folder_rect.visible = false
 	ui_layer.add_child(folder_rect)
+	_make_draggable(folder_rect)
 	
-	# Aba da Pasta (visual)
 	var folder_tab = ColorRect.new()
 	folder_tab.color = Color(0.8, 0.65, 0.4)
 	folder_tab.size = Vector2(150, 30)
 	folder_tab.position = Vector2(20, -20)
+	folder_tab.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	folder_rect.add_child(folder_tab)
 	
 	folder_title = Label.new()
@@ -190,11 +222,12 @@ func _setup_ui() -> void:
 	btn_close_folder.pressed.connect(_on_close_folder_pressed)
 	folder_rect.add_child(btn_close_folder)
 
-	# 1. Documento Padrao (Esquerda)
+	# Documento Padrao
 	doc_standard = ColorRect.new()
 	doc_standard.color = Color(0.95, 0.95, 0.95)
 	doc_standard.size = Vector2(190, 380)
 	doc_standard.position = Vector2(20, 80)
+	doc_standard.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	folder_rect.add_child(doc_standard)
 	
 	std_label = Label.new()
@@ -211,11 +244,12 @@ func _setup_ui() -> void:
 	btn_call_std.pressed.connect(_on_call_standard_pressed)
 	doc_standard.add_child(btn_call_std)
 
-	# 2. Documento Urgente (Direita) - Vermelhado
+	# Documento Urgente
 	doc_urgent = ColorRect.new()
 	doc_urgent.color = Color(0.95, 0.85, 0.85)
 	doc_urgent.size = Vector2(190, 380)
 	doc_urgent.position = Vector2(230, 80)
+	doc_urgent.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	folder_rect.add_child(doc_urgent)
 	
 	urg_label = Label.new()
@@ -232,24 +266,54 @@ func _setup_ui() -> void:
 	btn_call_urg.pressed.connect(_on_call_urgent_pressed)
 	doc_urgent.add_child(btn_call_urg)
 
-	# FROTA ATIVA (Direita)
-	active_paper_rect = ColorRect.new()
-	active_paper_rect.color = Color(0.85, 0.9, 0.95) 
-	active_paper_rect.size = Vector2(330, 400)
-	active_paper_rect.position = Vector2(790, 100)
-	ui_layer.add_child(active_paper_rect)
+# =======================================
+# LÓGICA DE ARRASTAR PAPÉIS (FÍSICA)
+# =======================================
+func _make_draggable(panel: Control) -> void:
+	panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	panel.gui_input.connect(_on_panel_gui_input.bind(panel))
+	# Guarda posicao para o botao "Arrumar"
+	original_transforms[panel] = panel.position
 
-	var active_title = Label.new()
-	active_title.text = "FROTA: 3 LOCOMOTIVAS A CARVAO" 
-	active_title.add_theme_color_override("font_color", Color.BLACK)
-	active_title.position = Vector2(20, 20)
-	active_paper_rect.add_child(active_title)
+func _on_panel_gui_input(event: InputEvent, panel: Control) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if event.is_pressed():
+			dragged_panel = panel
+			panel.rotation_degrees = 0 # Endireita o papel na mao
+			drag_offset = panel.get_global_mouse_position() - panel.global_position
+			panel.get_parent().move_child(panel, -1) # Traz para o topo da pilha
+		else:
+			if dragged_panel == panel:
+				dragged_panel = null
+				panel.rotation_degrees = randf_range(-4.0, 4.0) # Joga na mesa de qualquer jeito
+				_clamp_to_screen(panel)
+				
+	elif event is InputEventMouseMotion and dragged_panel == panel:
+		panel.global_position = panel.get_global_mouse_position() - drag_offset
+		_clamp_to_screen(panel)
 
-	contracts_vbox = VBoxContainer.new()
-	contracts_vbox.position = Vector2(20, 50)
-	contracts_vbox.size = Vector2(290, 330)
-	active_paper_rect.add_child(contracts_vbox)
+func _clamp_to_screen(panel: Control) -> void:
+	var screen_size = get_viewport_rect().size
+	var p_pos = panel.global_position
+	var p_size = panel.size
+	# Impede que fuja das bordas
+	p_pos.x = clamp(p_pos.x, 0, screen_size.x - p_size.x)
+	p_pos.y = clamp(p_pos.y, 0, screen_size.y - p_size.y)
+	panel.global_position = p_pos
 
+func _on_organize_pressed() -> void:
+	# Animação suave para arrumar a mesa
+	var tween = create_tween().set_parallel(true)
+	for panel in original_transforms.keys():
+		tween.tween_property(panel, "position", original_transforms[panel], 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tween.tween_property(panel, "rotation_degrees", 0.0, 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	
+	if folder_rect.visible:
+		folder_rect.get_parent().move_child(folder_rect, -1)
+
+# =======================================
+# SISTEMAS BASE DA MESA
+# =======================================
 func _setup_cutscene() -> void:
 	phone_cutscene = CutsceneDialog.new()
 	add_child(phone_cutscene)
@@ -303,7 +367,6 @@ func _load_agenda_contacts() -> void:
 				btn.disabled = true
 				btn.add_theme_color_override("font_color", Color.DIM_GRAY)
 			else:
-				# Se tem urgencia, mostra uma exclamacao no nome!
 				if GameManager.daily_urgencies.has(c_name):
 					btn.text = c_name + " [!]"
 					btn.add_theme_color_override("font_color", Color.DARK_RED)
@@ -321,13 +384,11 @@ func _on_company_selected(company_data: Dictionary) -> void:
 	folder_title.text = "CLIENTE: " + company_data["name"]
 	folder_route.text = "Exige Rota: " + company_data["route_name"] + " | Arquétipo: [" + company_data["type"] + "]"
 	
-	# Prepara Documento Padrao
 	std_label.text = "CONTRATO PADRAO\n\n"
 	std_label.text += "Carga: " + company_data["cargo"] + "\n\n"
 	std_label.text += "Duracao Media: 5 a 10 dias\n"
 	std_label.text += "Pagamento Diario: ~$" + str(company_data["base_reward"]) + "\n"
 	
-	# Prepara Documento Urgente (Se houver)
 	if GameManager.daily_urgencies.has(company_data["name"]):
 		doc_urgent.visible = true
 		urg_label.text = "[!] URGENDA PARA HOJE\n\n"
@@ -338,6 +399,10 @@ func _on_company_selected(company_data: Dictionary) -> void:
 		doc_urgent.visible = false
 
 	folder_rect.visible = true
+	# Ao abrir a pasta, traz logo para a frente da mesa e endireita!
+	folder_rect.get_parent().move_child(folder_rect, -1)
+	folder_rect.rotation_degrees = 0
+	_clamp_to_screen(folder_rect)
 
 func _on_close_folder_pressed() -> void:
 	folder_rect.visible = false
@@ -351,7 +416,6 @@ func _on_call_urgent_pressed() -> void:
 	is_negotiating_urgency = true
 	_process_call()
 
-# Lógica unificada de validação e disparo da cutscene
 func _process_call() -> void:
 	if GameManager.active_contracts.size() >= GameManager.MAX_CONTRACTS:
 		phone_cutscene.start_rejection_call(selected_company_data["name"], "A sua frota esta lotada! Nao faca a gente perder tempo.")
@@ -402,7 +466,6 @@ func _process_call() -> void:
 
 func _on_cutscene_accepted(final_reward: int) -> void:
 	if is_negotiating_urgency:
-		# LÓGICA DE URGÊNCIA: Paga na hora, mas bloqueia o trem por 1 dia
 		GameManager.money += final_reward
 		var new_contract = {
 			"company_name": selected_company_data["name"], 
@@ -410,14 +473,13 @@ func _on_cutscene_accepted(final_reward: int) -> void:
 			"cargo": "[URGENTE] " + selected_company_data["cargo"], 
 			"route_id": selected_company_data["route_id"], 
 			"route_name": selected_company_data["route_name"],
-			"reward": 0, # Ja recebeu a vista!
+			"reward": 0, 
 			"days_left": 1,
 			"is_urgent": true
 		}
 		GameManager.active_contracts.append(new_contract)
-		GameManager.daily_urgencies.erase(selected_company_data["name"]) # Consumiu a urgencia
+		GameManager.daily_urgencies.erase(selected_company_data["name"]) 
 	else:
-		# LÓGICA PADRÃO
 		var new_contract = {
 			"company_name": selected_company_data["name"], 
 			"type": selected_company_data["type"], 
@@ -494,7 +556,6 @@ func _update_active_contracts_text() -> void:
 				
 			hbox.add_child(c_label)
 			
-			# Contratos urgentes nao tem multa de cancelamento, mas libertam o trem
 			var btn_cancel = Button.new()
 			btn_cancel.text = "❌"
 			btn_cancel.pressed.connect(_on_cancel_dynamic.bind(index))
@@ -575,7 +636,10 @@ func _on_visibility_changed() -> void:
 		_load_agenda_contacts()
 		_update_report_text()
 		_update_diretrizes()
-		folder_rect.visible = false # Esconde a pasta ao abrir a mesa
+		folder_rect.visible = false 
+		
+		# Força uma arrumação da mesa sempre que volta do mapa para não estar o caos!
+		_on_organize_pressed()
 		
 		if GameManager.pendent_angry_call:
 			GameManager.pendent_angry_call = false
