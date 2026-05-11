@@ -21,6 +21,7 @@ var full_text: String = ""
 var char_index: int = 0
 var offered_reward: int = 0
 var is_typing: bool = false
+var fast_forward: bool = false # NOVO: Pular animacao de texto
 
 func _ready() -> void:
 	layer = 200 
@@ -34,7 +35,6 @@ func _setup_visuals() -> void:
 	overlay.mouse_filter = Control.MOUSE_FILTER_STOP 
 	add_child(overlay)
 
-	# Silhueta adaptada para 1920x1080
 	silhouette_body = ColorRect.new()
 	silhouette_body.color = Color(0, 0, 0, 1)
 	silhouette_body.size = Vector2(600, 750)
@@ -47,7 +47,6 @@ func _setup_visuals() -> void:
 	silhouette_head.position = Vector2(310, 150)
 	add_child(silhouette_head)
 
-	# Caixa de dialogo gigante
 	dialog_box = ColorRect.new()
 	dialog_box.color = Color(0.05, 0.05, 0.15, 0.9) 
 	dialog_box.size = Vector2(1400, 300)
@@ -88,12 +87,21 @@ func _setup_visuals() -> void:
 	dialog_box.add_child(btn_reject)
 	
 	btn_close = Button.new()
-	btn_close.text = "DESLIGAR (E assumir a culpa)"
+	btn_close.text = "DESLIGAR"
 	btn_close.size = Vector2(300, 50)
 	btn_close.position = Vector2(1050, 230)
 	btn_close.add_theme_color_override("font_color", Color.INDIAN_RED)
 	btn_close.pressed.connect(_on_close)
 	dialog_box.add_child(btn_close)
+
+# NOVO: Escuta o clique esquerdo para acelerar o texto
+func _input(event: InputEvent) -> void:
+	if visible:
+		if event is InputEventMouseButton:
+			if event.button_index == MOUSE_BUTTON_LEFT:
+				if event.is_pressed():
+					if is_typing:
+						fast_forward = true
 
 func start_call(company_name: String, company_type: String, company_cargo: String, base_reward: int, is_urgent: bool = false) -> void:
 	_reset_ui()
@@ -142,9 +150,23 @@ func start_angry_call() -> void:
 	
 	_type_next_char(false)
 
+# NOVO: Introducao do Bear
+func start_boss_intro() -> void:
+	_reset_ui()
+	name_label.text = "[ TRANSMISSAO: BEAR (DIRETORIA) ]"
+	name_label.add_theme_color_override("font_color", Color.LIGHT_GRAY)
+	
+	full_text = "Seu avo avisou que voce viria. Temos locomotivas enferrujadas e clientes isolados.\n\n"
+	full_text += "Preste atencao: neste mercado cruel, ninguem assina contrato sem ver trabalho feito.\n"
+	full_text += "Va ao mapa, construa a linha conectando as cidades e so depois ligue para os clientes.\n\n"
+	full_text += "O problema agora e seu."
+	
+	_type_next_char(false)
+
 func _reset_ui() -> void:
 	visible = true
 	is_typing = true
+	fast_forward = false
 	char_index = 0
 	text_label.text = ""
 	btn_accept.visible = false
@@ -153,6 +175,13 @@ func _reset_ui() -> void:
 	name_label.add_theme_color_override("font_color", Color.YELLOW)
 
 func _type_next_char(is_negotiation: bool) -> void:
+	if fast_forward:
+		text_label.text = full_text
+		char_index = full_text.length()
+		is_typing = false
+		_show_buttons(is_negotiation)
+		return
+
 	if char_index < full_text.length():
 		text_label.text += full_text[char_index]
 		char_index += 1
@@ -160,11 +189,14 @@ func _type_next_char(is_negotiation: bool) -> void:
 		_type_next_char(is_negotiation)
 	else:
 		is_typing = false
-		if is_negotiation:
-			btn_accept.visible = true
-			btn_reject.visible = true
-		else:
-			btn_close.visible = true
+		_show_buttons(is_negotiation)
+
+func _show_buttons(is_negotiation: bool) -> void:
+	if is_negotiation:
+		btn_accept.visible = true
+		btn_reject.visible = true
+	else:
+		btn_close.visible = true
 
 func _on_accept() -> void:
 	visible = false
