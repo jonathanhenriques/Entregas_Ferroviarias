@@ -94,18 +94,28 @@ func _setup_visuals() -> void:
 	dialog_box.add_child(btn_close)
 
 
-func start_call(company_name: String, company_type: String, company_cargo: String, base_reward: int) -> void:
+func start_call(company_name: String, company_type: String, company_cargo: String, base_reward: int, is_urgent: bool = false) -> void:
 	_reset_ui()
 	var dice = randi_range(1, 6)
 	var mult = 1.0 + (dice * 0.1)
 	offered_reward = int(base_reward * mult)
 	
 	name_label.text = "[ TRANSMISSAO: " + company_name.to_upper() + " ]"
-	full_text = "Alo? Sou o representante da " + company_name + ".\n"
-	full_text += "Temos um frete de " + company_cargo + " [" + company_type + "] parado aqui.\n"
-	full_text += "Pagamos $" + str(offered_reward) + " por dia. Aceita os nossos termos?"
+	
+	if is_urgent:
+		# Texto para Entregas Pontuais
+		name_label.add_theme_color_override("font_color", Color.ORANGE)
+		full_text = "Alo? Pelo amor de Deus, sou da " + company_name + "!\n"
+		full_text += "Temos um frete URGENTE de " + company_cargo + " [" + company_type + "] que precisa sair HOJE!\n"
+		full_text += "Pagamos $" + str(offered_reward) + " A VISTA na sua conta agora! Tem um trem livre?"
+	else:
+		# Texto Normal
+		full_text = "Alo? Sou o representante da " + company_name + ".\n"
+		full_text += "Temos um frete padrao de " + company_cargo + " [" + company_type + "] parado aqui.\n"
+		full_text += "Pagamos $" + str(offered_reward) + " por dia. Aceita os nossos termos?"
 
 	_type_next_char(true)
+
 
 # NOVO: Recebe o motivo personalizado do erro
 func start_rejection_call(company_name: String, custom_reason: String = "") -> void:

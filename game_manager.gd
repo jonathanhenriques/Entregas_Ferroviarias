@@ -31,15 +31,15 @@ var active_contracts: Array = []
 const MAX_CONTRACTS: int = 3 
 const BASE_COST: int = 25 
 var network_connections: Array = []
-var network_stats: Dictionary = {} # NOVO: Guarda a Distancia, Gangues e Florestas de cada rota
+var network_stats: Dictionary = {} 
 
 var company_cooldowns: Dictionary = {} 
 var pendent_angry_call: bool = false 
 var daily_generic_companies: Array = [] 
 
-# =======================================
-# AUDITORIA DE CONTRATOS (A INTELIGENCIA)
-# =======================================
+# NOVO: Guarda as urgencias do dia atual
+var daily_urgencies: Dictionary = {}
+
 func is_contract_operating(c: Dictionary) -> bool:
 	var route_id = c["route_id"]
 	if not (route_id in network_connections):
@@ -57,7 +57,7 @@ func is_contract_operating(c: Dictionary) -> bool:
 		
 	if type == "VIP":
 		if stats["gangs"] > 0: return false
-		if active_contracts.size() > 1: return false # VIP exige que seja o UNICO contrato na mesa!
+		if active_contracts.size() > 1: return false 
 		
 	if type == "Ecologico":
 		if stats["forests"] > 0: return false
@@ -67,7 +67,8 @@ func is_contract_operating(c: Dictionary) -> bool:
 func get_daily_income() -> int:
 	var total = 0
 	for c in active_contracts:
-		if is_contract_operating(c):
+		# Contratos urgentes pagaram a vista, nao geram renda diaria
+		if is_contract_operating(c) and not c.get("is_urgent", false):
 			total += c["reward"]
 	return total
 
@@ -81,6 +82,7 @@ func reset_game() -> void:
 	network_connections.clear()
 	network_stats.clear()
 	company_cooldowns.clear()
+	daily_urgencies.clear()
 	pendent_angry_call = false
 	_generate_daily_generics()
 
@@ -140,15 +142,33 @@ func _generate_daily_generics() -> void:
 	}
 	
 	if c_type == "Expresso":
-		company["max_dist"] = 35 # Generico ganha um limite alto para nao prender o jogador
+		company["max_dist"] = 35 
 		
 	daily_generic_companies.append(company)
+	
+	# NOVO: Sorteia Urgencias (Entregas Pontuais) para o dia
+	_roll_daily_urgencies()
+
+func _roll_daily_urgencies() -> void:
+	daily_urgencies.clear()
+	var companies = LevelData.LEVELS[current_level]["companies"].duplicate(true)
+	companies.append_array(daily_generic_companies)
+
+	for c in companies:
+		if randf() < 0.35: # 35% de chance da empresa ter uma urgencia hoje
+			# Paga entre 3x a 5x o valor diario, mas tudo a vista!
+			var urg_reward = int(c["base_reward"] * randf_range(3.0, 5.0))
+			daily_urgencies[c["name"]] = urg_reward
 
 func cancel_contract(index: int) -> void:
 	if index >= 0 and index < active_contracts.size():
 		var c = active_contracts[index]
-		var total_projected_value = c["reward"] * c["days_left"]
-		var penalty = int(total_projected_value * 0.20)
+		# Se for urgente, o cancelamento nao cobra os 20% do futuro porque pagou a vista
+		var penalty = 0
+		if not c.get("is_urgent", false):
+			var total_projected_value = c["reward"] * c["days_left"]
+			penalty = int(total_projected_value * 0.20)
+			
 		money -= penalty
 		active_contracts.remove_at(index)
 		contracts_updated.emit()
