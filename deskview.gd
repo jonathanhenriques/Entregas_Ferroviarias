@@ -264,20 +264,27 @@ func _make_draggable(panel: Control) -> void:
 func _on_panel_gui_input(event: InputEvent, panel: Control) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.is_pressed():
-			dragged_panel = panel; panel.rotation_degrees = 0 
+			dragged_panel = panel
+			panel.rotation_degrees = 0 
 			drag_offset = panel.get_global_mouse_position() - panel.global_position
 			panel.get_parent().move_child(panel, -1) 
 		else:
 			if dragged_panel == panel:
-				dragged_panel = null; panel.rotation_degrees = randf_range(-3.0, 3.0) 
+				dragged_panel = null
+				panel.rotation_degrees = randf_range(-3.0, 3.0) 
 				_clamp_to_screen(panel)
-	elif event is InputEventMouseMotion and dragged_panel == panel:
+				
+	if event is InputEventMouseMotion and dragged_panel == panel:
 		panel.global_position = panel.get_global_mouse_position() - drag_offset
 		_clamp_to_screen(panel)
 
 func _clamp_to_screen(panel: Control) -> void:
-	var s = get_viewport_rect().size; var p = panel.global_position; var sz = panel.size
-	p.x = clamp(p.x, 0, s.x - sz.x); p.y = clamp(p.y, 0, s.y - sz.y); panel.global_position = p
+	var s = get_viewport_rect().size
+	var p = panel.global_position
+	var sz = panel.size
+	p.x = clamp(p.x, 0, s.x - sz.x)
+	p.y = clamp(p.y, 0, s.y - sz.y)
+	panel.global_position = p
 
 func _on_organize_pressed() -> void:
 	var tween = create_tween().set_parallel(true)
@@ -286,71 +293,128 @@ func _on_organize_pressed() -> void:
 		tween.tween_property(panel, "rotation_degrees", 0.0, 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 
 func _setup_cutscene() -> void:
-	phone_cutscene = CutsceneDialog.new(); add_child(phone_cutscene)
+	phone_cutscene = CutsceneDialog.new()
+	add_child(phone_cutscene)
 	phone_cutscene.contract_accepted.connect(_on_cutscene_accepted)
 	phone_cutscene.contract_rejected.connect(_on_cutscene_rejected)
 	phone_cutscene.call_closed.connect(_on_cutscene_closed) 
 
 func _update_diretrizes() -> void:
-	var lvl = LevelData.LEVELS[GameManager.current_level]; var m = lvl["goal"]; var a = GameManager.money
+	var lvl = LevelData.LEVELS[GameManager.current_level]
+	var m = lvl["goal"]
+	var a = GameManager.money
+	
 	diretrizes_label.text = "📌 DIRETRIZES DA REGIAO [" + lvl["name"] + "]  |  META: $" + str(m) + "  |  CAIXA: $" + str(a)
+	
 	var fg = diretrizes_bar.get_theme_stylebox("fill") as StyleBoxFlat
-	if a < 0: fg.bg_color = Color(0.8, 0.2, 0.2); diretrizes_bar.max_value = 1; diretrizes_bar.value = 1
-	else: fg.bg_color = Color(0.2, 0.6, 0.2); diretrizes_bar.max_value = m; diretrizes_bar.value = a
+	if a < 0: 
+		fg.bg_color = Color(0.8, 0.2, 0.2)
+		diretrizes_bar.max_value = 1
+		diretrizes_bar.value = 1
+	else: 
+		fg.bg_color = Color(0.2, 0.6, 0.2)
+		diretrizes_bar.max_value = m
+		diretrizes_bar.value = a
 
 func _load_agenda_contacts() -> void:
-	for child in companies_vbox.get_children(): child.queue_free()
+	for child in companies_vbox.get_children(): 
+		child.queue_free()
+		
 	var companies = LevelData.LEVELS[GameManager.current_level]["companies"].duplicate(true)
 	companies.append_array(GameManager.daily_generic_companies)
+	
 	for i in range(companies.size()):
-		var c_data = companies[i]; var c_name = c_data["name"]; var btn = Button.new()
-		# BLOQUEIO REMOVIDO PARA O CORRETOR DIARIO NO DIA 1
+		var c_data = companies[i]
+		var c_name = c_data["name"]
+		var btn = Button.new()
+		
 		var is_daily = "(Diario)" in c_name
 		if GameManager.company_cooldowns.has(c_name) and GameManager.company_cooldowns[c_name] > 0 and not (is_daily and GameManager.current_day == 1):
 			btn.text = c_name + " (" + str(GameManager.company_cooldowns[c_name]) + "d)"
-			btn.disabled = true; btn.add_theme_color_override("font_color", Color.INDIAN_RED)
+			btn.disabled = true
+			btn.add_theme_color_override("font_color", Color.INDIAN_RED)
 		else:
 			var has_active = false
 			for contract in GameManager.active_contracts:
-				if contract.has("company_name") and contract["company_name"] == c_name: has_active = true
-			if has_active: btn.text = c_name + " (EM CURSO)"; btn.disabled = true; btn.add_theme_color_override("font_color", Color.DIM_GRAY)
+				if contract.has("company_name") and contract["company_name"] == c_name: 
+					has_active = true
+					
+			if has_active: 
+				btn.text = c_name + " (EM CURSO)"
+				btn.disabled = true
+				btn.add_theme_color_override("font_color", Color.DIM_GRAY)
 			else:
-				if GameManager.daily_urgencies.has(c_name): btn.text = c_name + " [!]"; btn.add_theme_color_override("font_color", Color.DARK_RED)
-				else: btn.text = c_name
+				if GameManager.daily_urgencies.has(c_name): 
+					btn.text = c_name + " [!]"
+					btn.add_theme_color_override("font_color", Color.DARK_RED)
+				else: 
+					btn.text = c_name
 				btn.pressed.connect(_on_company_selected.bind(c_data))
-		btn.custom_minimum_size = Vector2(200, 30); companies_vbox.add_child(btn)
+				
+		btn.custom_minimum_size = Vector2(200, 30)
+		companies_vbox.add_child(btn)
 
 func _on_company_selected(data: Dictionary) -> void:
 	selected_company_data = data
 	folder_title.text = "CLIENTE: " + data["name"]
 	folder_route.text = "Exige Rota: " + data["route_name"] + " | Arquétipo: [" + data["type"] + "]"
 	std_label.text = "CONTRATO PADRAO\n\nCarga: " + data["cargo"] + "\n\nDuracao: 5-10 dias\nPagamento: ~$" + str(data["base_reward"])
+	
 	if GameManager.daily_urgencies.has(data["name"]):
 		doc_urgent.visible = true
 		urg_label.text = "[!] URGENDA HOJE\n\nPAGAMENTO A VISTA:\n$" + str(GameManager.daily_urgencies[data["name"]]) + "\n\nOcupa trem por 1 dia."
-	else: doc_urgent.visible = false
-	folder_rect.visible = true; folder_rect.get_parent().move_child(folder_rect, -1); folder_rect.rotation_degrees = 0; _clamp_to_screen(folder_rect)
+	else: 
+		doc_urgent.visible = false
+		
+	folder_rect.visible = true
+	folder_rect.get_parent().move_child(folder_rect, -1)
+	folder_rect.rotation_degrees = 0
+	_clamp_to_screen(folder_rect)
 
-func _on_close_folder_pressed() -> void: folder_rect.visible = false; selected_company_data = {}
-func _on_call_standard_pressed() -> void: is_negotiating_urgency = false; _process_call()
-func _on_call_urgent_pressed() -> void: is_negotiating_urgency = true; _process_call()
+func _on_close_folder_pressed() -> void: 
+	folder_rect.visible = false
+	selected_company_data = {}
+
+func _on_call_standard_pressed() -> void: 
+	is_negotiating_urgency = false
+	_process_call()
+
+func _on_call_urgent_pressed() -> void: 
+	is_negotiating_urgency = true
+	_process_call()
 
 func _process_call() -> void:
 	if GameManager.active_contracts.size() >= GameManager.MAX_CONTRACTS:
-		phone_cutscene.start_rejection_call(selected_company_data["name"], "A frota esta lotada!"); folder_rect.visible = false; return
-	var rid = selected_company_data["route_id"]; var ctype = selected_company_data["type"]
-	var has_route = rid in GameManager.network_connections; var is_daily = "(Diario)" in selected_company_data["name"]
-	var is_day_one = (GameManager.current_day == 1 and is_daily); var route_valid = false; var reason = ""
+		phone_cutscene.start_rejection_call(selected_company_data["name"], "A frota esta lotada!")
+		folder_rect.visible = false
+		return
+		
+	var rid = selected_company_data["route_id"]
+	var ctype = selected_company_data["type"]
+	var has_route = rid in GameManager.network_connections
+	var is_daily = "(Diario)" in selected_company_data["name"]
+	var is_day_one = (GameManager.current_day == 1 and is_daily)
+	var route_valid = false
+	var reason = ""
+	
 	if has_route:
 		var stats = GameManager.network_stats.get(rid, {})
-		if ctype == "Expresso" and stats.get("dist", 999) > selected_company_data.get("max_dist", 999): reason = "Rota longa!"
-		elif ctype == "VIP" and (stats.get("gangs", 0) > 0 or GameManager.active_contracts.size() > 0): reason = "VIP exige seguranca/exclusividade!"
-		elif ctype == "Ecologico" and stats.get("forests", 0) > 0: reason = "Crime ambiental!"
-		else: route_valid = true 
+		
+		if ctype == "Expresso" and stats.get("dist", 999) > selected_company_data.get("max_dist", 999): 
+			reason = "Rota longa!"
+		else:
+			if ctype == "VIP" and (stats.get("gangs", 0) > 0 or GameManager.active_contracts.size() > 0): 
+				reason = "VIP exige seguranca/exclusividade!"
+			else:
+				if ctype == "Ecologico" and stats.get("forests", 0) > 0: 
+					reason = "Crime ambiental!"
+				else: 
+					route_valid = true 
+					
 	if (not has_route and not is_day_one) or (has_route and not route_valid):
 		phone_cutscene.start_rejection_call(selected_company_data["name"], reason)
-		# No Dia 1, o Corretor Diario nao bloqueia voce!
-		if not is_day_one: GameManager.company_cooldowns[selected_company_data["name"]] = 1 
+		if not is_day_one: 
+			GameManager.company_cooldowns[selected_company_data["name"]] = 1 
 		folder_rect.visible = false
 	else:
 		var rew = GameManager.daily_urgencies[selected_company_data["name"]] if is_negotiating_urgency else selected_company_data["base_reward"]
@@ -363,57 +427,144 @@ func _on_cutscene_accepted(final_reward: int) -> void:
 		GameManager.daily_urgencies.erase(selected_company_data["name"]) 
 	else:
 		var new_c = {"company_name": selected_company_data["name"], "type": selected_company_data["type"], "cargo": selected_company_data["cargo"], "route_id": selected_company_data["route_id"], "route_name": selected_company_data["route_name"], "reward": final_reward, "days_left": randi_range(5, 10), "is_urgent": false}
-		if selected_company_data.has("max_dist"): new_c["max_dist"] = selected_company_data["max_dist"]
+		if selected_company_data.has("max_dist"): 
+			new_c["max_dist"] = selected_company_data["max_dist"]
 		GameManager.active_contracts.append(new_c)
-	GameManager.contracts_updated.emit(); folder_rect.visible = false; selected_company_data = {}
+		
+	GameManager.contracts_updated.emit()
+	folder_rect.visible = false
+	selected_company_data = {}
 
 func _on_cutscene_rejected() -> void:
-	# No Dia 1, rejeitar o contrato diario nao te bloqueia!
 	var is_daily = "(Diario)" in selected_company_data["name"]
 	if not (is_daily and GameManager.current_day == 1):
 		GameManager.company_cooldowns[selected_company_data["name"]] = 7
-	_load_agenda_contacts(); folder_rect.visible = false
+	_load_agenda_contacts()
+	folder_rect.visible = false
 
-func _on_cutscene_closed() -> void: _load_agenda_contacts(); folder_rect.visible = false
-func _on_cancel_dynamic(idx: int) -> void: GameManager.cancel_contract(idx)
+func _on_cutscene_closed() -> void: 
+	_load_agenda_contacts()
+	folder_rect.visible = false
+	
+func _on_cancel_dynamic(idx: int) -> void: 
+	GameManager.cancel_contract(idx)
 
 func _update_active_contracts_text() -> void:
-	for child in contracts_vbox.get_children(): child.queue_free()
+	for child in contracts_vbox.get_children(): 
+		child.queue_free()
+		
 	if GameManager.active_contracts.size() == 0:
-		var l = Label.new(); l.text = "\nPatio vazio."; l.add_theme_color_override("font_color", Color.DIM_GRAY); contracts_vbox.add_child(l)
+		var l = Label.new()
+		l.text = "\nPatio vazio."
+		l.add_theme_color_override("font_color", Color.DIM_GRAY)
+		contracts_vbox.add_child(l)
 	else:
 		var i = 0
 		for c in GameManager.active_contracts:
-			var hbox = HBoxContainer.new(); var is_act = GameManager.is_contract_operating(c); var st = ""; var cl = Label.new()
-			if is_act: st = "[PAGO]" if c.get("is_urgent", false) else "(+$" + str(c["reward"]) + ")"; cl.add_theme_color_override("font_color", Color.DARK_SLATE_GRAY)
+			var hbox = HBoxContainer.new()
+			var is_act = GameManager.is_contract_operating(c)
+			var st = ""
+			var cl = Label.new()
+			
+			if is_act: 
+				if c.get("is_urgent", false):
+					st = "[PAGO]"
+				else:
+					st = "(+$" + str(c["reward"]) + ")"
+				cl.add_theme_color_override("font_color", Color.DARK_SLATE_GRAY)
 			else:
 				cl.add_theme_color_override("font_color", Color.INDIAN_RED)
-				if not (c["route_id"] in GameManager.network_connections): st = "[SEM ROTA]"
-				else: st = "[ILEGAL]"
-			cl.text = "T" + str(i + 1) + ": " + c["cargo"] + "\n" + c["route_name"] + " " + st + "\n" + str(c["days_left"]) + "d"; cl.custom_minimum_size = Vector2(230, 0)
-			hbox.add_child(cl); var b = Button.new(); b.text = "X"; b.pressed.connect(_on_cancel_dynamic.bind(i)); hbox.add_child(b); contracts_vbox.add_child(hbox); i += 1
+				if not (c["route_id"] in GameManager.network_connections): 
+					st = "[SEM ROTA]"
+				else: 
+					var tp = c.get("type", "")
+					var stats = GameManager.network_stats.get(c["route_id"], {})
+					if tp == "Expresso" and stats.get("dist", 999) > c.get("max_dist", 999):
+						st = "[PARADO: ROTA LONGA]"
+					else:
+						if tp == "VIP" and GameManager.active_contracts.size() > 1:
+							st = "[PARADO: FIM EXCLUSIVIDADE]"
+						else:
+							if tp == "VIP" and stats.get("gangs", 0) > 0:
+								st = "[PARADO: GANGUES NA LINHA]"
+							else:
+								if tp == "Ecologico" and stats.get("forests", 0) > 0:
+									st = "[PARADO: CRIME AMBIENTAL]"
+								else:
+									st = "[PARADO: ILEGAL]"
+									
+			cl.text = "T" + str(i + 1) + ": " + c["cargo"] + "\n" + c["route_name"] + " " + st + "\n" + str(c["days_left"]) + "d"
+			cl.custom_minimum_size = Vector2(230, 0)
+			hbox.add_child(cl)
+			
+			var b = Button.new()
+			b.text = "X"
+			b.pressed.connect(_on_cancel_dynamic.bind(i))
+			hbox.add_child(b)
+			contracts_vbox.add_child(hbox)
+			i += 1
 
 func _update_report_text() -> void:
-	var inc = GameManager.get_daily_income(); var exp = GameManager.daily_maintenance + GameManager.BASE_COST + GameManager.daily_gang_toll; var net = inc - exp
+	var inc = GameManager.get_daily_income()
+	var exp = GameManager.daily_maintenance + GameManager.BASE_COST + GameManager.daily_gang_toll
+	var net = inc - exp
+	
 	var t = "RELATORIO ADMINISTRATIVO\n\nDia: " + str(GameManager.current_day) + "\nCaixa: $" + str(GameManager.money) + "\n\nReceita: +$" + str(inc) + "\nManutencao: -$" + str(GameManager.daily_maintenance) + "\nTaxas: -$" + str(GameManager.BASE_COST)
-	if GameManager.daily_gang_toll > 0: t += "\nPropinas: -$" + str(GameManager.daily_gang_toll)
-	t += "\n----------------\nLucro: $" + str(net); report_label.text = t
+	
+	if GameManager.daily_gang_toll > 0: 
+		t += "\nPropinas: -$" + str(GameManager.daily_gang_toll)
+		
+	t += "\n----------------\nLucro: $" + str(net)
+	report_label.text = t
+	
 	var has_op = false
 	for c in GameManager.active_contracts:
-		if GameManager.is_contract_operating(c): has_op = true
-	if GameManager.current_day == 1 and not has_op: btn_next_day.disabled = true; btn_next_day.text = "[ Exige contrato e trilho ]"
-	else: btn_next_day.disabled = false; btn_next_day.text = "Assinar e Finalizar Dia"
+		if GameManager.is_contract_operating(c): 
+			has_op = true
+			
+	if GameManager.current_day == 1 and not has_op: 
+		btn_next_day.disabled = true
+		btn_next_day.text = "[ Exige contrato e trilho ]"
+	else: 
+		btn_next_day.disabled = false
+		btn_next_day.text = "Assinar e Finalizar Dia"
 
-func _on_stats_changed(_v) -> void: _update_report_text(); _update_diretrizes()
-func _on_contracts_updated() -> void: _update_report_text(); _update_active_contracts_text(); _load_agenda_contacts() 
-func _on_day_changed(_v) -> void: _update_report_text(); _update_active_contracts_text(); _load_agenda_contacts() 
+func _on_stats_changed(_v) -> void: 
+	_update_report_text()
+	_update_diretrizes()
+
+func _on_contracts_updated() -> void: 
+	_update_report_text()
+	_update_active_contracts_text()
+	_load_agenda_contacts() 
+
+func _on_day_changed(_v) -> void: 
+	_update_report_text()
+	_update_active_contracts_text()
+	_load_agenda_contacts() 
 
 func _on_visibility_changed() -> void:
-	if ui_layer: ui_layer.visible = visible
+	if ui_layer: 
+		ui_layer.visible = visible
 	if visible:
-		_load_agenda_contacts(); _update_report_text(); _update_diretrizes(); folder_rect.visible = false 
+		_load_agenda_contacts()
+		_update_report_text()
+		_update_diretrizes()
+		folder_rect.visible = false 
+		
 		_on_organize_pressed()
-		if GameManager.pendent_angry_call: GameManager.pendent_angry_call = false; phone_cutscene.start_angry_call()
+		
+		if GameManager.pendent_angry_call: 
+			GameManager.pendent_angry_call = false
+			phone_cutscene.start_angry_call()
+		else:
+			# NOVO: A bronca inicial do diretor se for a primeira vez na mesa
+			if not GameManager.intro_played:
+				GameManager.intro_played = true
+				phone_cutscene.start_boss_intro()
 
-func _on_next_day_pressed() -> void: GameManager.end_day()
-func _on_back_map_pressed() -> void: get_parent().go_to_map()
+func _on_next_day_pressed() -> void: 
+	GameManager.end_day()
+
+func _on_back_map_pressed() -> void: 
+	get_parent().go_to_map()
