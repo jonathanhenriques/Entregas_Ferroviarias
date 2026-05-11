@@ -34,22 +34,24 @@ func _setup_visuals() -> void:
 	overlay.mouse_filter = Control.MOUSE_FILTER_STOP 
 	add_child(overlay)
 
+	# Silhueta adaptada para 1920x1080
 	silhouette_body = ColorRect.new()
 	silhouette_body.color = Color(0, 0, 0, 1)
-	silhouette_body.size = Vector2(400, 500)
-	silhouette_body.position = Vector2(50, 200)
+	silhouette_body.size = Vector2(600, 750)
+	silhouette_body.position = Vector2(100, 330)
 	add_child(silhouette_body)
 	
 	silhouette_head = ColorRect.new()
 	silhouette_head.color = Color(0, 0, 0, 1)
-	silhouette_head.size = Vector2(120, 140)
-	silhouette_head.position = Vector2(190, 80)
+	silhouette_head.size = Vector2(180, 210)
+	silhouette_head.position = Vector2(310, 150)
 	add_child(silhouette_head)
 
+	# Caixa de dialogo gigante
 	dialog_box = ColorRect.new()
 	dialog_box.color = Color(0.05, 0.05, 0.15, 0.9) 
-	dialog_box.size = Vector2(1000, 220)
-	dialog_box.position = Vector2(76, 400)
+	dialog_box.size = Vector2(1400, 300)
+	dialog_box.position = Vector2(260, 700)
 	add_child(dialog_box)
 	
 	var border = ReferenceRect.new()
@@ -59,40 +61,39 @@ func _setup_visuals() -> void:
 	dialog_box.add_child(border)
 
 	name_label = Label.new()
-	name_label.position = Vector2(20, 10)
-	name_label.add_theme_font_size_override("font_size", 22)
+	name_label.position = Vector2(40, 20)
+	name_label.add_theme_font_size_override("font_size", 30)
 	name_label.add_theme_color_override("font_color", Color.YELLOW)
 	dialog_box.add_child(name_label)
 
 	text_label = Label.new()
-	text_label.position = Vector2(20, 50)
-	text_label.size = Vector2(960, 120)
+	text_label.position = Vector2(40, 80)
+	text_label.size = Vector2(1320, 150)
 	text_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	text_label.add_theme_font_size_override("font_size", 20)
+	text_label.add_theme_font_size_override("font_size", 28)
 	dialog_box.add_child(text_label)
 
 	btn_accept = Button.new()
 	btn_accept.text = "ACEITAR"
-	btn_accept.size = Vector2(180, 45)
-	btn_accept.position = Vector2(600, 160)
+	btn_accept.size = Vector2(200, 50)
+	btn_accept.position = Vector2(900, 230)
 	btn_accept.pressed.connect(_on_accept)
 	dialog_box.add_child(btn_accept)
 
 	btn_reject = Button.new()
 	btn_reject.text = "DESLIGAR"
-	btn_reject.size = Vector2(180, 45)
-	btn_reject.position = Vector2(800, 160)
+	btn_reject.size = Vector2(200, 50)
+	btn_reject.position = Vector2(1150, 230)
 	btn_reject.pressed.connect(_on_reject)
 	dialog_box.add_child(btn_reject)
 	
 	btn_close = Button.new()
 	btn_close.text = "DESLIGAR (E assumir a culpa)"
-	btn_close.size = Vector2(250, 45)
-	btn_close.position = Vector2(730, 160)
+	btn_close.size = Vector2(300, 50)
+	btn_close.position = Vector2(1050, 230)
 	btn_close.add_theme_color_override("font_color", Color.INDIAN_RED)
 	btn_close.pressed.connect(_on_close)
 	dialog_box.add_child(btn_close)
-
 
 func start_call(company_name: String, company_type: String, company_cargo: String, base_reward: int, is_urgent: bool = false) -> void:
 	_reset_ui()
@@ -103,21 +104,17 @@ func start_call(company_name: String, company_type: String, company_cargo: Strin
 	name_label.text = "[ TRANSMISSAO: " + company_name.to_upper() + " ]"
 	
 	if is_urgent:
-		# Texto para Entregas Pontuais
 		name_label.add_theme_color_override("font_color", Color.ORANGE)
 		full_text = "Alo? Pelo amor de Deus, sou da " + company_name + "!\n"
 		full_text += "Temos um frete URGENTE de " + company_cargo + " [" + company_type + "] que precisa sair HOJE!\n"
 		full_text += "Pagamos $" + str(offered_reward) + " A VISTA na sua conta agora! Tem um trem livre?"
 	else:
-		# Texto Normal
 		full_text = "Alo? Sou o representante da " + company_name + ".\n"
 		full_text += "Temos um frete padrao de " + company_cargo + " [" + company_type + "] parado aqui.\n"
 		full_text += "Pagamos $" + str(offered_reward) + " por dia. Aceita os nossos termos?"
 
 	_type_next_char(true)
 
-
-# NOVO: Recebe o motivo personalizado do erro
 func start_rejection_call(company_name: String, custom_reason: String = "") -> void:
 	_reset_ui()
 	name_label.text = "[ TRANSMISSAO: " + company_name.to_upper() + " ]"
@@ -159,7 +156,7 @@ func _type_next_char(is_negotiation: bool) -> void:
 	if char_index < full_text.length():
 		text_label.text += full_text[char_index]
 		char_index += 1
-		await get_tree().create_timer(0.03).timeout
+		await get_tree().create_timer(0.02).timeout
 		_type_next_char(is_negotiation)
 	else:
 		is_typing = false

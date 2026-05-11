@@ -36,150 +36,68 @@ var network_stats: Dictionary = {}
 var company_cooldowns: Dictionary = {} 
 var pendent_angry_call: bool = false 
 var daily_generic_companies: Array = [] 
-
-# NOVO: Guarda as urgencias do dia atual
 var daily_urgencies: Dictionary = {}
 
 func is_contract_operating(c: Dictionary) -> bool:
-	var route_id = c["route_id"]
-	if not (route_id in network_connections):
-		return false
-		
-	var stats = network_stats.get(route_id, {})
-	if stats.is_empty():
-		return false
-		
-	var type = c.get("type", "")
-
-	if type == "Expresso":
-		var limit = c.get("max_dist", 999)
-		if stats["dist"] > limit: return false
-		
-	if type == "VIP":
-		if stats["gangs"] > 0: return false
-		if active_contracts.size() > 1: return false 
-		
-	if type == "Ecologico":
-		if stats["forests"] > 0: return false
-
+	var rid = c["route_id"]; if not (rid in network_connections): return false
+	var st = network_stats.get(rid, {}); if st.is_empty(): return false
+	var tp = c.get("type", "")
+	if tp == "Expresso" and st["dist"] > c.get("max_dist", 999): return false
+	if tp == "VIP" and (st["gangs"] > 0 or active_contracts.size() > 1): return false 
+	if tp == "Ecologico" and st["forests"] > 0: return false
 	return true
 
 func get_daily_income() -> int:
-	var total = 0
+	var t = 0
 	for c in active_contracts:
-		# Contratos urgentes pagaram a vista, nao geram renda diaria
-		if is_contract_operating(c) and not c.get("is_urgent", false):
-			total += c["reward"]
-	return total
+		if is_contract_operating(c) and not c.get("is_urgent", false): t += c["reward"]
+	return t
 
 func reset_game() -> void:
-	var lvl_data = LevelData.LEVELS[current_level]
-	money = lvl_data["budget"] 
-	current_day = 1
-	daily_maintenance = 0
-	daily_gang_toll = 0
-	active_contracts.clear()
-	network_connections.clear()
-	network_stats.clear()
-	company_cooldowns.clear()
-	daily_urgencies.clear()
-	pendent_angry_call = false
+	var lvl = LevelData.LEVELS[current_level]
+	money = lvl["budget"]; current_day = 1; daily_maintenance = 0; daily_gang_toll = 0
+	active_contracts.clear(); network_connections.clear(); network_stats.clear()
+	company_cooldowns.clear(); daily_urgencies.clear(); pendent_angry_call = false
 	_generate_daily_generics()
 
 func end_day() -> void:
-	money += get_daily_income()
-	money -= daily_maintenance
-	money -= BASE_COST 
-	money -= daily_gang_toll 
-	
-	var contracts_to_keep = []
+	money += get_daily_income(); money -= daily_maintenance; money -= BASE_COST; money -= daily_gang_toll 
+	var keep = []
 	for c in active_contracts:
 		c["days_left"] -= 1
-		if c["days_left"] > 0:
-			contracts_to_keep.append(c)
-			
-	active_contracts = contracts_to_keep
-	
-	var new_cooldowns = {}
-	for company in company_cooldowns.keys():
-		if company_cooldowns[company] > 1:
-			new_cooldowns[company] = company_cooldowns[company] - 1
-	company_cooldowns = new_cooldowns
-	
-	_generate_daily_generics() 
-	
-	contracts_updated.emit()
-	current_day += 1
-	
-	var lvl_data = LevelData.LEVELS[current_level]
-	if money < 0:
-		trigger_bankruptcy()
-	elif money >= lvl_data["goal"]: 
-		trigger_victory()
+		if c["days_left"] > 0: keep.append(c)
+	active_contracts = keep
+	var new_cd = {}
+	for k in company_cooldowns.keys():
+		if company_cooldowns[k] > 1: new_cd[k] = company_cooldowns[k] - 1
+	company_cooldowns = new_cd
+	_generate_daily_generics(); contracts_updated.emit(); current_day += 1
+	if money < 0: trigger_bankruptcy()
+	elif money >= LevelData.LEVELS[current_level]["goal"]: trigger_victory()
 
 func _generate_daily_generics() -> void:
 	daily_generic_companies.clear()
-	var gen_names = ["Comerciante Local", "Fazendeiro Independente", "Investidor Forasteiro", "Cooperativa Agricola"]
-	var gen_types = ["Ganha-Pao", "Expresso"]
-	var cargos = ["Suprimentos", "Materiais", "Maquinario", "Gado"]
-	
-	var possible_routes = [
-		{"id": "Azul-Vermelha", "name": "Azul <-> Vermelha"},
-		{"id": "Azul-Verde", "name": "Azul <-> Verde"},
-		{"id": "Vermelha-Verde", "name": "Vermelha <-> Verde"}
-	]
-	var r = possible_routes[randi() % possible_routes.size()]
-	var c_type = gen_types[randi() % gen_types.size()]
-	
-	var company = {
-		"name": gen_names[randi() % gen_names.size()] + " (Diario)",
-		"type": c_type,
-		"base_reward": randi_range(80, 160),
-		"phone": "555-" + str(randi_range(100, 999)),
-		"cargo": cargos[randi() % cargos.size()],
-		"route_id": r["id"],
-		"route_name": r["name"]
-	}
-	
-	if c_type == "Expresso":
-		company["max_dist"] = 35 
-		
-	daily_generic_companies.append(company)
-	
-	# NOVO: Sorteia Urgencias (Entregas Pontuais) para o dia
+	var n = ["Comerciante Local", "Fazendeiro Independente", "Cooperativa Agricola"]; var t = ["Ganha-Pao", "Expresso"]; var cg = ["Suprimentos", "Materiais", "Maquinario", "Gado"]
+	var r = [{"id": "Azul-Vermelha", "n": "Azul <-> Vermelha"}, {"id": "Azul-Verde", "n": "Azul <-> Verde"}, {"id": "Vermelha-Verde", "n": "Vermelha <-> Verde"}].pick_random()
+	var tp = t.pick_random()
+	var comp = {"name": n.pick_random() + " (Diario)", "type": tp, "base_reward": randi_range(80, 160), "phone": "555-" + str(randi_range(100, 999)), "cargo": cg.pick_random(), "route_id": r["id"], "route_name": r["n"]}
+	if tp == "Expresso": comp["max_dist"] = 35 
+	daily_generic_companies.append(comp)
 	_roll_daily_urgencies()
 
 func _roll_daily_urgencies() -> void:
 	daily_urgencies.clear()
-	var companies = LevelData.LEVELS[current_level]["companies"].duplicate(true)
-	companies.append_array(daily_generic_companies)
+	var comps = LevelData.LEVELS[current_level]["companies"].duplicate(true); comps.append_array(daily_generic_companies)
+	for c in comps:
+		if randf() < 0.35: daily_urgencies[c["name"]] = int(c["base_reward"] * randf_range(3.0, 5.0))
 
-	for c in companies:
-		if randf() < 0.35: # 35% de chance da empresa ter uma urgencia hoje
-			# Paga entre 3x a 5x o valor diario, mas tudo a vista!
-			var urg_reward = int(c["base_reward"] * randf_range(3.0, 5.0))
-			daily_urgencies[c["name"]] = urg_reward
+func cancel_contract(idx: int) -> void:
+	if idx >= 0 and idx < active_contracts.size():
+		var c = active_contracts[idx]; var p = 0
+		if not c.get("is_urgent", false): p = int((c["reward"] * c["days_left"]) * 0.20)
+		money -= p; active_contracts.remove_at(idx); contracts_updated.emit()
 
-func cancel_contract(index: int) -> void:
-	if index >= 0 and index < active_contracts.size():
-		var c = active_contracts[index]
-		# Se for urgente, o cancelamento nao cobra os 20% do futuro porque pagou a vista
-		var penalty = 0
-		if not c.get("is_urgent", false):
-			var total_projected_value = c["reward"] * c["days_left"]
-			penalty = int(total_projected_value * 0.20)
-			
-		money -= penalty
-		active_contracts.remove_at(index)
-		contracts_updated.emit()
-
-func trigger_bankruptcy() -> void:
-	var msg = "FALENCIA!\n\nO seu saldo ficou negativo. A sua empresa fechou as portas nesta regiao."
-	game_over.emit(false, msg)
-
+func trigger_bankruptcy() -> void: game_over.emit(false, "FALENCIA!\nSaldo negativo.")
 func trigger_victory() -> void:
-	if current_level == highest_unlocked_level and LevelData.LEVELS.has(current_level + 1):
-		highest_unlocked_level += 1
-		
-	var msg = "VITORIA!\n\nAtingiu a meta da regiao! O governo autorizou a sua expansao."
-	game_over.emit(true, msg)
+	if current_level == highest_unlocked_level and LevelData.LEVELS.has(current_level + 1): highest_unlocked_level += 1
+	game_over.emit(true, "VITORIA!\nMeta atingida.")

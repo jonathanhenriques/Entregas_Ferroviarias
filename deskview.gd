@@ -28,16 +28,13 @@ var contracts_vbox: VBoxContainer
 
 var bg_rect: ColorRect
 var btn_back_map: Button
-var btn_organize: Button # NOVO: O Botao de arrumar a mesa
+var btn_organize: Button 
 
 var phone_cutscene: CutsceneDialog
 
 var selected_company_data: Dictionary 
 var is_negotiating_urgency: bool = false 
 
-# =======================================
-# VARIAVEIS DA MESA TÁCTIL (ARRASTAR)
-# =======================================
 var dragged_panel: Control = null
 var drag_offset: Vector2 = Vector2.ZERO
 var original_transforms: Dictionary = {}
@@ -69,34 +66,33 @@ func _setup_ui() -> void:
 
 	btn_back_map = Button.new()
 	btn_back_map.text = "<- Voltar ao Mapa"
-	btn_back_map.position = Vector2(20, 20)
+	btn_back_map.position = Vector2(40, 40)
 	btn_back_map.size = Vector2(180, 40)
 	btn_back_map.pressed.connect(_on_back_map_pressed)
 	ui_layer.add_child(btn_back_map)
 	
 	btn_organize = Button.new()
 	btn_organize.text = "Arrumar a Mesa"
-	btn_organize.position = Vector2(20, 70)
+	btn_organize.position = Vector2(40, 100)
 	btn_organize.size = Vector2(180, 40)
 	btn_organize.pressed.connect(_on_organize_pressed)
 	ui_layer.add_child(btn_organize)
 
-	# DIRETRIZES (HUD FIXO, NAO ARRASTAVEL)
 	diretrizes_rect = ColorRect.new()
 	diretrizes_rect.color = Color(0.6, 0.15, 0.15) 
-	diretrizes_rect.size = Vector2(870, 50)
-	diretrizes_rect.position = Vector2(250, 15)
+	diretrizes_rect.size = Vector2(1000, 60)
+	diretrizes_rect.position = Vector2(460, 40)
 	ui_layer.add_child(diretrizes_rect)
 	
 	var selo_clip = ColorRect.new()
 	selo_clip.color = Color(0.1, 0.1, 0.1)
-	selo_clip.size = Vector2(20, 50)
+	selo_clip.size = Vector2(25, 60)
 	selo_clip.position = Vector2(0, 0)
 	diretrizes_rect.add_child(selo_clip)
 	
 	diretrizes_label = Label.new()
-	diretrizes_label.position = Vector2(40, 5)
-	diretrizes_label.add_theme_font_size_override("font_size", 14)
+	diretrizes_label.position = Vector2(40, 10)
+	diretrizes_label.add_theme_font_size_override("font_size", 16)
 	diretrizes_label.add_theme_color_override("font_color", Color.WHITE)
 	diretrizes_rect.add_child(diretrizes_label)
 	
@@ -106,18 +102,17 @@ func _setup_ui() -> void:
 	fg_bar.bg_color = Color(0.2, 0.6, 0.2) 
 	
 	diretrizes_bar = ProgressBar.new()
-	diretrizes_bar.position = Vector2(40, 28)
-	diretrizes_bar.size = Vector2(800, 15)
+	diretrizes_bar.position = Vector2(40, 35)
+	diretrizes_bar.size = Vector2(920, 15)
 	diretrizes_bar.show_percentage = false
 	diretrizes_bar.add_theme_stylebox_override("background", bg_bar)
 	diretrizes_bar.add_theme_stylebox_override("fill", fg_bar)
 	diretrizes_rect.add_child(diretrizes_bar)
 
-	# AGENDA TELEFONICA (ARRASTAVEL)
 	agenda_rect = ColorRect.new()
 	agenda_rect.color = Color(0.85, 0.8, 0.6) 
 	agenda_rect.size = Vector2(300, 400)
-	agenda_rect.position = Vector2(40, 130)
+	agenda_rect.position = Vector2(200, 350)
 	ui_layer.add_child(agenda_rect)
 	_make_draggable(agenda_rect)
 	
@@ -139,11 +134,10 @@ func _setup_ui() -> void:
 	companies_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	agenda_rect.add_child(companies_vbox)
 
-	# PRANCHETA DE RELATORIOS (ARRASTAVEL)
 	clipboard_rect = ColorRect.new()
 	clipboard_rect.color = Color(0.95, 0.95, 0.9) 
 	clipboard_rect.size = Vector2(350, 400)
-	clipboard_rect.position = Vector2(410, 130)
+	clipboard_rect.position = Vector2(780, 350)
 	ui_layer.add_child(clipboard_rect)
 	_make_draggable(clipboard_rect)
 	
@@ -168,11 +162,10 @@ func _setup_ui() -> void:
 	btn_next_day.pressed.connect(_on_next_day_pressed)
 	clipboard_rect.add_child(btn_next_day)
 
-	# FROTA ATIVA (ARRASTAVEL)
 	active_paper_rect = ColorRect.new()
 	active_paper_rect.color = Color(0.85, 0.9, 0.95) 
 	active_paper_rect.size = Vector2(330, 400)
-	active_paper_rect.position = Vector2(790, 130)
+	active_paper_rect.position = Vector2(1380, 350)
 	ui_layer.add_child(active_paper_rect)
 	_make_draggable(active_paper_rect)
 
@@ -188,11 +181,10 @@ func _setup_ui() -> void:
 	contracts_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	active_paper_rect.add_child(contracts_vbox)
 
-	# A PASTA DIEGETICA (ARRASTAVEL E OCULTA)
 	folder_rect = ColorRect.new()
 	folder_rect.color = Color(0.8, 0.65, 0.4) 
 	folder_rect.size = Vector2(440, 480)
-	folder_rect.position = Vector2(360, 95) 
+	folder_rect.position = Vector2(740, 310) 
 	folder_rect.visible = false
 	ui_layer.add_child(folder_rect)
 	_make_draggable(folder_rect)
@@ -222,7 +214,6 @@ func _setup_ui() -> void:
 	btn_close_folder.pressed.connect(_on_close_folder_pressed)
 	folder_rect.add_child(btn_close_folder)
 
-	# Documento Padrao
 	doc_standard = ColorRect.new()
 	doc_standard.color = Color(0.95, 0.95, 0.95)
 	doc_standard.size = Vector2(190, 380)
@@ -244,7 +235,6 @@ func _setup_ui() -> void:
 	btn_call_std.pressed.connect(_on_call_standard_pressed)
 	doc_standard.add_child(btn_call_std)
 
-	# Documento Urgente
 	doc_urgent = ColorRect.new()
 	doc_urgent.color = Color(0.95, 0.85, 0.85)
 	doc_urgent.size = Vector2(190, 380)
@@ -266,389 +256,164 @@ func _setup_ui() -> void:
 	btn_call_urg.pressed.connect(_on_call_urgent_pressed)
 	doc_urgent.add_child(btn_call_urg)
 
-# =======================================
-# LÓGICA DE ARRASTAR PAPÉIS (FÍSICA)
-# =======================================
 func _make_draggable(panel: Control) -> void:
 	panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	panel.gui_input.connect(_on_panel_gui_input.bind(panel))
-	# Guarda posicao para o botao "Arrumar"
 	original_transforms[panel] = panel.position
 
 func _on_panel_gui_input(event: InputEvent, panel: Control) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.is_pressed():
-			dragged_panel = panel
-			panel.rotation_degrees = 0 # Endireita o papel na mao
+			dragged_panel = panel; panel.rotation_degrees = 0 
 			drag_offset = panel.get_global_mouse_position() - panel.global_position
-			panel.get_parent().move_child(panel, -1) # Traz para o topo da pilha
+			panel.get_parent().move_child(panel, -1) 
 		else:
 			if dragged_panel == panel:
-				dragged_panel = null
-				panel.rotation_degrees = randf_range(-4.0, 4.0) # Joga na mesa de qualquer jeito
+				dragged_panel = null; panel.rotation_degrees = randf_range(-3.0, 3.0) 
 				_clamp_to_screen(panel)
-				
 	elif event is InputEventMouseMotion and dragged_panel == panel:
 		panel.global_position = panel.get_global_mouse_position() - drag_offset
 		_clamp_to_screen(panel)
 
 func _clamp_to_screen(panel: Control) -> void:
-	var screen_size = get_viewport_rect().size
-	var p_pos = panel.global_position
-	var p_size = panel.size
-	# Impede que fuja das bordas
-	p_pos.x = clamp(p_pos.x, 0, screen_size.x - p_size.x)
-	p_pos.y = clamp(p_pos.y, 0, screen_size.y - p_size.y)
-	panel.global_position = p_pos
+	var s = get_viewport_rect().size; var p = panel.global_position; var sz = panel.size
+	p.x = clamp(p.x, 0, s.x - sz.x); p.y = clamp(p.y, 0, s.y - sz.y); panel.global_position = p
 
 func _on_organize_pressed() -> void:
-	# Animação suave para arrumar a mesa
 	var tween = create_tween().set_parallel(true)
 	for panel in original_transforms.keys():
 		tween.tween_property(panel, "position", original_transforms[panel], 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 		tween.tween_property(panel, "rotation_degrees", 0.0, 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	
-	if folder_rect.visible:
-		folder_rect.get_parent().move_child(folder_rect, -1)
 
-# =======================================
-# SISTEMAS BASE DA MESA
-# =======================================
 func _setup_cutscene() -> void:
-	phone_cutscene = CutsceneDialog.new()
-	add_child(phone_cutscene)
+	phone_cutscene = CutsceneDialog.new(); add_child(phone_cutscene)
 	phone_cutscene.contract_accepted.connect(_on_cutscene_accepted)
 	phone_cutscene.contract_rejected.connect(_on_cutscene_rejected)
 	phone_cutscene.call_closed.connect(_on_cutscene_closed) 
 
 func _update_diretrizes() -> void:
-	var lvl_data = LevelData.LEVELS[GameManager.current_level]
-	var meta = lvl_data["goal"]
-	var atual = GameManager.money
-	
-	diretrizes_label.text = "📌 DIRETRIZES DA REGIAO [" + lvl_data["name"] + "]  |  META: $" + str(meta) + "  |  CAIXA: $" + str(atual)
-	
-	var fg_bar = diretrizes_bar.get_theme_stylebox("fill") as StyleBoxFlat
-	if atual < 0:
-		fg_bar.bg_color = Color(0.8, 0.2, 0.2) 
-		diretrizes_bar.min_value = 0
-		diretrizes_bar.max_value = 1
-		diretrizes_bar.value = 1
-	else:
-		fg_bar.bg_color = Color(0.2, 0.6, 0.2) 
-		diretrizes_bar.min_value = 0
-		diretrizes_bar.max_value = meta
-		diretrizes_bar.value = atual
+	var lvl = LevelData.LEVELS[GameManager.current_level]; var m = lvl["goal"]; var a = GameManager.money
+	diretrizes_label.text = "📌 DIRETRIZES DA REGIAO [" + lvl["name"] + "]  |  META: $" + str(m) + "  |  CAIXA: $" + str(a)
+	var fg = diretrizes_bar.get_theme_stylebox("fill") as StyleBoxFlat
+	if a < 0: fg.bg_color = Color(0.8, 0.2, 0.2); diretrizes_bar.max_value = 1; diretrizes_bar.value = 1
+	else: fg.bg_color = Color(0.2, 0.6, 0.2); diretrizes_bar.max_value = m; diretrizes_bar.value = a
 
 func _load_agenda_contacts() -> void:
-	for child in companies_vbox.get_children():
-		child.queue_free()
-		
+	for child in companies_vbox.get_children(): child.queue_free()
 	var companies = LevelData.LEVELS[GameManager.current_level]["companies"].duplicate(true)
 	companies.append_array(GameManager.daily_generic_companies)
-	
 	for i in range(companies.size()):
-		var c_data = companies[i]
-		var c_name = c_data["name"]
-		var btn = Button.new()
-		
-		if GameManager.company_cooldowns.has(c_name) and GameManager.company_cooldowns[c_name] > 0:
+		var c_data = companies[i]; var c_name = c_data["name"]; var btn = Button.new()
+		# BLOQUEIO REMOVIDO PARA O CORRETOR DIARIO NO DIA 1
+		var is_daily = "(Diario)" in c_name
+		if GameManager.company_cooldowns.has(c_name) and GameManager.company_cooldowns[c_name] > 0 and not (is_daily and GameManager.current_day == 1):
 			btn.text = c_name + " (" + str(GameManager.company_cooldowns[c_name]) + "d)"
-			btn.disabled = true
-			btn.add_theme_color_override("font_color", Color.INDIAN_RED)
+			btn.disabled = true; btn.add_theme_color_override("font_color", Color.INDIAN_RED)
 		else:
-			var has_active_contract = false
+			var has_active = false
 			for contract in GameManager.active_contracts:
-				if contract.has("company_name") and contract["company_name"] == c_name:
-					has_active_contract = true
-			
-			if has_active_contract:
-				btn.text = c_name + " (EM CURSO)"
-				btn.disabled = true
-				btn.add_theme_color_override("font_color", Color.DIM_GRAY)
+				if contract.has("company_name") and contract["company_name"] == c_name: has_active = true
+			if has_active: btn.text = c_name + " (EM CURSO)"; btn.disabled = true; btn.add_theme_color_override("font_color", Color.DIM_GRAY)
 			else:
-				if GameManager.daily_urgencies.has(c_name):
-					btn.text = c_name + " [!]"
-					btn.add_theme_color_override("font_color", Color.DARK_RED)
-				else:
-					btn.text = c_name
-					
+				if GameManager.daily_urgencies.has(c_name): btn.text = c_name + " [!]"; btn.add_theme_color_override("font_color", Color.DARK_RED)
+				else: btn.text = c_name
 				btn.pressed.connect(_on_company_selected.bind(c_data))
-				
-		btn.custom_minimum_size = Vector2(200, 30)
-		companies_vbox.add_child(btn)
+		btn.custom_minimum_size = Vector2(200, 30); companies_vbox.add_child(btn)
 
-func _on_company_selected(company_data: Dictionary) -> void:
-	selected_company_data = company_data
-	
-	folder_title.text = "CLIENTE: " + company_data["name"]
-	folder_route.text = "Exige Rota: " + company_data["route_name"] + " | Arquétipo: [" + company_data["type"] + "]"
-	
-	std_label.text = "CONTRATO PADRAO\n\n"
-	std_label.text += "Carga: " + company_data["cargo"] + "\n\n"
-	std_label.text += "Duracao Media: 5 a 10 dias\n"
-	std_label.text += "Pagamento Diario: ~$" + str(company_data["base_reward"]) + "\n"
-	
-	if GameManager.daily_urgencies.has(company_data["name"]):
+func _on_company_selected(data: Dictionary) -> void:
+	selected_company_data = data
+	folder_title.text = "CLIENTE: " + data["name"]
+	folder_route.text = "Exige Rota: " + data["route_name"] + " | Arquétipo: [" + data["type"] + "]"
+	std_label.text = "CONTRATO PADRAO\n\nCarga: " + data["cargo"] + "\n\nDuracao: 5-10 dias\nPagamento: ~$" + str(data["base_reward"])
+	if GameManager.daily_urgencies.has(data["name"]):
 		doc_urgent.visible = true
-		urg_label.text = "[!] URGENDA PARA HOJE\n\n"
-		urg_label.text += "Precisamos escoar " + company_data["cargo"] + " imediatamente!\n\n"
-		urg_label.text += "PAGAMENTO A VISTA:\n$" + str(GameManager.daily_urgencies[company_data["name"]]) + "\n\n"
-		urg_label.text += "Ocupa a locomotiva por apenas 1 dia."
-	else:
-		doc_urgent.visible = false
+		urg_label.text = "[!] URGENDA HOJE\n\nPAGAMENTO A VISTA:\n$" + str(GameManager.daily_urgencies[data["name"]]) + "\n\nOcupa trem por 1 dia."
+	else: doc_urgent.visible = false
+	folder_rect.visible = true; folder_rect.get_parent().move_child(folder_rect, -1); folder_rect.rotation_degrees = 0; _clamp_to_screen(folder_rect)
 
-	folder_rect.visible = true
-	# Ao abrir a pasta, traz logo para a frente da mesa e endireita!
-	folder_rect.get_parent().move_child(folder_rect, -1)
-	folder_rect.rotation_degrees = 0
-	_clamp_to_screen(folder_rect)
-
-func _on_close_folder_pressed() -> void:
-	folder_rect.visible = false
-	selected_company_data = {}
-
-func _on_call_standard_pressed() -> void:
-	is_negotiating_urgency = false
-	_process_call()
-
-func _on_call_urgent_pressed() -> void:
-	is_negotiating_urgency = true
-	_process_call()
+func _on_close_folder_pressed() -> void: folder_rect.visible = false; selected_company_data = {}
+func _on_call_standard_pressed() -> void: is_negotiating_urgency = false; _process_call()
+func _on_call_urgent_pressed() -> void: is_negotiating_urgency = true; _process_call()
 
 func _process_call() -> void:
 	if GameManager.active_contracts.size() >= GameManager.MAX_CONTRACTS:
-		phone_cutscene.start_rejection_call(selected_company_data["name"], "A sua frota esta lotada! Nao faca a gente perder tempo.")
-		folder_rect.visible = false
-		return
-
-	var route_id = selected_company_data["route_id"]
-	var c_type = selected_company_data["type"]
-	
-	var has_route = route_id in GameManager.network_connections
-	var is_daily = "(Diario)" in selected_company_data["name"]
-	var is_day_one_exception = (GameManager.current_day == 1 and is_daily)
-	
-	var route_valid = false
-	var reject_reason = ""
-	
+		phone_cutscene.start_rejection_call(selected_company_data["name"], "A frota esta lotada!"); folder_rect.visible = false; return
+	var rid = selected_company_data["route_id"]; var ctype = selected_company_data["type"]
+	var has_route = rid in GameManager.network_connections; var is_daily = "(Diario)" in selected_company_data["name"]
+	var is_day_one = (GameManager.current_day == 1 and is_daily); var route_valid = false; var reason = ""
 	if has_route:
-		var stats = GameManager.network_stats.get(route_id, {})
-		
-		if c_type == "Expresso":
-			var limit = selected_company_data.get("max_dist", 999)
-			if stats.get("dist", 999) > limit:
-				reject_reason = "A sua rota (" + str(stats["dist"]) + " km) excede o nosso limite de " + str(limit) + " km!"
-			else:
-				route_valid = true
-		elif c_type == "VIP":
-			if stats.get("gangs", 0) > 0:
-				reject_reason = "A sua rota cruza territorio de gangues! Nossos clientes exigem seguranca total."
-			elif GameManager.active_contracts.size() > 0:
-				reject_reason = "Exigimos EXCLUSIVIDADE! Cancele os seus outros contratos reles antes de nos ligar."
-			else:
-				route_valid = true
-		elif c_type == "Ecologico":
-			if stats.get("forests", 0) > 0:
-				reject_reason = "A sua rota causou desmatamento! Refaca os trilhos desviando das florestas."
-			else:
-				route_valid = true
-		else:
-			route_valid = true 
-
-	if (not has_route and not is_day_one_exception) or (has_route and not route_valid):
-		phone_cutscene.start_rejection_call(selected_company_data["name"], reject_reason)
-		GameManager.company_cooldowns[selected_company_data["name"]] = 1 
+		var stats = GameManager.network_stats.get(rid, {})
+		if ctype == "Expresso" and stats.get("dist", 999) > selected_company_data.get("max_dist", 999): reason = "Rota longa!"
+		elif ctype == "VIP" and (stats.get("gangs", 0) > 0 or GameManager.active_contracts.size() > 0): reason = "VIP exige seguranca/exclusividade!"
+		elif ctype == "Ecologico" and stats.get("forests", 0) > 0: reason = "Crime ambiental!"
+		else: route_valid = true 
+	if (not has_route and not is_day_one) or (has_route and not route_valid):
+		phone_cutscene.start_rejection_call(selected_company_data["name"], reason)
+		# No Dia 1, o Corretor Diario nao bloqueia voce!
+		if not is_day_one: GameManager.company_cooldowns[selected_company_data["name"]] = 1 
 		folder_rect.visible = false
 	else:
-		var base_rew = GameManager.daily_urgencies[selected_company_data["name"]] if is_negotiating_urgency else selected_company_data["base_reward"]
-		phone_cutscene.start_call(selected_company_data["name"], selected_company_data["type"], selected_company_data["cargo"], base_rew, is_negotiating_urgency)
+		var rew = GameManager.daily_urgencies[selected_company_data["name"]] if is_negotiating_urgency else selected_company_data["base_reward"]
+		phone_cutscene.start_call(selected_company_data["name"], selected_company_data["type"], selected_company_data["cargo"], rew, is_negotiating_urgency)
 
 func _on_cutscene_accepted(final_reward: int) -> void:
 	if is_negotiating_urgency:
 		GameManager.money += final_reward
-		var new_contract = {
-			"company_name": selected_company_data["name"], 
-			"type": selected_company_data["type"], 
-			"cargo": "[URGENTE] " + selected_company_data["cargo"], 
-			"route_id": selected_company_data["route_id"], 
-			"route_name": selected_company_data["route_name"],
-			"reward": 0, 
-			"days_left": 1,
-			"is_urgent": true
-		}
-		GameManager.active_contracts.append(new_contract)
+		GameManager.active_contracts.append({"company_name": selected_company_data["name"], "cargo": "[URG] " + selected_company_data["cargo"], "route_id": selected_company_data["route_id"], "route_name": selected_company_data["route_name"], "reward": 0, "days_left": 1, "is_urgent": true})
 		GameManager.daily_urgencies.erase(selected_company_data["name"]) 
 	else:
-		var new_contract = {
-			"company_name": selected_company_data["name"], 
-			"type": selected_company_data["type"], 
-			"cargo": selected_company_data["cargo"], 
-			"route_id": selected_company_data["route_id"], 
-			"route_name": selected_company_data["route_name"],
-			"reward": final_reward,
-			"days_left": randi_range(5, 10),
-			"is_urgent": false
-		}
-		if selected_company_data.has("max_dist"):
-			new_contract["max_dist"] = selected_company_data["max_dist"]
-			
-		GameManager.active_contracts.append(new_contract)
-		
-	GameManager.contracts_updated.emit()
-	folder_rect.visible = false
-	selected_company_data = {}
+		var new_c = {"company_name": selected_company_data["name"], "type": selected_company_data["type"], "cargo": selected_company_data["cargo"], "route_id": selected_company_data["route_id"], "route_name": selected_company_data["route_name"], "reward": final_reward, "days_left": randi_range(5, 10), "is_urgent": false}
+		if selected_company_data.has("max_dist"): new_c["max_dist"] = selected_company_data["max_dist"]
+		GameManager.active_contracts.append(new_c)
+	GameManager.contracts_updated.emit(); folder_rect.visible = false; selected_company_data = {}
 
 func _on_cutscene_rejected() -> void:
-	GameManager.company_cooldowns[selected_company_data["name"]] = 7
-	_load_agenda_contacts() 
-	folder_rect.visible = false
+	# No Dia 1, rejeitar o contrato diario nao te bloqueia!
+	var is_daily = "(Diario)" in selected_company_data["name"]
+	if not (is_daily and GameManager.current_day == 1):
+		GameManager.company_cooldowns[selected_company_data["name"]] = 7
+	_load_agenda_contacts(); folder_rect.visible = false
 
-func _on_cutscene_closed() -> void:
-	_load_agenda_contacts()
-	folder_rect.visible = false
+func _on_cutscene_closed() -> void: _load_agenda_contacts(); folder_rect.visible = false
+func _on_cancel_dynamic(idx: int) -> void: GameManager.cancel_contract(idx)
 
 func _update_active_contracts_text() -> void:
-	for child in contracts_vbox.get_children():
-		contracts_vbox.remove_child(child)
-		child.queue_free()
-	
+	for child in contracts_vbox.get_children(): child.queue_free()
 	if GameManager.active_contracts.size() == 0:
-		var empty_label = Label.new()
-		empty_label.text = "\nLocomotivas paradas no patio."
-		empty_label.add_theme_color_override("font_color", Color.DIM_GRAY)
-		contracts_vbox.add_child(empty_label)
+		var l = Label.new(); l.text = "\nPatio vazio."; l.add_theme_color_override("font_color", Color.DIM_GRAY); contracts_vbox.add_child(l)
 	else:
-		var index = 0
+		var i = 0
 		for c in GameManager.active_contracts:
-			var hbox = HBoxContainer.new()
-			
-			var is_active = GameManager.is_contract_operating(c)
-			var status = ""
-			var c_label = Label.new()
-			
-			if is_active:
-				if c.get("is_urgent", false):
-					status = "[PAGO A VISTA]"
-				else:
-					status = "(+$" + str(c["reward"]) + ")"
-				c_label.add_theme_color_override("font_color", Color.DARK_SLATE_GRAY)
+			var hbox = HBoxContainer.new(); var is_act = GameManager.is_contract_operating(c); var st = ""; var cl = Label.new()
+			if is_act: st = "[PAGO]" if c.get("is_urgent", false) else "(+$" + str(c["reward"]) + ")"; cl.add_theme_color_override("font_color", Color.DARK_SLATE_GRAY)
 			else:
-				c_label.add_theme_color_override("font_color", Color.INDIAN_RED)
-				if not (c["route_id"] in GameManager.network_connections):
-					status = "[PARADO: SEM ROTA]"
-				else:
-					var type = c.get("type", "")
-					var stats = GameManager.network_stats.get(c["route_id"], {})
-					if type == "Expresso" and stats.get("dist", 999) > c.get("max_dist", 999):
-						status = "[PARADO: ROTA LONGA]"
-					elif type == "VIP" and GameManager.active_contracts.size() > 1:
-						status = "[PARADO: FIM EXCLUSIVIDADE]"
-					elif type == "VIP" and stats.get("gangs", 0) > 0:
-						status = "[PARADO: GANGUES NA LINHA]"
-					elif type == "Ecologico" and stats.get("forests", 0) > 0:
-						status = "[PARADO: CRIME AMBIENTAL]"
-					else:
-						status = "[PARADO: ILEGAL]"
-			
-			c_label.text = "Trem " + str(index + 1) + ": " + c["cargo"] + "\n" + c["route_name"] + " " + status + "\nFaltam: " + str(c["days_left"]) + "d"
-			c_label.custom_minimum_size = Vector2(230, 0)
-				
-			hbox.add_child(c_label)
-			
-			var btn_cancel = Button.new()
-			btn_cancel.text = "❌"
-			btn_cancel.pressed.connect(_on_cancel_dynamic.bind(index))
-			hbox.add_child(btn_cancel)
-			
-			contracts_vbox.add_child(hbox)
-			index += 1
-
-func _on_cancel_dynamic(idx: int) -> void:
-	GameManager.cancel_contract(idx)
+				cl.add_theme_color_override("font_color", Color.INDIAN_RED)
+				if not (c["route_id"] in GameManager.network_connections): st = "[SEM ROTA]"
+				else: st = "[ILEGAL]"
+			cl.text = "T" + str(i + 1) + ": " + c["cargo"] + "\n" + c["route_name"] + " " + st + "\n" + str(c["days_left"]) + "d"; cl.custom_minimum_size = Vector2(230, 0)
+			hbox.add_child(cl); var b = Button.new(); b.text = "X"; b.pressed.connect(_on_cancel_dynamic.bind(i)); hbox.add_child(b); contracts_vbox.add_child(hbox); i += 1
 
 func _update_report_text() -> void:
-	var current_income = GameManager.get_daily_income()
-	var total_expenses = GameManager.daily_maintenance + GameManager.BASE_COST + GameManager.daily_gang_toll
-	var net_profit = current_income - total_expenses
-	
-	var text = "RELATORIO ADMINISTRATIVO\n\n"
-	text += "Dia de Operacao: " + str(GameManager.current_day) + "\n"
-	text += "Saldo em Caixa: $" + str(GameManager.money) + "\n\n"
-	
-	var has_broken_route = false
-	var has_invalid_route = false
-	var has_operating_contract = false 
-	
+	var inc = GameManager.get_daily_income(); var exp = GameManager.daily_maintenance + GameManager.BASE_COST + GameManager.daily_gang_toll; var net = inc - exp
+	var t = "RELATORIO ADMINISTRATIVO\n\nDia: " + str(GameManager.current_day) + "\nCaixa: $" + str(GameManager.money) + "\n\nReceita: +$" + str(inc) + "\nManutencao: -$" + str(GameManager.daily_maintenance) + "\nTaxas: -$" + str(GameManager.BASE_COST)
+	if GameManager.daily_gang_toll > 0: t += "\nPropinas: -$" + str(GameManager.daily_gang_toll)
+	t += "\n----------------\nLucro: $" + str(net); report_label.text = t
+	var has_op = false
 	for c in GameManager.active_contracts:
-		if not (c["route_id"] in GameManager.network_connections):
-			has_broken_route = true
-		elif not GameManager.is_contract_operating(c):
-			has_invalid_route = true
-		else:
-			has_operating_contract = true
-			
-	if has_broken_route:
-		text += "[!] Trecho vital destruido. Trens parados.\n\n"
-	if has_invalid_route:
-		text += "[!] Trem retido na estacao. Padroes de qualidade nao atingidos.\n\n"
-	
-	text += "Receita Diaria: +$" + str(current_income) + "\n"
-	text += "Manutencao da Rota: -$" + str(GameManager.daily_maintenance) + "\n"
-	text += "Taxas Administrativas: -$" + str(GameManager.BASE_COST) + "\n"
-	
-	if GameManager.daily_gang_toll > 0:
-		text += "Pagamento de Propinas: -$" + str(GameManager.daily_gang_toll) + "\n"
-		
-	text += "----------------------------------\n"
-	text += "Lucro Liquido Projetado: $" + str(net_profit) + "\n"
-	
-	if net_profit < 0 and abs(net_profit) > GameManager.money:
-		text += "\nAVISO: O saldo nao cobre a operacao. Risco de Falencia!"
-		
-	report_label.text = text
+		if GameManager.is_contract_operating(c): has_op = true
+	if GameManager.current_day == 1 and not has_op: btn_next_day.disabled = true; btn_next_day.text = "[ Exige contrato e trilho ]"
+	else: btn_next_day.disabled = false; btn_next_day.text = "Assinar e Finalizar Dia"
 
-	if GameManager.current_day == 1 and not has_operating_contract:
-		btn_next_day.disabled = true
-		btn_next_day.text = "[ Exige infraestrutura e contrato ]"
-	else:
-		btn_next_day.disabled = false
-		btn_next_day.text = "Assinar e Finalizar Dia"
-
-func _on_stats_changed(_new_value) -> void:
-	_update_report_text()
-	_update_diretrizes() 
-
-func _on_contracts_updated() -> void:
-	_update_report_text()
-	_update_active_contracts_text()
-	_load_agenda_contacts() 
-
-func _on_day_changed(_new_day) -> void:
-	_update_report_text()
-	_update_active_contracts_text()
-	_load_agenda_contacts() 
+func _on_stats_changed(_v) -> void: _update_report_text(); _update_diretrizes()
+func _on_contracts_updated() -> void: _update_report_text(); _update_active_contracts_text(); _load_agenda_contacts() 
+func _on_day_changed(_v) -> void: _update_report_text(); _update_active_contracts_text(); _load_agenda_contacts() 
 
 func _on_visibility_changed() -> void:
-	if ui_layer:
-		ui_layer.visible = visible
+	if ui_layer: ui_layer.visible = visible
 	if visible:
-		_load_agenda_contacts()
-		_update_report_text()
-		_update_diretrizes()
-		folder_rect.visible = false 
-		
-		# Força uma arrumação da mesa sempre que volta do mapa para não estar o caos!
+		_load_agenda_contacts(); _update_report_text(); _update_diretrizes(); folder_rect.visible = false 
 		_on_organize_pressed()
-		
-		if GameManager.pendent_angry_call:
-			GameManager.pendent_angry_call = false
-			phone_cutscene.start_angry_call()
+		if GameManager.pendent_angry_call: GameManager.pendent_angry_call = false; phone_cutscene.start_angry_call()
 
-func _on_next_day_pressed() -> void:
-	GameManager.end_day()
-
-func _on_back_map_pressed() -> void:
-	var main_node = get_parent()
-	if main_node.has_method("go_to_map"):
-		main_node.go_to_map()
+func _on_next_day_pressed() -> void: GameManager.end_day()
+func _on_back_map_pressed() -> void: get_parent().go_to_map()
