@@ -6,6 +6,11 @@ var agenda_rect: ColorRect
 var clipboard_rect: ColorRect
 var active_paper_rect: ColorRect
 
+# O Dossiê de Diretrizes com a NOVA BARRA DE PROGRESSO
+var diretrizes_rect: ColorRect
+var diretrizes_label: Label
+var diretrizes_bar: ProgressBar
+
 var companies_vbox: VBoxContainer
 var active_contact_label: Label
 var btn_call: Button
@@ -35,6 +40,7 @@ func _ready() -> void:
 	_load_agenda_contacts()
 	_update_report_text()
 	_update_active_contracts_text()
+	_update_diretrizes() 
 
 func _setup_ui() -> void:
 	ui_layer = CanvasLayer.new()
@@ -44,6 +50,48 @@ func _setup_ui() -> void:
 	bg_rect.color = Color(0.25, 0.15, 0.1) 
 	bg_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
 	ui_layer.add_child(bg_rect)
+
+	btn_back_map = Button.new()
+	btn_back_map.text = "<- Voltar ao Mapa"
+	btn_back_map.position = Vector2(20, 20)
+	btn_back_map.size = Vector2(180, 40)
+	btn_back_map.pressed.connect(_on_back_map_pressed)
+	ui_layer.add_child(btn_back_map)
+
+	# =======================================
+	# A PASTA DE DIRETRIZES COM A BARRA
+	# =======================================
+	diretrizes_rect = ColorRect.new()
+	diretrizes_rect.color = Color(0.6, 0.15, 0.15) 
+	diretrizes_rect.size = Vector2(870, 50)
+	diretrizes_rect.position = Vector2(250, 15)
+	ui_layer.add_child(diretrizes_rect)
+	
+	var selo_clip = ColorRect.new()
+	selo_clip.color = Color(0.1, 0.1, 0.1)
+	selo_clip.size = Vector2(20, 50)
+	selo_clip.position = Vector2(0, 0)
+	diretrizes_rect.add_child(selo_clip)
+	
+	diretrizes_label = Label.new()
+	diretrizes_label.position = Vector2(40, 5)
+	diretrizes_label.add_theme_font_size_override("font_size", 14)
+	diretrizes_label.add_theme_color_override("font_color", Color.WHITE)
+	diretrizes_rect.add_child(diretrizes_label)
+	
+	# NOVA BARRA DE PROGRESSO
+	var bg_bar = StyleBoxFlat.new()
+	bg_bar.bg_color = Color(0.2, 0.1, 0.1)
+	var fg_bar = StyleBoxFlat.new()
+	fg_bar.bg_color = Color(0.2, 0.6, 0.2) # Verde padrao
+	
+	diretrizes_bar = ProgressBar.new()
+	diretrizes_bar.position = Vector2(40, 28)
+	diretrizes_bar.size = Vector2(800, 15)
+	diretrizes_bar.show_percentage = false
+	diretrizes_bar.add_theme_stylebox_override("background", bg_bar)
+	diretrizes_bar.add_theme_stylebox_override("fill", fg_bar)
+	diretrizes_rect.add_child(diretrizes_bar)
 
 	# AGENDA TELEFONICA
 	agenda_rect = ColorRect.new()
@@ -58,7 +106,7 @@ func _setup_ui() -> void:
 	agenda_rect.add_child(lombada)
 	
 	var agenda_title = Label.new()
-	agenda_title.text = "CONTATOS REGIONAIS"
+	agenda_title.text = "ARQUIVO DE CLIENTES"
 	agenda_title.add_theme_color_override("font_color", Color.BLACK)
 	agenda_title.position = Vector2(50, 20)
 	agenda_rect.add_child(agenda_title)
@@ -110,7 +158,7 @@ func _setup_ui() -> void:
 	btn_next_day.pressed.connect(_on_next_day_pressed)
 	clipboard_rect.add_child(btn_next_day)
 
-	# PAPEL DE CONTRATOS ATIVOS
+	# FROTA
 	active_paper_rect = ColorRect.new()
 	active_paper_rect.color = Color(0.85, 0.9, 0.95) 
 	active_paper_rect.size = Vector2(330, 400)
@@ -118,7 +166,7 @@ func _setup_ui() -> void:
 	ui_layer.add_child(active_paper_rect)
 
 	var active_title = Label.new()
-	active_title.text = "FROTA EM OPERACAO"
+	active_title.text = "FROTA: 3 LOCOMOTIVAS A CARVAO" 
 	active_title.add_theme_color_override("font_color", Color.BLACK)
 	active_title.position = Vector2(20, 20)
 	active_paper_rect.add_child(active_title)
@@ -128,19 +176,31 @@ func _setup_ui() -> void:
 	contracts_vbox.size = Vector2(290, 330)
 	active_paper_rect.add_child(contracts_vbox)
 
-	btn_back_map = Button.new()
-	btn_back_map.text = "<- Voltar ao Mapa"
-	btn_back_map.position = Vector2(20, 20)
-	btn_back_map.size = Vector2(180, 40)
-	btn_back_map.pressed.connect(_on_back_map_pressed)
-	ui_layer.add_child(btn_back_map)
-
 func _setup_cutscene() -> void:
 	phone_cutscene = CutsceneDialog.new()
 	add_child(phone_cutscene)
 	phone_cutscene.contract_accepted.connect(_on_cutscene_accepted)
 	phone_cutscene.contract_rejected.connect(_on_cutscene_rejected)
 	phone_cutscene.call_closed.connect(_on_cutscene_closed) 
+
+func _update_diretrizes() -> void:
+	var lvl_data = LevelData.LEVELS[GameManager.current_level]
+	var meta = lvl_data["goal"]
+	var atual = GameManager.money
+	
+	diretrizes_label.text = "📌 DIRETRIZES DA REGIAO [" + lvl_data["name"] + "]  |  META: $" + str(meta) + "  |  CAIXA: $" + str(atual)
+	
+	var fg_bar = diretrizes_bar.get_theme_stylebox("fill") as StyleBoxFlat
+	if atual < 0:
+		fg_bar.bg_color = Color(0.8, 0.2, 0.2) # Vermelho (Divida)
+		diretrizes_bar.min_value = 0
+		diretrizes_bar.max_value = 1
+		diretrizes_bar.value = 1
+	else:
+		fg_bar.bg_color = Color(0.2, 0.6, 0.2) # Verde (Lucro)
+		diretrizes_bar.min_value = 0
+		diretrizes_bar.max_value = meta
+		diretrizes_bar.value = atual
 
 func _load_agenda_contacts() -> void:
 	for child in companies_vbox.get_children():
@@ -185,16 +245,13 @@ func _on_company_selected(company_data: Dictionary) -> void:
 	
 	if GameManager.active_contracts.size() >= GameManager.MAX_CONTRACTS:
 		btn_call.disabled = true
-		btn_call.text = "FROTA CHEIA"
+		btn_call.text = "FROTA OCUPADA" 
 	else:
 		btn_call.disabled = false
 		btn_call.text = "☎ LIGAR AGORA"
 		
 	btn_call.visible = true
 
-# =======================================
-# A AUDITORIA NO TELEFONE (VALIDAÇÃO 3.3)
-# =======================================
 func _on_phone_call_pressed() -> void:
 	if not selected_company_data.is_empty():
 		var route_id = selected_company_data["route_id"]
@@ -229,9 +286,8 @@ func _on_phone_call_pressed() -> void:
 				else:
 					route_valid = true
 			else:
-				route_valid = true # Contratos Ganha-Pao nao exigem nada alem da ligacao
+				route_valid = true 
 
-		# Bloqueia se nao tem rota (e nao é excecao), OU se tem rota mas ela chumbou na auditoria!
 		if (not has_route and not is_day_one_exception) or (has_route and not route_valid):
 			phone_cutscene.start_rejection_call(selected_company_data["name"], reject_reason)
 			GameManager.company_cooldowns[selected_company_data["name"]] = 1 
@@ -249,7 +305,6 @@ func _on_cutscene_accepted(final_reward: int) -> void:
 		"reward": final_reward,
 		"days_left": randi_range(5, 10)
 	}
-	# Guarda o limite de distancia para manter a validacao viva
 	if selected_company_data.has("max_dist"):
 		new_contract["max_dist"] = selected_company_data["max_dist"]
 		
@@ -271,9 +326,6 @@ func _clear_selection() -> void:
 	active_contact_label.text = ""
 	btn_call.visible = false
 
-# =======================================
-# INTERFACE DE ERROS EXPLICITOS
-# =======================================
 func _update_active_contracts_text() -> void:
 	for child in contracts_vbox.get_children():
 		contracts_vbox.remove_child(child)
@@ -281,7 +333,7 @@ func _update_active_contracts_text() -> void:
 	
 	if GameManager.active_contracts.size() == 0:
 		var empty_label = Label.new()
-		empty_label.text = "\nNenhum contrato ativo."
+		empty_label.text = "\nLocomotivas paradas no patio."
 		empty_label.add_theme_color_override("font_color", Color.DIM_GRAY)
 		contracts_vbox.add_child(empty_label)
 	else:
@@ -301,7 +353,6 @@ func _update_active_contracts_text() -> void:
 				if not (c["route_id"] in GameManager.network_connections):
 					status = "[PARADO: SEM ROTA]"
 				else:
-					# Informa exatamente qual regra o jogador quebrou!
 					var type = c.get("type", "")
 					var stats = GameManager.network_stats.get(c["route_id"], {})
 					if type == "Expresso" and stats.get("dist", 999) > c.get("max_dist", 999):
@@ -315,7 +366,7 @@ func _update_active_contracts_text() -> void:
 					else:
 						status = "[PARADO: ILEGAL]"
 			
-			c_label.text = str(index + 1) + ". " + c["cargo"] + "\n" + c["route_name"] + " " + status + "\nFaltam: " + str(c["days_left"]) + "d"
+			c_label.text = "Trem " + str(index + 1) + ": " + c["cargo"] + "\n" + c["route_name"] + " " + status + "\nFaltam: " + str(c["days_left"]) + "d"
 			c_label.custom_minimum_size = Vector2(230, 0)
 				
 			hbox.add_child(c_label)
@@ -382,6 +433,7 @@ func _update_report_text() -> void:
 
 func _on_stats_changed(_new_value) -> void:
 	_update_report_text()
+	_update_diretrizes() 
 
 func _on_contracts_updated() -> void:
 	_update_report_text()
@@ -399,6 +451,7 @@ func _on_visibility_changed() -> void:
 	if visible:
 		_load_agenda_contacts()
 		_update_report_text()
+		_update_diretrizes()
 		
 		if GameManager.pendent_angry_call:
 			GameManager.pendent_angry_call = false

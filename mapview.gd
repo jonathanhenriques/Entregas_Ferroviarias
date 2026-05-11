@@ -38,6 +38,9 @@ var btn_go_desk: Button
 var temp_cost: int = 0
 var temp_maintenance: int = 0
 
+# NOVO: Dicionario para gerir os trens em movimento
+var active_trains: Dictionary = {}
+
 func _ready() -> void:
 	_generate_biomes()
 	_setup_ui()
@@ -134,6 +137,163 @@ func _on_go_desk_pressed() -> void:
 	if main_node.has_method("go_to_desk"):
 		main_node.go_to_desk()
 
+# =======================================
+# NOVO: A VIDA NO MAPA (Animacao dos Trens)
+# =======================================
+func _process(delta: float) -> void:
+	if not visible: return
+	
+	var needs_redraw = false
+	
+	# Verifica e move os trens dos contratos operantes
+	for i in range(GameManager.active_contracts.size()):
+		var c = GameManager.active_contracts[i]
+		if GameManager.is_contract_operating(c):
+			needs_redraw = true
+			if not active_trains.has(i):
+				_spawn_train(i, c)
+			else:
+				_move_train(i, delta)
+		else:
+			if active_trains.has(i):
+				active_trains.erase(i)
+				needs_redraw = true
+
+	# Limpa trens fantasmas (contratos cancelados/terminados)
+	var keys = active_trains.keys()
+	for k in keys:
+		if k >= GameManager.active_contracts.size():
+			active_trains.erase(k)
+			needs_redraw = true
+
+	if needs_redraw:
+		queue_redraw()
+
+func _spawn_train(contract_index: int, contract: Dictionary) -> void:
+	var route_id = contract["route_id"]
+	var start_city = Vector2i(-1, -1)
+	var target_city = Vector2i(-1, -1)
+
+	if "Azul" in route_id and "Vermelha" in route_id:
+		start_city = city_a; target_city = city_b
+	elif "Azul" in route_id and "Verde" in route_id:
+		start_city = city_a; target_city = city_c
+	elif "Vermelha" in route_id and "Verde" in route_id:
+		start_city = city_b; target_city = city_c
+
+	var valid_tiles = {}
+	for r in confirmed_routes:
+		for cell in r: valid_tiles[cell] = true
+	valid_tiles[start_city] = true
+	valid_tiles[target_city] = true
+
+	var path_cells = _bfs_get_path_array(start_city, target_city, valid_tiles)
+	if path_cells.size() < 2: return 
+	
+	var path_points = []
+	for cell in path_cells:
+		path_points.append(Vector2(cell.x * TILE_SIZE + TILE_SIZE/2.0, cell.y * TILE_SIZE + TILE_SIZE/2.0))
+
+	var palette = [
+		Color.CRIMSON,      
+		Color.ROYAL_BLUE,   
+		Color.GOLDENROD,    
+		Color.DARK_VIOLET,  
+		Color.DARK_ORANGE   
+	]
+	var v_color = palette[contract_index % palette.size()]
+
+	active_trains[contract_index] = {
+		"path": path_points,
+		"progress": 0.0,
+		"direction": 1,
+		"speed": 60.0, 
+		"color": v_color,
+		"delay": contract_index * 1.5 # NOVO: Intervalo de 1.5 segundos entre cada trem!
+	}
+
+func _move_train(index: int, delta: float) -> void:
+	var train = active_trains[index]
+	if train["path"].size() < 2: return
+	
+	# O trem fica parado na estacao ate o delay dele acabar
+	if train.has("delay") and train["delay"] > 0:
+		train["delay"] -= delta
+		return
+	
+	var path_len = 0.0
+	for i in range(train["path"].size() - 1):
+		path_len += train["path"][i].distance_to(train["path"][i+1])
+		
+	train["progress"] += train["speed"] * delta * train["direction"]
+
+	if train["progress"] >= path_len:
+		train["progress"] = path_len
+		train["direction"] = -1
+	elif train["progress"] <= 0:
+		train["progress"] = 0
+		train["direction"] = 1
+
+# Helper Matemático: Calcula exatamente a posicao e angulo num ponto da linha
+func _get_path_info(path: Array, dist: float) -> Dictionary:
+	var path_len = 0.0
+	var seg_lengths = []
+	for i in range(path.size() - 1):
+		var d = path[i].distance_to(path[i+1])
+		seg_lengths.append(d)
+		path_len += d
+
+	dist = clamp(dist, 0.0, path_len)
+	var accum = 0.0
+	
+	for i in range(path.size() - 1):
+		var seg_len = seg_lengths[i]
+		if accum + seg_len >= dist or i == path.size() - 2:
+			var t = 0.0
+			if seg_len > 0: t = (dist - accum) / seg_len
+			t = clamp(t, 0.0, 1.0)
+			var pos = path[i].lerp(path[i+1], t)
+			var dir = (path[i+1] - path[i]).normalized()
+			if dir == Vector2.ZERO: dir = Vector2.RIGHT
+			return {"pos": pos, "dir": dir}
+		accum += seg_len
+		
+	return {"pos": path.back(), "dir": Vector2.RIGHT}
+
+# O coracao do GPS do trem (Retorna o Array exato da rota mais curta)
+func _bfs_get_path_array(start_node: Vector2i, target_node: Vector2i, valid_tiles: Dictionary) -> Array[Vector2i]:
+	# TIPAGEM FORTE: Declaramos explicitamente que a rota inicial e um Array de Vector2i
+	var initial_path: Array[Vector2i] = [start_node]
+	var queue = [initial_path]
+	var visited = {start_node: true}
+
+	while queue.size() > 0:
+		# TIPAGEM FORTE: Garantimos que a rota que sai da fila mantem o tipo correto
+		var path: Array[Vector2i] = queue.pop_front()
+		var cell = path.back()
+
+		if cell == target_node:
+			return path
+
+		var neighbors = [
+			cell + Vector2i.UP, cell + Vector2i.DOWN,
+			cell + Vector2i.LEFT, cell + Vector2i.RIGHT
+		]
+		for n in neighbors:
+			if valid_tiles.has(n) and not visited.has(n):
+				visited[n] = true
+				var new_path: Array[Vector2i] = path.duplicate()
+				new_path.append(n)
+				queue.push_back(new_path)
+				
+	# Retorna um array vazio tipado como fallback de seguranca
+	var empty_path: Array[Vector2i] = []
+	return empty_path
+
+
+# =======================================
+# LÓGICA DE CLIQUE E DESENHO
+# =======================================
 func _unhandled_input(event: InputEvent) -> void:
 	if not visible: return
 	if validation_panel.visible: return
@@ -183,7 +343,6 @@ func _unhandled_input(event: InputEvent) -> void:
 				var lost_contracts = []
 				for i in range(GameManager.active_contracts.size()):
 					var c = GameManager.active_contracts[i]
-					# Avallia se o trem parou de operar por causa do trilho deletado
 					if c["route_id"] in old_connections and not GameManager.is_contract_operating(c):
 						lost_contracts.append(i)
 				
@@ -223,6 +382,8 @@ func _get_orthogonal_path(start: Vector2i, end: Vector2i) -> Array[Vector2i]:
 	return path
 
 func _update_network_status() -> void:
+	active_trains.clear() # Forca os trens a recalcularem as rotas caso a rede mude
+	
 	var built_tiles = {}
 	var current_gang_toll = 0
 	
@@ -272,12 +433,9 @@ func _update_network_status() -> void:
 	GameManager.network_stats = stats
 	GameManager.contracts_updated.emit() 
 
-# =======================================
-# ALGORITMO DE 3 VARRIMENTOS (A MÁGICA 3.3)
-# =======================================
 func _get_route_capabilities(start_node: Vector2i, target_node: Vector2i, valid_tiles: Dictionary) -> Dictionary:
 	var shortest_dist = _bfs_shortest_dist(start_node, target_node, valid_tiles, false, false)
-	if shortest_dist == -1: return {} # Nao tem trilho conectando
+	if shortest_dist == -1: return {} 
 
 	var avoids_gangs = _bfs_shortest_dist(start_node, target_node, valid_tiles, true, false) != -1
 	var avoids_forests = _bfs_shortest_dist(start_node, target_node, valid_tiles, false, true) != -1
@@ -381,14 +539,32 @@ func _on_reject_pressed() -> void:
 func _get_cell_under_mouse(mouse_pos: Vector2) -> Vector2i:
 	return Vector2i(mouse_pos.x / TILE_SIZE, mouse_pos.y / TILE_SIZE)
 
+
+# Helper novo: Verifica se a celula tem algum trilho (confirmado ou em planeamento)
+func _is_cell_occupied_by_track(cell: Vector2i) -> bool:
+	for route in confirmed_routes:
+		if cell in route: return true
+	if cell in tentative_path: return true
+	return false
+
+
 func _draw() -> void:
 	for x in range(grid_width):
 		for y in range(grid_height):
 			var cell = Vector2i(x, y)
 			var b = biome_map.get(cell, Biome.PLAIN)
-			var color = BIOME_DATA[b]["color"]
-			draw_rect(Rect2(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE), color)
 			
+			# O chao da Floresta agora usa a cor da Planicie como base
+			var bg_color = BIOME_DATA[Biome.PLAIN]["color"] if b == Biome.FOREST else BIOME_DATA[b]["color"]
+			draw_rect(Rect2(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE), bg_color)
+			
+			# NOVA ARVORE: Desenha o Pinheiro (Triangulo) se for Floresta e NAO tiver trilho
+			if b == Biome.FOREST and not _is_cell_occupied_by_track(cell):
+				var p1 = Vector2(x * TILE_SIZE + TILE_SIZE / 2.0, y * TILE_SIZE + 6)
+				var p2 = Vector2(x * TILE_SIZE + 6, y * TILE_SIZE + TILE_SIZE - 6)
+				var p3 = Vector2(x * TILE_SIZE + TILE_SIZE - 6, y * TILE_SIZE + TILE_SIZE - 6)
+				draw_polygon(PackedVector2Array([p1, p2, p3]), [Color(0.15, 0.4, 0.15)]) # Verde escuro
+
 	for cell in gang_map.keys():
 		draw_rect(Rect2(cell.x * TILE_SIZE, cell.y * TILE_SIZE, TILE_SIZE, TILE_SIZE), Color(0.8, 0.1, 0.1, 0.4))
 
@@ -408,33 +584,114 @@ func _draw() -> void:
 		draw_rect(Rect2(city_b.x * TILE_SIZE, city_b.y * TILE_SIZE, TILE_SIZE, TILE_SIZE), Color.CRIMSON)
 	if city_c != Vector2i(-1, -1):
 		draw_rect(Rect2(city_c.x * TILE_SIZE, city_c.y * TILE_SIZE, TILE_SIZE, TILE_SIZE), Color.FOREST_GREEN)
+		
+	_draw_trains()
+
+
+
+# =======================================
+# LÓGICA DE DESENHO GEOMÉTRICO
+# =======================================
+func _get_track_color(b: int, is_preview: bool) -> Color:
+	if is_preview: return Color.YELLOW
+	if b == Biome.RIVER: return Color.SADDLE_BROWN 
+	if b == Biome.MOUNTAIN: return Color.DARK_SLATE_GRAY 
+	return Color.BLACK
+
 
 func _draw_custom_track(path: Array, is_preview: bool) -> void:
 	if path.size() == 0: return
-	
-	var line_color = Color.YELLOW if is_preview else Color.BLACK
-	var line_width = 2.0 
 
 	if path.size() == 1:
-		draw_circle(Vector2(path[0].x * TILE_SIZE + TILE_SIZE/2.0, path[0].y * TILE_SIZE + TILE_SIZE/2.0), 4.0, line_color)
+		var b = biome_map.get(path[0], Biome.PLAIN)
+		draw_circle(Vector2(path[0].x * TILE_SIZE + TILE_SIZE/2.0, path[0].y * TILE_SIZE + TILE_SIZE/2.0), 4.0, _get_track_color(b, is_preview))
 		return
-
-	var points = PackedVector2Array()
+		
+	# NOVO VISUAL DE DESMATAMENTO: Um toco bege unico
 	for cell in path:
-		points.append(Vector2(cell.x * TILE_SIZE + TILE_SIZE/2.0, cell.y * TILE_SIZE + TILE_SIZE/2.0))
+		if biome_map.get(cell, Biome.PLAIN) == Biome.FOREST:
+			var cx = cell.x * TILE_SIZE
+			var cy = cell.y * TILE_SIZE
+			# Posiciona o toco levemente deslocado para o trilho nao o tapar totalmente
+			var stump = Vector2(cx + 10, cy + 10) 
+			draw_circle(stump, 5.0, Color(0.85, 0.75, 0.55)) # Bege (Madeira clara)
+			draw_circle(stump, 2.5, Color(0.7, 0.6, 0.4))    # Miolo escuro
 
-	draw_polyline(points, line_color, line_width, true)
+	for i in range(path.size() - 1):
+		var p1_cell = path[i]
+		var p2_cell = path[i+1]
+		var b1 = biome_map.get(p1_cell, Biome.PLAIN)
+		var b2 = biome_map.get(p2_cell, Biome.PLAIN)
 
-	for i in range(points.size() - 1):
-		var p1 = points[i]
-		var p2 = points[i+1]
-		var dir = (p2 - p1).normalized()
-		var normal = Vector2(-dir.y, dir.x) 
+		var segment_biome = Biome.PLAIN
+		if b1 == Biome.MOUNTAIN or b2 == Biome.MOUNTAIN: segment_biome = Biome.MOUNTAIN
+		elif b1 == Biome.RIVER or b2 == Biome.RIVER: segment_biome = Biome.RIVER
+		elif b1 == Biome.FOREST or b2 == Biome.FOREST: segment_biome = Biome.FOREST
+
+		var line_color = _get_track_color(segment_biome, is_preview)
+		var line_width = 5.0 if segment_biome == Biome.MOUNTAIN else 2.0
+
+		var p1 = Vector2(p1_cell.x * TILE_SIZE + TILE_SIZE/2.0, p1_cell.y * TILE_SIZE + TILE_SIZE/2.0)
+		var p2 = Vector2(p2_cell.x * TILE_SIZE + TILE_SIZE/2.0, p2_cell.y * TILE_SIZE + TILE_SIZE/2.0)
+
+		draw_line(p1, p2, line_color, line_width)
+
+		if segment_biome != Biome.MOUNTAIN:
+			var dir = (p2 - p1).normalized()
+			var normal = Vector2(-dir.y, dir.x)
+			var segment_length = p1.distance_to(p2)
+			
+			var spacing = 5.0 if segment_biome == Biome.RIVER else 10.0
+			var num_ties = int(segment_length / spacing)
+			var tie_color = Color(0.3, 0.2, 0.1) if (segment_biome == Biome.RIVER and not is_preview) else line_color
+
+			for j in range(1, num_ties + 1):
+				var tie_center = p1 + dir * (j * spacing)
+				var tie_width = 5 if segment_biome == Biome.RIVER else 4
+				draw_line(tie_center - normal * tie_width, tie_center + normal * tie_width, tie_color, 2.0)
+		else:
+			var dir = (p2 - p1).normalized()
+			var segment_length = p1.distance_to(p2)
+			var spacing = 6.0
+			var num_ties = int(segment_length / spacing)
+			for j in range(1, num_ties + 1):
+				if j % 2 == 0:
+					var dot_center = p1 + dir * (j * spacing)
+					var dot_color = Color.YELLOW if is_preview else Color.WHITE
+					draw_circle(dot_center, 1.5, dot_color)
+
+
+func _draw_trains() -> void:
+	for index in active_trains.keys():
+		var train = active_trains[index]
+		var path = train["path"]
+		if path.size() < 2: continue
+
+		var current_dist = train["progress"]
+		if train.has("delay") and train["delay"] > 0:
+			current_dist = 0.0 # Segura o trem no inicio se estiver em delay
+
+		# Magia da Articulacao: Locomotiva vai à frente, vagao vai 20 pixels atras!
+		var loco_dist = current_dist
+		var wagon_dist = current_dist - (20.0 * train["direction"])
+
+		var loco_info = _get_path_info(path, loco_dist)
+		var wagon_info = _get_path_info(path, wagon_dist)
+
+		var loco_dir = loco_info["dir"]
+		var wagon_dir = wagon_info["dir"]
+
+		if train["direction"] == -1:
+			loco_dir = -loco_dir
+			wagon_dir = -wagon_dir
+
+		# Desenha o Vagao Colorido Articulado
+		draw_set_transform(wagon_info["pos"], wagon_dir.angle(), Vector2.ONE)
+		draw_rect(Rect2(-8, -5, 16, 10), train["color"])
 		
-		var segment_length = p1.distance_to(p2)
-		var spacing = 10.0 
-		var num_ties = int(segment_length / spacing)
+		# Desenha a Locomotiva
+		draw_set_transform(loco_info["pos"], loco_dir.angle(), Vector2.ONE)
+		draw_rect(Rect2(-10, -6, 20, 12), Color(0.15, 0.15, 0.15)) 
+		draw_rect(Rect2(2, -4, 6, 8), Color(0.7, 0.7, 0.7)) 
 		
-		for j in range(1, num_ties + 1):
-			var tie_center = p1 + dir * (j * spacing)
-			draw_line(tie_center - normal * 4, tie_center + normal * 4, line_color, line_width)
+		draw_set_transform(Vector2.ZERO, 0, Vector2.ONE)
