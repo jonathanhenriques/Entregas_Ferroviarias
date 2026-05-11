@@ -33,11 +33,41 @@ var btn_organize: Button
 var phone_cutscene: CutsceneDialog
 
 var selected_company_data: Dictionary 
-var is_negotiating_urgency: bool = false 
 
 var dragged_panel: Control = null
 var drag_offset: Vector2 = Vector2.ZERO
 var original_transforms: Dictionary = {}
+
+# =======================================
+# VARIAVEIS DO TELEFONE DE DISCO
+# =======================================
+var phone_rect: ColorRect
+var phone_display: Label
+var dial_rect: Control
+
+var current_dialed: String = ""
+var pending_company_data: Dictionary = {}
+var pending_is_urgent: bool = false
+
+var HOLE_ANGLES = [
+	0.0,             # 0
+	-PI * 1.5,       # 1 (-270 deg)
+	-PI * 1.3333,    # 2 (-240 deg)
+	-PI * 1.1666,    # 3 (-210 deg)
+	-PI,             # 4 (-180 deg)
+	-PI * 0.8333,    # 5 (-150 deg)
+	-PI * 0.6666,    # 6 (-120 deg)
+	-PI * 0.5,       # 7 (-90 deg)
+	-PI * 0.3333,    # 8 (-60 deg)
+	-PI * 0.1666     # 9 (-30 deg)
+]
+var STOP_ANGLE = PI / 4.0 # 45 deg (Batente metálico)
+
+var is_dial_dragging: bool = false
+var dialing_number: int = -1
+var dial_start_angle: float = 0.0
+var dial_current_rot: float = 0.0
+var max_rot: float = 0.0
 
 func _ready() -> void:
 	_setup_ui()
@@ -54,6 +84,16 @@ func _ready() -> void:
 	_update_report_text()
 	_update_active_contracts_text()
 	_update_diretrizes() 
+
+func _process(delta: float) -> void:
+	if not visible: return
+	
+	if not is_dial_dragging:
+		if dial_current_rot > 0.0:
+			dial_current_rot -= delta * 5.0 
+			if dial_current_rot < 0.0:
+				dial_current_rot = 0.0
+			dial_rect.queue_redraw()
 
 func _setup_ui() -> void:
 	ui_layer = CanvasLayer.new()
@@ -112,7 +152,7 @@ func _setup_ui() -> void:
 	agenda_rect = ColorRect.new()
 	agenda_rect.color = Color(0.85, 0.8, 0.6) 
 	agenda_rect.size = Vector2(300, 400)
-	agenda_rect.position = Vector2(200, 350)
+	agenda_rect.position = Vector2(80, 250)
 	ui_layer.add_child(agenda_rect)
 	_make_draggable(agenda_rect)
 	
@@ -137,7 +177,7 @@ func _setup_ui() -> void:
 	clipboard_rect = ColorRect.new()
 	clipboard_rect.color = Color(0.95, 0.95, 0.9) 
 	clipboard_rect.size = Vector2(350, 400)
-	clipboard_rect.position = Vector2(780, 350)
+	clipboard_rect.position = Vector2(1000, 250)
 	ui_layer.add_child(clipboard_rect)
 	_make_draggable(clipboard_rect)
 	
@@ -165,7 +205,7 @@ func _setup_ui() -> void:
 	active_paper_rect = ColorRect.new()
 	active_paper_rect.color = Color(0.85, 0.9, 0.95) 
 	active_paper_rect.size = Vector2(330, 400)
-	active_paper_rect.position = Vector2(1380, 350)
+	active_paper_rect.position = Vector2(1450, 250)
 	ui_layer.add_child(active_paper_rect)
 	_make_draggable(active_paper_rect)
 
@@ -229,7 +269,7 @@ func _setup_ui() -> void:
 	doc_standard.add_child(std_label)
 	
 	btn_call_std = Button.new()
-	btn_call_std.text = "☎ LIGAR PADRAO"
+	btn_call_std.text = "PREPARAR CONTRATO"
 	btn_call_std.position = Vector2(10, 330)
 	btn_call_std.size = Vector2(170, 40)
 	btn_call_std.pressed.connect(_on_call_standard_pressed)
@@ -250,33 +290,185 @@ func _setup_ui() -> void:
 	doc_urgent.add_child(urg_label)
 	
 	btn_call_urg = Button.new()
-	btn_call_urg.text = "☎ LIGAR URGENCIA"
+	btn_call_urg.text = "PREPARAR URGENCIA"
 	btn_call_urg.position = Vector2(10, 330)
 	btn_call_urg.size = Vector2(170, 40)
 	btn_call_urg.pressed.connect(_on_call_urgent_pressed)
 	doc_urgent.add_child(btn_call_urg)
 
+	# =======================================
+	# O TELEFONE DE DISCO FÍSICO
+	# =======================================
+	phone_rect = ColorRect.new()
+	phone_rect.color = Color(0.1, 0.25, 0.15) # Verde musgo vintage
+	phone_rect.size = Vector2(340, 260) # Formato mais quadrado/base larga
+	phone_rect.position = Vector2(350, 700)
+	ui_layer.add_child(phone_rect)
+	_make_draggable(phone_rect)
+	
+	# Detalhe visual: o "gancho" e o fone em cima do telefone
+	var handset_rect = ColorRect.new()
+	handset_rect.color = Color(0.08, 0.2, 0.12)
+	handset_rect.size = Vector2(300, 40)
+	handset_rect.position = Vector2(20, -20)
+	handset_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	phone_rect.add_child(handset_rect)
+	
+	phone_display = Label.new()
+	phone_display.text = "VISOR: ---"
+	phone_display.position = Vector2(40, 30)
+	phone_display.size = Vector2(260, 40)
+	phone_display.add_theme_font_size_override("font_size", 24)
+	phone_display.add_theme_color_override("font_color", Color.WHITE)
+	phone_rect.add_child(phone_display)
+	
+	dial_rect = Control.new()
+	dial_rect.position = Vector2(170, 160) # Centro do disco em relacao a nova base
+	dial_rect.size = Vector2(240, 240)
+	dial_rect.position -= dial_rect.size / 2.0
+	dial_rect.mouse_filter = Control.MOUSE_FILTER_STOP
+	dial_rect.draw.connect(_on_dial_draw)
+	dial_rect.gui_input.connect(_on_dial_gui_input)
+	phone_rect.add_child(dial_rect)
+
+# =======================================
+# LÓGICA DO TELEFONE DE DISCO (ARRASTAR)
+# =======================================
+func _on_dial_draw() -> void:
+	var center = dial_rect.size / 2.0
+	var radius = 100.0
+	
+	dial_rect.draw_circle(center, radius, Color(0.15, 0.15, 0.15)) 
+	
+	var font = ThemeDB.fallback_font
+	for i in range(10):
+		var angle = HOLE_ANGLES[i]
+		var pos = center + Vector2(cos(angle), sin(angle)) * 75.0
+		dial_rect.draw_circle(pos, 18.0, Color(0.8, 0.8, 0.8)) 
+		dial_rect.draw_string(font, pos + Vector2(-4, 5), str(i), HORIZONTAL_ALIGNMENT_CENTER, -1, 16, Color.BLACK)
+		
+	dial_rect.draw_arc(center, radius, 0, TAU, 32, Color(0.3, 0.3, 0.3), 4.0)
+	for i in range(10):
+		var angle = HOLE_ANGLES[i] + dial_current_rot
+		var pos = center + Vector2(cos(angle), sin(angle)) * 75.0
+		dial_rect.draw_arc(pos, 18.0, 0, TAU, 16, Color(0.3, 0.3, 0.3), 3.0)
+		
+	var stop_dir = Vector2(cos(STOP_ANGLE), sin(STOP_ANGLE))
+	dial_rect.draw_line(center + stop_dir * 40, center + stop_dir * 115, Color.SILVER, 6.0)
+
+func _on_dial_gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_LEFT:
+			if event.is_pressed():
+				var local_pos = event.position - (dial_rect.size / 2.0)
+				var dist = local_pos.length()
+				if dist > 50 and dist < 110:
+					var click_angle = local_pos.angle()
+					var closest_num = -1
+					var min_diff = 999.0
+					
+					for i in range(10):
+						var h_angle = HOLE_ANGLES[i]
+						var diff = abs(_angle_difference(click_angle, h_angle))
+						if diff < min_diff:
+							min_diff = diff
+							closest_num = i
+					
+					if min_diff < deg_to_rad(25): 
+						is_dial_dragging = true
+						dialing_number = closest_num
+						dial_start_angle = click_angle
+						max_rot = STOP_ANGLE - HOLE_ANGLES[closest_num]
+						while max_rot < 0: 
+							max_rot += TAU
+			else:
+				if is_dial_dragging:
+					is_dial_dragging = false
+					if dial_current_rot >= max_rot - deg_to_rad(15):
+						_register_dial_digit(dialing_number)
+					dialing_number = -1
+					
+	else:
+		if event is InputEventMouseMotion:
+			if is_dial_dragging:
+				var current_angle = (event.position - (dial_rect.size / 2.0)).angle()
+				var diff = _angle_difference(dial_start_angle, current_angle)
+				
+				dial_current_rot += diff
+				if dial_current_rot < 0.0:
+					dial_current_rot = 0.0
+				else:
+					if dial_current_rot > max_rot:
+						dial_current_rot = max_rot
+				
+				dial_start_angle = current_angle
+				dial_rect.queue_redraw()
+
+func _angle_difference(a: float, b: float) -> float:
+	var diff = fmod(b - a, TAU)
+	if diff < -PI: 
+		diff += TAU
+	else:
+		if diff > PI: 
+			diff -= TAU
+	return diff
+
+func _register_dial_digit(num: int) -> void:
+	current_dialed += str(num)
+	_update_phone_display()
+	if current_dialed.length() == 7:
+		_check_dialed_number()
+
+func _update_phone_display() -> void:
+	var text = current_dialed
+	if text.length() > 3:
+		text = text.insert(3, "-")
+	phone_display.text = "VISOR: " + text
+
+func _check_dialed_number() -> void:
+	var dialed_clean = current_dialed
+	var target_clean = ""
+	
+	if not pending_company_data.is_empty():
+		target_clean = pending_company_data["phone"].replace("-", "")
+	
+	if dialed_clean == target_clean:
+		phone_display.text = "LIGANDO..."
+		await get_tree().create_timer(0.5).timeout
+		_process_call()
+	else:
+		phone_display.text = "NUMERO INVALIDO"
+		await get_tree().create_timer(1.0).timeout
+	
+	current_dialed = ""
+	_update_phone_display()
+
+# =======================================
+# LÓGICA DE ARRASTAR PAPÉIS (FÍSICA)
+# =======================================
 func _make_draggable(panel: Control) -> void:
 	panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	panel.gui_input.connect(_on_panel_gui_input.bind(panel))
 	original_transforms[panel] = panel.position
 
 func _on_panel_gui_input(event: InputEvent, panel: Control) -> void:
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		if event.is_pressed():
-			dragged_panel = panel
-			panel.rotation_degrees = 0 
-			drag_offset = panel.get_global_mouse_position() - panel.global_position
-			panel.get_parent().move_child(panel, -1) 
-		else:
+	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_LEFT:
+			if event.is_pressed():
+				dragged_panel = panel
+				panel.rotation_degrees = 0 
+				drag_offset = panel.get_global_mouse_position() - panel.global_position
+				panel.get_parent().move_child(panel, -1) 
+			else:
+				if dragged_panel == panel:
+					dragged_panel = null
+					panel.rotation_degrees = randf_range(-3.0, 3.0) 
+					_clamp_to_screen(panel)
+	else:
+		if event is InputEventMouseMotion:
 			if dragged_panel == panel:
-				dragged_panel = null
-				panel.rotation_degrees = randf_range(-3.0, 3.0) 
+				panel.global_position = panel.get_global_mouse_position() - drag_offset
 				_clamp_to_screen(panel)
-				
-	if event is InputEventMouseMotion and dragged_panel == panel:
-		panel.global_position = panel.get_global_mouse_position() - drag_offset
-		_clamp_to_screen(panel)
 
 func _clamp_to_screen(panel: Control) -> void:
 	var s = get_viewport_rect().size
@@ -292,6 +484,9 @@ func _on_organize_pressed() -> void:
 		tween.tween_property(panel, "position", original_transforms[panel], 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 		tween.tween_property(panel, "rotation_degrees", 0.0, 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 
+# =======================================
+# SISTEMAS BASE DA MESA E CUTSCENE
+# =======================================
 func _setup_cutscene() -> void:
 	phone_cutscene = CutsceneDialog.new()
 	add_child(phone_cutscene)
@@ -358,11 +553,15 @@ func _on_company_selected(data: Dictionary) -> void:
 	selected_company_data = data
 	folder_title.text = "CLIENTE: " + data["name"]
 	folder_route.text = "Exige Rota: " + data["route_name"] + " | Arquétipo: [" + data["type"] + "]"
-	std_label.text = "CONTRATO PADRAO\n\nCarga: " + data["cargo"] + "\n\nDuracao: 5-10 dias\nPagamento: ~$" + str(data["base_reward"])
+	
+	# AGORA COM O TELEFONE INCLUIDO NA PASTA DO CLIENTE!
+	std_label.text = "CONTRATO PADRAO\n\nCarga: " + data["cargo"] + "\n\nDuracao: 5-10 dias\nPagamento: ~$" + str(data["base_reward"]) + "\n\nTEL: " + data["phone"]
+	btn_call_std.text = "PREPARAR CONTRATO"
 	
 	if GameManager.daily_urgencies.has(data["name"]):
 		doc_urgent.visible = true
 		urg_label.text = "[!] URGENDA HOJE\n\nPAGAMENTO A VISTA:\n$" + str(GameManager.daily_urgencies[data["name"]]) + "\n\nOcupa trem por 1 dia."
+		btn_call_urg.text = "PREPARAR URGENCIA"
 	else: 
 		doc_urgent.visible = false
 		
@@ -374,25 +573,38 @@ func _on_company_selected(data: Dictionary) -> void:
 func _on_close_folder_pressed() -> void: 
 	folder_rect.visible = false
 	selected_company_data = {}
+	pending_company_data = {}
+	current_dialed = ""
+	_update_phone_display()
 
 func _on_call_standard_pressed() -> void: 
-	is_negotiating_urgency = false
-	_process_call()
+	pending_company_data = selected_company_data
+	pending_is_urgent = false
+	btn_call_std.text = "DISQUE O NUMERO ->"
+	if doc_urgent.visible:
+		btn_call_urg.text = "PREPARAR URGENCIA"
+	current_dialed = ""
+	_update_phone_display()
 
 func _on_call_urgent_pressed() -> void: 
-	is_negotiating_urgency = true
-	_process_call()
+	pending_company_data = selected_company_data
+	pending_is_urgent = true
+	btn_call_urg.text = "DISQUE O NUMERO ->"
+	btn_call_std.text = "PREPARAR CONTRATO"
+	current_dialed = ""
+	_update_phone_display()
 
 func _process_call() -> void:
 	if GameManager.active_contracts.size() >= GameManager.MAX_CONTRACTS:
-		phone_cutscene.start_rejection_call(selected_company_data["name"], "A frota esta lotada!")
+		phone_cutscene.start_rejection_call(pending_company_data["name"], "A frota esta lotada!")
 		folder_rect.visible = false
+		pending_company_data = {}
 		return
 		
-	var rid = selected_company_data["route_id"]
-	var ctype = selected_company_data["type"]
+	var rid = pending_company_data["route_id"]
+	var ctype = pending_company_data["type"]
 	var has_route = rid in GameManager.network_connections
-	var is_daily = "(Diario)" in selected_company_data["name"]
+	var is_daily = "(Diario)" in pending_company_data["name"]
 	var is_day_one = (GameManager.current_day == 1 and is_daily)
 	var route_valid = false
 	var reason = ""
@@ -400,7 +612,7 @@ func _process_call() -> void:
 	if has_route:
 		var stats = GameManager.network_stats.get(rid, {})
 		
-		if ctype == "Expresso" and stats.get("dist", 999) > selected_company_data.get("max_dist", 999): 
+		if ctype == "Expresso" and stats.get("dist", 999) > pending_company_data.get("max_dist", 999): 
 			reason = "Rota longa!"
 		else:
 			if ctype == "VIP" and (stats.get("gangs", 0) > 0 or GameManager.active_contracts.size() > 0): 
@@ -412,39 +624,42 @@ func _process_call() -> void:
 					route_valid = true 
 					
 	if (not has_route and not is_day_one) or (has_route and not route_valid):
-		phone_cutscene.start_rejection_call(selected_company_data["name"], reason)
+		phone_cutscene.start_rejection_call(pending_company_data["name"], reason)
 		if not is_day_one: 
-			GameManager.company_cooldowns[selected_company_data["name"]] = 1 
+			GameManager.company_cooldowns[pending_company_data["name"]] = 1 
 		folder_rect.visible = false
 	else:
-		var rew = GameManager.daily_urgencies[selected_company_data["name"]] if is_negotiating_urgency else selected_company_data["base_reward"]
-		phone_cutscene.start_call(selected_company_data["name"], selected_company_data["type"], selected_company_data["cargo"], rew, is_negotiating_urgency)
+		var rew = GameManager.daily_urgencies[pending_company_data["name"]] if pending_is_urgent else pending_company_data["base_reward"]
+		phone_cutscene.start_call(pending_company_data["name"], pending_company_data["type"], pending_company_data["cargo"], rew, pending_is_urgent)
 
 func _on_cutscene_accepted(final_reward: int) -> void:
-	if is_negotiating_urgency:
+	if pending_is_urgent:
 		GameManager.money += final_reward
-		GameManager.active_contracts.append({"company_name": selected_company_data["name"], "cargo": "[URG] " + selected_company_data["cargo"], "route_id": selected_company_data["route_id"], "route_name": selected_company_data["route_name"], "reward": 0, "days_left": 1, "is_urgent": true})
-		GameManager.daily_urgencies.erase(selected_company_data["name"]) 
+		GameManager.active_contracts.append({"company_name": pending_company_data["name"], "cargo": "[URG] " + pending_company_data["cargo"], "route_id": pending_company_data["route_id"], "route_name": pending_company_data["route_name"], "reward": 0, "days_left": 1, "is_urgent": true})
+		GameManager.daily_urgencies.erase(pending_company_data["name"]) 
 	else:
-		var new_c = {"company_name": selected_company_data["name"], "type": selected_company_data["type"], "cargo": selected_company_data["cargo"], "route_id": selected_company_data["route_id"], "route_name": selected_company_data["route_name"], "reward": final_reward, "days_left": randi_range(5, 10), "is_urgent": false}
-		if selected_company_data.has("max_dist"): 
-			new_c["max_dist"] = selected_company_data["max_dist"]
+		var new_c = {"company_name": pending_company_data["name"], "type": pending_company_data["type"], "cargo": pending_company_data["cargo"], "route_id": pending_company_data["route_id"], "route_name": pending_company_data["route_name"], "reward": final_reward, "days_left": randi_range(5, 10), "is_urgent": false}
+		if pending_company_data.has("max_dist"): 
+			new_c["max_dist"] = pending_company_data["max_dist"]
 		GameManager.active_contracts.append(new_c)
 		
 	GameManager.contracts_updated.emit()
 	folder_rect.visible = false
 	selected_company_data = {}
+	pending_company_data = {}
 
 func _on_cutscene_rejected() -> void:
-	var is_daily = "(Diario)" in selected_company_data["name"]
+	var is_daily = "(Diario)" in pending_company_data["name"]
 	if not (is_daily and GameManager.current_day == 1):
-		GameManager.company_cooldowns[selected_company_data["name"]] = 7
+		GameManager.company_cooldowns[pending_company_data["name"]] = 7
 	_load_agenda_contacts()
 	folder_rect.visible = false
+	pending_company_data = {}
 
 func _on_cutscene_closed() -> void: 
 	_load_agenda_contacts()
 	folder_rect.visible = false
+	pending_company_data = {}
 	
 func _on_cancel_dynamic(idx: int) -> void: 
 	GameManager.cancel_contract(idx)
@@ -558,7 +773,6 @@ func _on_visibility_changed() -> void:
 			GameManager.pendent_angry_call = false
 			phone_cutscene.start_angry_call()
 		else:
-			# NOVO: A bronca inicial do diretor se for a primeira vez na mesa
 			if not GameManager.intro_played:
 				GameManager.intro_played = true
 				phone_cutscene.start_boss_intro()
