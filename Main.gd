@@ -10,18 +10,159 @@ var btn_esc_desk: Button
 var btn_esc_quit: Button
 var is_esc_open: bool = false
 
+# =======================================
+# NOVO: MENU PRINCIPAL E CARTA DE INTRO
+# =======================================
+var menu_layer: CanvasLayer
+var letter_layer: CanvasLayer
+var letter_label: Label
+var letter_bg: ColorRect
+
+var intro_texts: Array[String] = [
+	"Para o meu neto.\n\nO tempo das nossas pequenas ferrovias acabou. Os grandes monopolios esmagaram quase tudo. A nossa velha companhia e uma das ultimas que ainda respira.",
+	"O meu tempo acabou, mas as cidades ainda precisam de nos. O Bear, o meu velho socio, vai precisar de ti para manter os trens a andar. Nao e um trabalho bonito, mas e vital.",
+	"Ele deixou os papeis na tua mesa.\n\nA partir de hoje, o peso dos trilhos e teu.\n\nBoa sorte."
+]
+var current_intro_page: int = 0
+var is_letter_typing: bool = false
+var letter_char_index: int = 0
+var letter_fast_forward: bool = false
+
 func _ready() -> void:
 	map_node = $MapView
 	desk_node = $DeskView
 	
-	if GameManager.start_in_world_map:
-		go_to_map()
-	else:
-		go_to_desk()
+	map_node.visible = false
+	desk_node.visible = false
 		
 	_setup_esc_menu()
+	_setup_main_menu()
+	_setup_intro_letter()
 	
 	GameManager.game_over.connect(_on_game_over)
+	
+	# Inicia o jogo no Menu Principal
+	menu_layer.visible = true
+
+func _setup_main_menu() -> void:
+	menu_layer = CanvasLayer.new()
+	menu_layer.layer = 400
+	add_child(menu_layer)
+	
+	var bg = ColorRect.new()
+	bg.color = Color(0.1, 0.1, 0.15)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	menu_layer.add_child(bg)
+	
+	var title = Label.new()
+	title.text = "CIA. DE ENTREGAS FERROVIARIAS"
+	title.add_theme_font_size_override("font_size", 60)
+	title.add_theme_color_override("font_color", Color.GOLDENROD)
+	title.position = Vector2(0, 200)
+	title.size = Vector2(1920, 100)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	menu_layer.add_child(title)
+	
+	var start_x = 960 - 200
+	
+	var btn_new = Button.new()
+	btn_new.text = "NOVO JOGO"
+	btn_new.position = Vector2(start_x, 500)
+	btn_new.size = Vector2(400, 70)
+	btn_new.pressed.connect(_on_btn_new_game_pressed)
+	menu_layer.add_child(btn_new)
+	
+	var btn_continue = Button.new()
+	btn_continue.text = "CONTINUAR (Em Breve)"
+	btn_continue.position = Vector2(start_x, 600)
+	btn_continue.size = Vector2(400, 70)
+	btn_continue.disabled = true
+	menu_layer.add_child(btn_continue)
+	
+	var btn_quit = Button.new()
+	btn_quit.text = "SAIR"
+	btn_quit.position = Vector2(start_x, 700)
+	btn_quit.size = Vector2(400, 70)
+	btn_quit.pressed.connect(_on_btn_esc_quit_pressed)
+	menu_layer.add_child(btn_quit)
+
+func _setup_intro_letter() -> void:
+	letter_layer = CanvasLayer.new()
+	letter_layer.layer = 350
+	add_child(letter_layer)
+	
+	letter_bg = ColorRect.new()
+	letter_bg.color = Color(0.05, 0.05, 0.05, 1.0)
+	letter_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	letter_layer.add_child(letter_bg)
+	
+	var paper = ColorRect.new()
+	paper.color = Color(0.8, 0.7, 0.5) # Cor de papel velho
+	paper.size = Vector2(800, 600)
+	paper.position = Vector2(560, 240)
+	letter_bg.add_child(paper)
+	
+	letter_label = Label.new()
+	letter_label.position = Vector2(50, 50)
+	letter_label.size = Vector2(700, 500)
+	letter_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	letter_label.add_theme_font_size_override("font_size", 32)
+	letter_label.add_theme_color_override("font_color", Color.BLACK)
+	paper.add_child(letter_label)
+	
+	var click_catcher = Control.new()
+	click_catcher.set_anchors_preset(Control.PRESET_FULL_RECT)
+	click_catcher.gui_input.connect(_on_letter_input)
+	letter_layer.add_child(click_catcher)
+	
+	letter_layer.visible = false
+
+func _on_btn_new_game_pressed() -> void:
+	GameManager.reset_game()
+	menu_layer.visible = false
+	_start_intro_letter()
+
+func _start_intro_letter() -> void:
+	letter_layer.visible = true
+	current_intro_page = 0
+	_play_letter_page()
+
+func _play_letter_page() -> void:
+	letter_char_index = 0
+	letter_label.text = ""
+	is_letter_typing = true
+	letter_fast_forward = false
+	_type_letter_char()
+
+func _type_letter_char() -> void:
+	var full_text = intro_texts[current_intro_page]
+	if letter_fast_forward:
+		letter_label.text = full_text
+		is_letter_typing = false
+		return
+	
+	if letter_char_index < full_text.length():
+		letter_label.text += full_text[letter_char_index]
+		letter_char_index += 1
+		await get_tree().create_timer(0.04).timeout
+		_type_letter_char()
+	else:
+		is_letter_typing = false
+
+func _on_letter_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_LEFT:
+			if event.is_pressed():
+				if is_letter_typing:
+					letter_fast_forward = true
+				else:
+					current_intro_page += 1
+					if current_intro_page < intro_texts.size():
+						_play_letter_page()
+					else:
+						# Fim da introducao, abre a mesa
+						letter_layer.visible = false
+						go_to_desk()
 
 func go_to_map() -> void:
 	desk_node.visible = false
@@ -34,10 +175,11 @@ func go_to_desk() -> void:
 	if is_esc_open: _toggle_esc_menu()
 
 func _unhandled_input(event: InputEvent) -> void:
+	if menu_layer.visible or letter_layer.visible: return
+	
 	if event.is_action_pressed("ui_cancel"): 
 		_toggle_esc_menu()
 	
-	# RESTAURADO: Alternar entre telas com ESPAÇO
 	if event.is_action_pressed("ui_select") and not is_esc_open:
 		if map_node.visible:
 			go_to_desk()
@@ -97,11 +239,17 @@ func _toggle_esc_menu() -> void:
 	esc_layer.visible = is_esc_open
 	
 	if is_esc_open:
-		if map_node.visible: btn_esc_map.disabled = true; btn_esc_map.text = "[ NO MAPA ]"
-		else: btn_esc_desk.disabled = true; btn_esc_desk.text = "[ NA MESA ]"
+		if map_node.visible: 
+			btn_esc_map.disabled = true
+			btn_esc_map.text = "[ NO MAPA ]"
+		else: 
+			btn_esc_desk.disabled = true
+			btn_esc_desk.text = "[ NA MESA ]"
 	else:
-		btn_esc_map.disabled = false; btn_esc_map.text = "VOLTAR AO MAPA"
-		btn_esc_desk.disabled = false; btn_esc_desk.text = "VOLTAR À MESA"
+		btn_esc_map.disabled = false
+		btn_esc_map.text = "VOLTAR AO MAPA"
+		btn_esc_desk.disabled = false
+		btn_esc_desk.text = "VOLTAR À MESA"
 
 func _on_btn_esc_map_pressed() -> void: go_to_map()
 func _on_btn_esc_desk_pressed() -> void: go_to_desk()
