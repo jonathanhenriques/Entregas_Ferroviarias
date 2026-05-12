@@ -66,14 +66,17 @@ var trash_rect: ColorRect
 var stamp_approve: ColorRect
 var stamp_reject: ColorRect
 
-# =======================================
-# VARIAVEIS DA TELA DE FIM DE DIA
-# =======================================
 var eod_layer: CanvasLayer
 var eod_lines_container: VBoxContainer
 var btn_eod_sleep: Button
 var skip_eod_anim: bool = false
 var pending_upfront_income: int = 0
+
+# =======================================
+# NOVO: O RÁDIO DO BADGER
+# =======================================
+var radio_rect: ColorRect
+var radio_led: ColorRect
 
 func _ready() -> void:
 	_setup_ui()
@@ -101,6 +104,16 @@ func _process(delta: float) -> void:
 			if dial_current_rot < 0.0:
 				dial_current_rot = 0.0
 			dial_rect.queue_redraw()
+
+	# NOVO: Pisca o LED do Rádio se houver um evento pendente
+	if GameManager.pending_radio_event:
+		var time = float(Time.get_ticks_msec()) / 1000.0
+		if sin(time * 10.0) > 0:
+			radio_led.color = Color.RED
+		else:
+			radio_led.color = Color.DARK_RED
+	else:
+		radio_led.color = Color(0.2, 0.05, 0.05)
 
 func _setup_ui() -> void:
 	ui_layer = CanvasLayer.new()
@@ -384,7 +397,36 @@ func _setup_ui() -> void:
 	lbl_r.position = Vector2(5, 40)
 	stamp_reject.add_child(lbl_r)
 
-# NOVO: Interface do Fim do Dia corrigida (ordem das camadas)
+	# =======================================
+	# RÁDIO DO BADGER (FÍSICO)
+	# =======================================
+	radio_rect = ColorRect.new()
+	radio_rect.color = Color(0.6, 0.6, 0.65) # Metal prata sujo
+	radio_rect.size = Vector2(250, 120)
+	radio_rect.position = Vector2(60, 800)
+	ui_layer.add_child(radio_rect)
+	_make_draggable(radio_rect, "radio")
+	
+	var radio_speaker = ColorRect.new()
+	radio_speaker.color = Color(0.15, 0.15, 0.15)
+	radio_speaker.size = Vector2(120, 80)
+	radio_speaker.position = Vector2(20, 20)
+	radio_speaker.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	radio_rect.add_child(radio_speaker)
+	
+	var radio_lbl = Label.new()
+	radio_lbl.text = "RÁDIO PTT\nFREQ 104.2"
+	radio_lbl.add_theme_color_override("font_color", Color.BLACK)
+	radio_lbl.position = Vector2(150, 20)
+	radio_rect.add_child(radio_lbl)
+	
+	radio_led = ColorRect.new()
+	radio_led.color = Color(0.2, 0.05, 0.05) 
+	radio_led.size = Vector2(20, 20)
+	radio_led.position = Vector2(150, 70)
+	radio_led.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	radio_rect.add_child(radio_led)
+
 func _setup_eod_ui() -> void:
 	eod_layer = CanvasLayer.new()
 	eod_layer.layer = 280
@@ -395,8 +437,6 @@ func _setup_eod_ui() -> void:
 	eod_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	eod_layer.add_child(eod_bg)
 	
-	# O click_catcher foi movido para trás do recibo, 
-	# para interceptar cliques no fundo sem bloquear o botão.
 	var click_catcher = Control.new()
 	click_catcher.set_anchors_preset(Control.PRESET_FULL_RECT)
 	click_catcher.gui_input.connect(_on_eod_input)
@@ -537,7 +577,7 @@ func _make_draggable(panel: Control, type: String = "panel") -> void:
 	panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	panel.set_meta("drag_type", type)
 	panel.gui_input.connect(_on_panel_gui_input.bind(panel))
-	if type == "panel" or type.begins_with("stamp"):
+	if type == "panel" or type == "radio" or type.begins_with("stamp"):
 		original_transforms[panel] = panel.position
 
 func _on_panel_gui_input(event: InputEvent, panel: Control) -> void:
@@ -565,14 +605,21 @@ func _on_panel_gui_input(event: InputEvent, panel: Control) -> void:
 						var tw = create_tween()
 						tw.tween_property(panel, "position", original_transforms[panel], 0.2)
 					else:
-						if type == "paper":
-							panel.rotation_degrees = randf_range(-4.0, 4.0) 
+						# NOVO: Se soltar o clique no radio e for um evento
+						if type == "radio":
+							if GameManager.pending_radio_event:
+								phone_cutscene.start_badger_radio()
+							panel.rotation_degrees = randf_range(-3.0, 3.0) 
 							_clamp_to_screen(panel)
-							_try_outbox_paper(panel)
 						else:
-							if type == "panel":
-								panel.rotation_degrees = randf_range(-3.0, 3.0) 
+							if type == "paper":
+								panel.rotation_degrees = randf_range(-4.0, 4.0) 
 								_clamp_to_screen(panel)
+								_try_outbox_paper(panel)
+							else:
+								if type == "panel":
+									panel.rotation_degrees = randf_range(-3.0, 3.0) 
+									_clamp_to_screen(panel)
 	else:
 		if event is InputEventMouseMotion:
 			if dragged_panel == panel:
@@ -680,6 +727,9 @@ func _setup_cutscene() -> void:
 	phone_cutscene.contract_rejected.connect(_on_cutscene_rejected)
 	phone_cutscene.call_closed.connect(_on_cutscene_closed)
 	phone_cutscene.cancel_confirmed.connect(_on_cancel_confirmed)
+	
+	# NOVO: Recebe a escolha do Rádio
+	phone_cutscene.radio_choice_made.connect(_on_radio_choice)
 
 func _update_diretrizes() -> void:
 	var lvl = LevelData.LEVELS[GameManager.current_level]
@@ -924,6 +974,28 @@ func _on_cancel_confirmed(idx: int) -> void:
 		_update_active_contracts_text()
 		_load_agenda_contacts()
 
+# NOVO: O Processamento da escolha do Radio
+func _on_radio_choice(idx: int) -> void:
+	GameManager.pending_radio_event = false
+	
+	if idx == 0:
+		GameManager.money -= 150
+	else:
+		if idx == 1:
+			if GameManager.active_contracts.size() > 0:
+				GameManager.active_contracts[0]["days_left"] -= 2
+		else:
+			if idx == 2:
+				if randf() > 0.5:
+					pass 
+				else:
+					GameManager.money -= 300 
+					
+	GameManager.save_game()
+	_update_report_text()
+	_update_diretrizes()
+	_update_active_contracts_text()
+
 func _update_active_contracts_text() -> void:
 	for child in contracts_vbox.get_children(): 
 		child.queue_free()
@@ -1005,9 +1077,6 @@ func _update_report_text() -> void:
 				p.queue_free()
 		outbox_papers.clear()
 
-# =======================================
-# O RELATÓRIO DO FIM DO DIA (EXTRATO)
-# =======================================
 func _on_next_day_pressed() -> void: 
 	var new_c_count = 0
 	var rej_c_count = 0
