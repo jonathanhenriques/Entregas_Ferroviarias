@@ -5,6 +5,10 @@ signal contract_accepted(final_reward)
 signal contract_rejected()
 signal call_closed() 
 
+# NOVO: Sinais para o cancelamento de contrato
+signal cancel_confirmed(idx: int)
+signal cancel_aborted()
+
 var overlay: ColorRect
 var dialog_box: ColorRect 
 var name_label: Label
@@ -22,6 +26,9 @@ var char_index: int = 0
 var offered_reward: int = 0
 var is_typing: bool = false
 var fast_forward: bool = false 
+
+var current_mode: String = ""
+var pending_cancel_idx: int = -1
 
 func _ready() -> void:
 	layer = 200 
@@ -72,7 +79,6 @@ func _setup_visuals() -> void:
 	text_label.add_theme_font_size_override("font_size", 28)
 	dialog_box.add_child(text_label)
 
-	# NOVO: O botão agora envia a proposta em vez de aceitar magicamente
 	btn_accept = Button.new()
 	btn_accept.text = "ENVIAR PROPOSTA"
 	btn_accept.size = Vector2(250, 50)
@@ -105,6 +111,8 @@ func _input(event: InputEvent) -> void:
 
 func start_call(company_name: String, company_type: String, company_cargo: String, base_reward: int, is_urgent: bool = false) -> void:
 	_reset_ui()
+	current_mode = "CALL"
+	
 	var dice = randi_range(1, 6)
 	var mult = 1.0 + (dice * 0.1)
 	offered_reward = int(base_reward * mult)
@@ -125,6 +133,8 @@ func start_call(company_name: String, company_type: String, company_cargo: Strin
 
 func start_rejection_call(company_name: String, custom_reason: String = "") -> void:
 	_reset_ui()
+	current_mode = "REJECT"
+	
 	name_label.text = "[ TRANSMISSAO: " + company_name.to_upper() + " ]"
 	name_label.add_theme_color_override("font_color", Color.INDIAN_RED)
 	
@@ -141,6 +151,8 @@ func start_rejection_call(company_name: String, custom_reason: String = "") -> v
 
 func start_angry_call() -> void:
 	_reset_ui()
+	current_mode = "ANGRY"
+	
 	name_label.text = "[ TRANSMISSAO: CLIENTE FURIOSO ]"
 	name_label.add_theme_color_override("font_color", Color.RED)
 	
@@ -152,6 +164,8 @@ func start_angry_call() -> void:
 
 func start_boss_intro() -> void:
 	_reset_ui()
+	current_mode = "INTRO"
+	
 	name_label.text = "[ TRANSMISSAO: BEAR (DIRETORIA) ]"
 	name_label.add_theme_color_override("font_color", Color.LIGHT_GRAY)
 	
@@ -161,6 +175,22 @@ func start_boss_intro() -> void:
 	full_text += "O problema agora e seu."
 	
 	_type_next_char(false)
+
+# NOVO: O cliente reclamando da quebra de contrato
+func start_cancel_warning(company_name: String, idx: int) -> void:
+	_reset_ui()
+	current_mode = "CANCEL_WARNING"
+	pending_cancel_idx = idx
+	
+	name_label.text = "[ TRANSMISSAO: " + company_name.to_upper() + " ]"
+	name_label.add_theme_color_override("font_color", Color.ORANGE)
+	
+	full_text = "Voce esta louco?! Quer quebrar o nosso contrato no meio da operacao?!\n\n"
+	full_text += "Se voce fizer isso, nossos advogados vao cobrar a multa de rescisao listada nos relatorios fiscais, "
+	full_text += "e nos NAO faremos negocios com a sua companhia por uma semana inteira!\n\n"
+	full_text += "Tem certeza que quer recolher os trens e rasgar o contrato?!"
+	
+	_type_next_char(true)
 
 func _reset_ui() -> void:
 	visible = true
@@ -194,16 +224,29 @@ func _show_buttons(is_negotiation: bool) -> void:
 	if is_negotiation:
 		btn_accept.visible = true
 		btn_reject.visible = true
+		# Muda o texto dos botoes se for o modo de aviso de cancelamento
+		if current_mode == "CANCEL_WARNING":
+			btn_accept.text = "ROMPER CONTRATO"
+			btn_reject.text = "VOLTAR ATRAS"
+		else:
+			btn_accept.text = "ENVIAR PROPOSTA"
+			btn_reject.text = "DESLIGAR"
 	else:
 		btn_close.visible = true
 
 func _on_accept() -> void:
 	visible = false
-	contract_accepted.emit(offered_reward)
+	if current_mode == "CANCEL_WARNING":
+		cancel_confirmed.emit(pending_cancel_idx)
+	else:
+		contract_accepted.emit(offered_reward)
 
 func _on_reject() -> void:
 	visible = false
-	contract_rejected.emit()
+	if current_mode == "CANCEL_WARNING":
+		cancel_aborted.emit()
+	else:
+		contract_rejected.emit()
 	
 func _on_close() -> void:
 	visible = false
