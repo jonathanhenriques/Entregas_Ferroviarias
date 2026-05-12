@@ -4,10 +4,11 @@ class_name CutsceneDialog
 signal contract_accepted(final_reward)
 signal contract_rejected()
 signal call_closed() 
-
-# NOVO: Sinais para o cancelamento de contrato
 signal cancel_confirmed(idx: int)
 signal cancel_aborted()
+
+# NOVO: Sinal emitido quando o jogador escolhe uma das 3 opcoes do radio
+signal radio_choice_made(option_index: int)
 
 var overlay: ColorRect
 var dialog_box: ColorRect 
@@ -17,6 +18,11 @@ var text_label: Label
 var btn_accept: Button
 var btn_reject: Button
 var btn_close: Button 
+
+# NOVO: Botoes dinamicos para as multiplas escolhas do rádio
+var btn_opt_1: Button
+var btn_opt_2: Button
+var btn_opt_3: Button
 
 var silhouette_body: ColorRect
 var silhouette_head: ColorRect
@@ -101,6 +107,29 @@ func _setup_visuals() -> void:
 	btn_close.pressed.connect(_on_close)
 	dialog_box.add_child(btn_close)
 
+	# BOTOES DE RADIO
+	btn_opt_1 = Button.new()
+	btn_opt_1.text = "[ Pagar Pedagio ($150) ]"
+	btn_opt_1.size = Vector2(350, 50)
+	btn_opt_1.position = Vector2(50, 230)
+	btn_opt_1.pressed.connect(_on_opt_1)
+	dialog_box.add_child(btn_opt_1)
+
+	btn_opt_2 = Button.new()
+	btn_opt_2.text = "[ Recuar (Atrasa a Carga) ]"
+	btn_opt_2.size = Vector2(350, 50)
+	btn_opt_2.position = Vector2(450, 230)
+	btn_opt_2.pressed.connect(_on_opt_2)
+	dialog_box.add_child(btn_opt_2)
+	
+	btn_opt_3 = Button.new()
+	btn_opt_3.text = "[ Avancar a Forca (Risco) ]"
+	btn_opt_3.size = Vector2(350, 50)
+	btn_opt_3.position = Vector2(850, 230)
+	btn_opt_3.add_theme_color_override("font_color", Color.INDIAN_RED)
+	btn_opt_3.pressed.connect(_on_opt_3)
+	dialog_box.add_child(btn_opt_3)
+
 func _input(event: InputEvent) -> void:
 	if visible:
 		if event is InputEventMouseButton:
@@ -176,7 +205,6 @@ func start_boss_intro() -> void:
 	
 	_type_next_char(false)
 
-# NOVO: O cliente reclamando da quebra de contrato
 func start_cancel_warning(company_name: String, idx: int) -> void:
 	_reset_ui()
 	current_mode = "CANCEL_WARNING"
@@ -192,15 +220,35 @@ func start_cancel_warning(company_name: String, idx: int) -> void:
 	
 	_type_next_char(true)
 
+# NOVO: O Chamado do Maquinista Badger
+func start_badger_radio() -> void:
+	_reset_ui()
+	current_mode = "RADIO_EVENT"
+	
+	name_label.text = "[ FREQUENCIA 104.2: MAQUINISTA BADGER ]"
+	name_label.add_theme_color_override("font_color", Color.SKY_BLUE)
+	
+	full_text = "Chefe. Aqui e o Badger. Motoqueiros trancaram a linha na planicie de novo.\n\n"
+	full_text += "O povo das cidades ta esperando esses suprimentos pra comer hoje, mas se eu passar com o trem "
+	full_text += "por cima desses bandidos, eles vao atirar contra a caldeira. E se a gente recuar, a carga atrasa e a empresa perde moral.\n\n"
+	full_text += "Aguardo ordens, Chefe."
+	
+	_type_next_char(false)
+
 func _reset_ui() -> void:
 	visible = true
 	is_typing = true
 	fast_forward = false
 	char_index = 0
 	text_label.text = ""
+	
 	btn_accept.visible = false
 	btn_reject.visible = false
 	btn_close.visible = false
+	btn_opt_1.visible = false
+	btn_opt_2.visible = false
+	btn_opt_3.visible = false
+	
 	name_label.add_theme_color_override("font_color", Color.YELLOW)
 
 func _type_next_char(is_negotiation: bool) -> void:
@@ -221,18 +269,22 @@ func _type_next_char(is_negotiation: bool) -> void:
 		_show_buttons(is_negotiation)
 
 func _show_buttons(is_negotiation: bool) -> void:
-	if is_negotiation:
-		btn_accept.visible = true
-		btn_reject.visible = true
-		# Muda o texto dos botoes se for o modo de aviso de cancelamento
-		if current_mode == "CANCEL_WARNING":
-			btn_accept.text = "ROMPER CONTRATO"
-			btn_reject.text = "VOLTAR ATRAS"
-		else:
-			btn_accept.text = "ENVIAR PROPOSTA"
-			btn_reject.text = "DESLIGAR"
+	if current_mode == "RADIO_EVENT":
+		btn_opt_1.visible = true
+		btn_opt_2.visible = true
+		btn_opt_3.visible = true
 	else:
-		btn_close.visible = true
+		if is_negotiation:
+			btn_accept.visible = true
+			btn_reject.visible = true
+			if current_mode == "CANCEL_WARNING":
+				btn_accept.text = "ROMPER CONTRATO"
+				btn_reject.text = "VOLTAR ATRAS"
+			else:
+				btn_accept.text = "ENVIAR PROPOSTA"
+				btn_reject.text = "DESLIGAR"
+		else:
+			btn_close.visible = true
 
 func _on_accept() -> void:
 	visible = false
@@ -251,3 +303,15 @@ func _on_reject() -> void:
 func _on_close() -> void:
 	visible = false
 	call_closed.emit()
+
+func _on_opt_1() -> void:
+	visible = false
+	radio_choice_made.emit(0)
+
+func _on_opt_2() -> void:
+	visible = false
+	radio_choice_made.emit(1)
+
+func _on_opt_3() -> void:
+	visible = false
+	radio_choice_made.emit(2)
