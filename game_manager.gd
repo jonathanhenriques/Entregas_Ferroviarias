@@ -43,6 +43,10 @@ var intro_played: bool = false
 const SAVE_PATH = "user://trem_os_save.json"
 var saved_routes: Array = []
 
+# NOVO: Memória das ações do dia para o Relatório
+var today_broken_contracts: int = 0
+var today_penalties: int = 0
+
 func is_contract_operating(c: Dictionary) -> bool:
 	var rid = c["route_id"]
 	if not (rid in network_connections): 
@@ -86,10 +90,14 @@ func reset_game() -> void:
 	saved_routes.clear()
 	pendent_angry_call = false
 	intro_played = false 
+	today_broken_contracts = 0
+	today_penalties = 0
 	_generate_daily_generics()
 	save_game()
 
-func end_day() -> void:
+# NOVO: O end_day agora recebe os pagamentos a vista do Relatorio
+func end_day(upfront_income: int = 0) -> void:
+	money += upfront_income
 	money += get_daily_income()
 	money -= daily_maintenance
 	money -= BASE_COST
@@ -109,6 +117,11 @@ func end_day() -> void:
 			new_cd[k] = company_cooldowns[k] - 1
 			
 	company_cooldowns = new_cd
+	
+	# Reseta a memoria do dia
+	today_broken_contracts = 0
+	today_penalties = 0
+	
 	_generate_daily_generics()
 	contracts_updated.emit()
 	current_day += 1
@@ -167,6 +180,11 @@ func cancel_contract(idx: int) -> void:
 		if not c.get("is_urgent", false): 
 			p = int((c["reward"] * c["days_left"]) * 0.20)
 		money -= p
+		
+		# Registra na memoria para o relatorio fiscal
+		today_penalties += p
+		today_broken_contracts += 1
+		
 		active_contracts.remove_at(idx)
 		contracts_updated.emit()
 		save_game()
@@ -219,9 +237,11 @@ func load_game() -> bool:
 		current_level = data.get("current_level", 1)
 		highest_unlocked_level = data.get("highest_unlocked_level", 1)
 		
+		today_broken_contracts = 0
+		today_penalties = 0
+		
 		_generate_daily_generics()
 		
-		# GATILHOS INCLUÍDOS AQUI PARA ATUALIZAR A INTERFACE INSTANTANEAMENTE
 		money_changed.emit(money)
 		day_changed.emit(current_day)
 		maintenance_updated.emit(daily_maintenance)

@@ -66,9 +66,19 @@ var trash_rect: ColorRect
 var stamp_approve: ColorRect
 var stamp_reject: ColorRect
 
+# =======================================
+# VARIAVEIS DA TELA DE FIM DE DIA
+# =======================================
+var eod_layer: CanvasLayer
+var eod_lines_container: VBoxContainer
+var btn_eod_sleep: Button
+var skip_eod_anim: bool = false
+var pending_upfront_income: int = 0
+
 func _ready() -> void:
 	_setup_ui()
 	_setup_cutscene()
+	_setup_eod_ui()
 	
 	GameManager.money_changed.connect(_on_stats_changed)
 	GameManager.maintenance_updated.connect(_on_stats_changed)
@@ -374,6 +384,47 @@ func _setup_ui() -> void:
 	lbl_r.position = Vector2(5, 40)
 	stamp_reject.add_child(lbl_r)
 
+# NOVO: Interface do Fim do Dia corrigida (ordem das camadas)
+func _setup_eod_ui() -> void:
+	eod_layer = CanvasLayer.new()
+	eod_layer.layer = 280
+	add_child(eod_layer)
+	
+	var eod_bg = ColorRect.new()
+	eod_bg.color = Color(0.08, 0.08, 0.08, 0.95)
+	eod_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	eod_layer.add_child(eod_bg)
+	
+	# O click_catcher foi movido para trás do recibo, 
+	# para interceptar cliques no fundo sem bloquear o botão.
+	var click_catcher = Control.new()
+	click_catcher.set_anchors_preset(Control.PRESET_FULL_RECT)
+	click_catcher.gui_input.connect(_on_eod_input)
+	eod_layer.add_child(click_catcher)
+	
+	var eod_receipt = ColorRect.new()
+	eod_receipt.color = Color(0.12, 0.12, 0.12)
+	eod_receipt.size = Vector2(500, 800)
+	eod_receipt.position = Vector2(710, 100)
+	eod_receipt.mouse_filter = Control.MOUSE_FILTER_IGNORE 
+	eod_layer.add_child(eod_receipt)
+	
+	eod_lines_container = VBoxContainer.new()
+	eod_lines_container.size = Vector2(440, 700)
+	eod_lines_container.position = Vector2(30, 30)
+	eod_lines_container.add_theme_constant_override("separation", 10)
+	eod_lines_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	eod_receipt.add_child(eod_lines_container)
+	
+	btn_eod_sleep = Button.new()
+	btn_eod_sleep.text = "DORMIR E INICIAR PROXIMO DIA"
+	btn_eod_sleep.size = Vector2(440, 50)
+	btn_eod_sleep.position = Vector2(30, 730)
+	btn_eod_sleep.pressed.connect(_on_eod_sleep_pressed)
+	eod_receipt.add_child(btn_eod_sleep)
+	
+	eod_layer.visible = false
+
 func _on_dial_draw() -> void:
 	var center = dial_rect.size / 2.0
 	var radius = 100.0
@@ -613,7 +664,6 @@ func _try_outbox_paper(paper: Control) -> void:
 		if trash_rect.get_global_rect().has_point(center):
 			spawned_papers.erase(paper)
 			paper.queue_free()
-			# NOVO: Ao atirar no lixo, atualiza a agenda para poder voltar a ligar ao cliente!
 			_load_agenda_contacts()
 
 func _on_organize_pressed() -> void:
@@ -671,7 +721,6 @@ func _load_agenda_contacts() -> void:
 				if contract.has("company_name") and contract["company_name"] == c_name: 
 					has_active = true
 					
-			# NOVO: Verifica se este cliente ja tem um papel gerado na mesa ou na caixa de saida
 			var has_pending = false
 			for p in spawned_papers:
 				if is_instance_valid(p) and p.has_meta("company_data") and p.get_meta("company_data")["name"] == c_name:
@@ -842,7 +891,6 @@ func _spawn_proposal_paper(c_data: Dictionary, is_urg: bool, reward: int) -> voi
 	ui_layer.add_child(paper)
 	spawned_papers.append(paper)
 	
-	# NOVO: Bloqueia o cliente de ser clicado de novo atualizando a agenda!
 	_load_agenda_contacts()
 
 func _on_cutscene_rejected() -> void:
@@ -957,7 +1005,14 @@ func _update_report_text() -> void:
 				p.queue_free()
 		outbox_papers.clear()
 
+# =======================================
+# O RELATÓRIO DO FIM DO DIA (EXTRATO)
+# =======================================
 func _on_next_day_pressed() -> void: 
+	var new_c_count = 0
+	var rej_c_count = 0
+	pending_upfront_income = 0
+	
 	for paper in outbox_papers:
 		if is_instance_valid(paper):
 			var stamp = paper.get_meta("stamp")
@@ -966,8 +1021,9 @@ func _on_next_day_pressed() -> void:
 			var rew = paper.get_meta("reward")
 			
 			if stamp == "stamp_approve":
+				new_c_count += 1
 				if is_urg:
-					GameManager.money += rew
+					pending_upfront_income += rew
 					GameManager.active_contracts.append({"company_name": c_data["name"], "cargo": "[URG] " + c_data["cargo"], "route_id": c_data["route_id"], "route_name": c_data["route_name"], "reward": 0, "days_left": 1, "is_urgent": true})
 				else:
 					var new_c = {"company_name": c_data["name"], "type": c_data["type"], "cargo": c_data["cargo"], "route_id": c_data["route_id"], "route_name": c_data["route_name"], "reward": rew, "days_left": randi_range(5, 10), "is_urgent": false}
@@ -976,13 +1032,120 @@ func _on_next_day_pressed() -> void:
 					GameManager.active_contracts.append(new_c)
 			else:
 				if stamp == "stamp_reject":
+					rej_c_count += 1
 					GameManager.company_cooldowns[c_data["name"]] = 3
 			
 			paper.queue_free()
 			
 	outbox_papers.clear()
 	GameManager.contracts_updated.emit()
-	GameManager.end_day()
+	
+	_start_eod_animation(new_c_count, rej_c_count)
+
+func _start_eod_animation(new_c: int, rej_c: int) -> void:
+	skip_eod_anim = false
+	eod_layer.visible = true
+	btn_eod_sleep.visible = false
+	
+	for child in eod_lines_container.get_children():
+		child.queue_free()
+		
+	var c_light = Color(0.8, 0.8, 0.8)
+	var c_gray = Color(0.5, 0.5, 0.5)
+	var c_green = Color(0.2, 0.8, 0.2)
+	var c_red = Color(0.8, 0.2, 0.2)
+	
+	_add_eod_line("== BOLETIM DIARIO - DIA " + str(GameManager.current_day) + " ==", "", c_light, true)
+	_add_eod_line("", "", c_light, false)
+	_add_eod_line("[ LOGISTICA ]", "", c_gray, false)
+	
+	var active_count = 0
+	for c in GameManager.active_contracts:
+		if GameManager.is_contract_operating(c):
+			active_count += 1
+			
+	_add_eod_line("Entregas Operando", str(active_count), c_light, false)
+	_add_eod_line("Contratos Fechados", str(new_c), c_light, false)
+	_add_eod_line("Propostas Rejeitadas", str(rej_c), c_light, false)
+	_add_eod_line("Contratos Rompidos", str(GameManager.today_broken_contracts), c_light, false)
+	
+	if GameManager.today_penalties > 0:
+		_add_eod_line("Multas Aplicadas Hoje", "-$" + str(GameManager.today_penalties), c_red, false)
+		
+	_add_eod_line("", "", c_light, false)
+	_add_eod_line("[ FINANCAS ]", "", c_gray, false)
+	_add_eod_line("Saldo Inicial", "$" + str(GameManager.money), c_light, false)
+	
+	if pending_upfront_income > 0:
+		_add_eod_line("Receitas a Vista", "+$" + str(pending_upfront_income), c_green, false)
+		
+	var inc = GameManager.get_daily_income()
+	if inc > 0:
+		_add_eod_line("Receita de Fretes", "+$" + str(inc), c_green, false)
+		
+	if GameManager.daily_maintenance > 0:
+		_add_eod_line("Manutencao da Via", "-$" + str(GameManager.daily_maintenance), c_red, false)
+		
+	_add_eod_line("Taxas Operacionais", "-$" + str(GameManager.BASE_COST), c_red, false)
+	
+	if GameManager.daily_gang_toll > 0:
+		_add_eod_line("Extorsao (Gangues)", "-$" + str(GameManager.daily_gang_toll), c_red, false)
+		
+	_add_eod_line("-----------------------", "---------", c_gray, false)
+	
+	var final_money = GameManager.money + pending_upfront_income + inc - GameManager.daily_maintenance - GameManager.BASE_COST - GameManager.daily_gang_toll
+	var final_color = c_green
+	if final_money < 0:
+		final_color = c_red
+		
+	_add_eod_line("SALDO PROJETADO", "$" + str(final_money), final_color, false)
+	
+	for line in eod_lines_container.get_children():
+		line.visible = false
+		
+	_play_eod_lines()
+
+func _play_eod_lines() -> void:
+	for line in eod_lines_container.get_children():
+		if skip_eod_anim:
+			line.visible = true
+		else:
+			line.visible = true
+			await get_tree().create_timer(0.3).timeout
+			
+	btn_eod_sleep.visible = true
+
+func _add_eod_line(left: String, right: String, color: Color, is_title: bool) -> void:
+	var hbox = HBoxContainer.new()
+	var lbl_l = Label.new()
+	lbl_l.text = left
+	lbl_l.add_theme_color_override("font_color", color)
+	lbl_l.add_theme_font_size_override("font_size", 22)
+	lbl_l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	
+	if is_title:
+		lbl_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+
+	hbox.add_child(lbl_l)
+	
+	if right != "":
+		var lbl_r = Label.new()
+		lbl_r.text = right
+		lbl_r.add_theme_color_override("font_color", color)
+		lbl_r.add_theme_font_size_override("font_size", 22)
+		hbox.add_child(lbl_r)
+
+	eod_lines_container.add_child(hbox)
+
+func _on_eod_sleep_pressed() -> void:
+	eod_layer.visible = false
+	GameManager.end_day(pending_upfront_income)
+
+func _on_eod_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_LEFT:
+			if event.is_pressed():
+				skip_eod_anim = true
 
 func _on_stats_changed(_v) -> void: 
 	_update_report_text()
