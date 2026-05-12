@@ -43,9 +43,11 @@ var intro_played: bool = false
 const SAVE_PATH = "user://trem_os_save.json"
 var saved_routes: Array = []
 
-# NOVO: Memória das ações do dia para o Relatório
 var today_broken_contracts: int = 0
 var today_penalties: int = 0
+
+# NOVO: Variavel que guarda se o Badger precisa falar consigo no rádio
+var pending_radio_event: bool = false
 
 func is_contract_operating(c: Dictionary) -> bool:
 	var rid = c["route_id"]
@@ -92,10 +94,10 @@ func reset_game() -> void:
 	intro_played = false 
 	today_broken_contracts = 0
 	today_penalties = 0
+	pending_radio_event = false
 	_generate_daily_generics()
 	save_game()
 
-# NOVO: O end_day agora recebe os pagamentos a vista do Relatorio
 func end_day(upfront_income: int = 0) -> void:
 	money += upfront_income
 	money += get_daily_income()
@@ -118,9 +120,14 @@ func end_day(upfront_income: int = 0) -> void:
 			
 	company_cooldowns = new_cd
 	
-	# Reseta a memoria do dia
 	today_broken_contracts = 0
 	today_penalties = 0
+	
+	# NOVO: Sorteia se no dia seguinte haverá um problema nos trilhos
+	pending_radio_event = false
+	if active_contracts.size() > 0:
+		if randf() < 0.3:
+			pending_radio_event = true
 	
 	_generate_daily_generics()
 	contracts_updated.emit()
@@ -181,7 +188,6 @@ func cancel_contract(idx: int) -> void:
 			p = int((c["reward"] * c["days_left"]) * 0.20)
 		money -= p
 		
-		# Registra na memoria para o relatorio fiscal
 		today_penalties += p
 		today_broken_contracts += 1
 		
@@ -209,6 +215,7 @@ func save_game() -> void:
 		"active_contracts": active_contracts,
 		"company_cooldowns": company_cooldowns,
 		"intro_played": intro_played,
+		"pending_radio_event": pending_radio_event,
 		"saved_routes": _routes_to_array(saved_routes),
 		"current_level": current_level,
 		"highest_unlocked_level": highest_unlocked_level
@@ -233,6 +240,7 @@ func load_game() -> bool:
 		active_contracts = data.get("active_contracts", [])
 		company_cooldowns = data.get("company_cooldowns", {})
 		intro_played = data.get("intro_played", false)
+		pending_radio_event = data.get("pending_radio_event", false)
 		saved_routes = _array_to_routes(data.get("saved_routes", []))
 		current_level = data.get("current_level", 1)
 		highest_unlocked_level = data.get("highest_unlocked_level", 1)
