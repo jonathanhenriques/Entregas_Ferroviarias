@@ -40,7 +40,6 @@ var daily_urgencies: Dictionary = {}
 
 var intro_played: bool = false
 
-# NOVO: Variaveis do Save
 const SAVE_PATH = "user://trem_os_save.json"
 var saved_routes: Array = []
 
@@ -114,7 +113,7 @@ func end_day() -> void:
 	contracts_updated.emit()
 	current_day += 1
 	
-	save_game() # Salva o jogo sempre que o dia acaba!
+	save_game() 
 	
 	if money < 0: 
 		trigger_bankruptcy()
@@ -140,7 +139,8 @@ func _generate_daily_generics() -> void:
 		"name": n.pick_random() + " (Diario)", 
 		"type": tp, 
 		"base_reward": randi_range(80, 160), 
-		"phone": "555-" + str(randi_range(100, 999)), 
+		# CORRECAO: Forca 4 digitos para dar 7 no total com o prefixo 555
+		"phone": "555-" + str(randi_range(1000, 9999)), 
 		"cargo": cg.pick_random(), 
 		"route_id": r["id"], 
 		"route_name": r["n"]
@@ -180,9 +180,6 @@ func trigger_victory() -> void:
 		highest_unlocked_level += 1
 	game_over.emit(true, "VITORIA!\nMeta atingida.")
 
-# =======================================
-# SISTEMA DE SAVE / LOAD
-# =======================================
 func has_save() -> bool:
 	return FileAccess.file_exists(SAVE_PATH)
 
@@ -228,7 +225,6 @@ func load_game() -> bool:
 	
 	return false
 
-# Converte Array de Vector2i para Array de Dicionarios (compativel com JSON)
 func _routes_to_array(routes: Array) -> Array:
 	var arr = []
 	for route in routes:
@@ -238,7 +234,6 @@ func _routes_to_array(routes: Array) -> Array:
 		arr.append(r_arr)
 	return arr
 
-# Reverte Array de Dicionarios JSON para Array de Vector2i
 func _array_to_routes(arr: Array) -> Array:
 	var routes = []
 	for r_arr in arr:
