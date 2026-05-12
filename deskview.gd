@@ -626,7 +626,9 @@ func _setup_cutscene() -> void:
 	add_child(phone_cutscene)
 	phone_cutscene.contract_accepted.connect(_on_cutscene_accepted)
 	phone_cutscene.contract_rejected.connect(_on_cutscene_rejected)
-	phone_cutscene.call_closed.connect(_on_cutscene_closed) 
+	phone_cutscene.call_closed.connect(_on_cutscene_closed)
+	# NOVO: Conexão do sinal de confirmação de cancelamento
+	phone_cutscene.cancel_confirmed.connect(_on_cancel_confirmed)
 
 func _update_diretrizes() -> void:
 	var lvl = LevelData.LEVELS[GameManager.current_level]
@@ -686,7 +688,6 @@ func _load_agenda_contacts() -> void:
 func _on_company_selected(data: Dictionary) -> void:
 	selected_company_data = data
 	folder_title.text = "CLIENTE: " + data["name"]
-	# Arquétipo removido da visualização do player para reforçar a dedução narrativa
 	folder_route.text = "Exige Rota: " + data["route_name"]
 	
 	std_label.text = "CONTRATO PADRAO\n\nCarga: " + data["cargo"] + "\n\nDuracao: 5-10 dias\nPagamento: ~$" + str(data["base_reward"]) + "\n\nTEL: " + data["phone"]
@@ -838,9 +839,28 @@ func _on_cutscene_closed() -> void:
 	_load_agenda_contacts()
 	folder_rect.visible = false
 	pending_company_data = {}
-	
+
+# NOVO: O botão "X" da frota agora chama a Cutscene do Cliente Furioso
 func _on_cancel_dynamic(idx: int) -> void: 
-	GameManager.cancel_contract(idx)
+	var c = GameManager.active_contracts[idx]
+	phone_cutscene.start_cancel_warning(c["company_name"], idx)
+
+# NOVO: Se o jogador confirmar o rompimento do contrato na cutscene
+func _on_cancel_confirmed(idx: int) -> void:
+	if idx >= 0 and idx < GameManager.active_contracts.size():
+		var c = GameManager.active_contracts[idx]
+		var c_name = c["company_name"]
+		
+		# Cancela o contrato e cobra a multa padrao
+		GameManager.cancel_contract(idx)
+		
+		# Aplica o bloqueio de 7 dias como punicao por quebra de contrato
+		var is_daily = "(Diario)" in c_name
+		if not (is_daily and GameManager.current_day == 1):
+			GameManager.company_cooldowns[c_name] = 7
+			
+		_update_active_contracts_text()
+		_load_agenda_contacts()
 
 func _update_active_contracts_text() -> void:
 	for child in contracts_vbox.get_children(): 
@@ -910,7 +930,6 @@ func _update_report_text() -> void:
 	t += "\n----------------\nLucro: $" + str(net)
 	report_label.text = t
 	
-	# BLOQUEIO REMOVIDO: O botao agora esta sempre habilitado, permitindo passar o dia sem contratos.
 	btn_next_day.disabled = false
 	btn_next_day.text = "Processar Saidas e Finalizar Dia"
 		
