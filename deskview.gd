@@ -58,9 +58,6 @@ var dial_start_angle: float = 0.0
 var dial_current_rot: float = 0.0
 var max_rot: float = 0.0
 
-# =======================================
-# VARIAVEIS DA BUROCRACIA (CARIMBOS E CAIXAS)
-# =======================================
 var spawned_papers: Array = []
 var outbox_papers: Array = []
 
@@ -327,9 +324,6 @@ func _setup_ui() -> void:
 	dial_rect.gui_input.connect(_on_dial_gui_input)
 	phone_rect.add_child(dial_rect)
 
-	# =======================================
-	# ELEMENTOS FISICOS DA BUROCRACIA
-	# =======================================
 	outbox_rect = ColorRect.new()
 	outbox_rect.color = Color(0.15, 0.1, 0.05) 
 	outbox_rect.size = Vector2(330, 180)
@@ -488,9 +482,6 @@ func _check_dialed_number() -> void:
 	current_dialed = ""
 	_update_phone_display()
 
-# =======================================
-# LÓGICA DE FÍSICA E CARIMBOS
-# =======================================
 func _make_draggable(panel: Control, type: String = "panel") -> void:
 	panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	panel.set_meta("drag_type", type)
@@ -498,16 +489,26 @@ func _make_draggable(panel: Control, type: String = "panel") -> void:
 	if type == "panel" or type.begins_with("stamp"):
 		original_transforms[panel] = panel.position
 
+# =======================================
+# LÓGICA DE FÍSICA E CLIQUES (COM DOBRA)
+# =======================================
 func _on_panel_gui_input(event: InputEvent, panel: Control) -> void:
 	var type = panel.get_meta("drag_type")
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			if event.is_pressed():
-				dragged_panel = panel
-				drag_offset = panel.get_global_mouse_position() - panel.global_position
-				panel.get_parent().move_child(panel, -1) 
-				if type == "panel" or type == "paper":
-					panel.rotation_degrees = 0 
+				# NOVO: Se o jogador der duplo clique no papel carimbado, ele dobra!
+				if event.double_click:
+					if type == "paper":
+						var current_stamp = panel.get_meta("stamp")
+						if current_stamp != "":
+							_fold_paper(panel)
+				else:
+					dragged_panel = panel
+					drag_offset = panel.get_global_mouse_position() - panel.global_position
+					panel.get_parent().move_child(panel, -1) 
+					if type == "panel" or type == "paper":
+						panel.rotation_degrees = 0 
 			else:
 				if dragged_panel == panel:
 					dragged_panel = null
@@ -543,6 +544,10 @@ func _try_stamp_papers(stamp_pos: Vector2, stamp_type: String) -> void:
 	for i in range(spawned_papers.size() - 1, -1, -1):
 		var p = spawned_papers[i]
 		if p.get_global_rect().has_point(stamp_pos):
+			# Nao permite carimbar se ja estiver dobrado
+			if p.get_meta("is_folded"):
+				return
+				
 			var current_stamp = p.get_meta("stamp")
 			if current_stamp == "":
 				p.set_meta("stamp", stamp_type)
@@ -561,16 +566,62 @@ func _try_stamp_papers(stamp_pos: Vector2, stamp_type: String) -> void:
 				p.add_child(mark)
 			return 
 
+# NOVO: Funcao que transforma o papel num pequeno envelope pardo
+func _fold_paper(paper: Control) -> void:
+	if paper.get_meta("is_folded"):
+		return
+		
+	paper.set_meta("is_folded", true)
+	
+	# Anima a reducao de tamanho e a mudanca de cor para "Pardo"
+	var tween = create_tween().set_parallel(true)
+	tween.tween_property(paper, "size", Vector2(180, 110), 0.2)
+	tween.tween_property(paper, "color", Color(0.85, 0.75, 0.6), 0.2) 
+	
+	# Esconde o texto antigo do contrato
+	for child in paper.get_children():
+		child.visible = false
+		
+	# Cria a arte frontal do Envelope Lacrado
+	var seal_bg = ColorRect.new()
+	seal_bg.color = Color(0.1, 0.1, 0.1, 0.1)
+	seal_bg.size = Vector2(160, 90)
+	seal_bg.position = Vector2(10, 10)
+	paper.add_child(seal_bg)
+		
+	var seal = Label.new()
+	var s = paper.get_meta("stamp")
+	if s == "stamp_approve":
+		seal.text = "[ APROVADO ]\nLacrado"
+		seal.add_theme_color_override("font_color", Color(0.1, 0.5, 0.1))
+	else:
+		seal.text = "[ REJEITADO ]\nLacrado"
+		seal.add_theme_color_override("font_color", Color(0.6, 0.1, 0.1))
+		
+	seal.add_theme_font_size_override("font_size", 20)
+	seal.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	seal.position = Vector2(10, 25)
+	seal.size = Vector2(160, 60)
+	paper.add_child(seal)
+
 func _try_outbox_paper(paper: Control) -> void:
 	var center = paper.global_position + (paper.size / 2.0)
 	if outbox_rect.get_global_rect().has_point(center):
-		spawned_papers.erase(paper)
-		outbox_papers.append(paper)
-		
-		var tween = create_tween()
-		var target_pos = outbox_rect.global_position + Vector2(15, 15) + Vector2(outbox_papers.size() * 5, outbox_papers.size() * 5)
-		tween.tween_property(paper, "global_position", target_pos, 0.2)
-		paper.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		# AGORA SÓ ACEITA SE ESTIVER DOBRADO!
+		if paper.get_meta("is_folded"):
+			spawned_papers.erase(paper)
+			outbox_papers.append(paper)
+			
+			var tween = create_tween().set_parallel(true)
+			# Empilha perfeitamente sem precisar diminuir a escala!
+			var offset = outbox_papers.size() * 5
+			var target_pos = outbox_rect.global_position + Vector2(30 + offset, 40 - offset)
+			tween.tween_property(paper, "global_position", target_pos, 0.2)
+			tween.tween_property(paper, "rotation_degrees", randf_range(-3.0, 3.0), 0.2)
+			
+			paper.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		else:
+			pass # Se nao estiver dobrado, simplesmente nao entra na bandeja
 	else:
 		if trash_rect.get_global_rect().has_point(center):
 			spawned_papers.erase(paper)
@@ -583,9 +634,6 @@ func _on_organize_pressed() -> void:
 			tween.tween_property(panel, "position", original_transforms[panel], 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 			tween.tween_property(panel, "rotation_degrees", 0.0, 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 
-# =======================================
-# SISTEMAS BASE DA MESA E CUTSCENE
-# =======================================
 func _setup_cutscene() -> void:
 	phone_cutscene = CutsceneDialog.new()
 	add_child(phone_cutscene)
@@ -730,9 +778,6 @@ func _process_call() -> void:
 		var rew = GameManager.daily_urgencies[pending_company_data["name"]] if pending_is_urgent else pending_company_data["base_reward"]
 		phone_cutscene.start_call(pending_company_data["name"], pending_company_data["type"], pending_company_data["cargo"], rew, pending_is_urgent)
 
-# =======================================
-# NOVO: GERACAO DE PAPEIS
-# =======================================
 func _on_cutscene_accepted(final_reward: int) -> void:
 	var is_urg = pending_is_urgent
 	var c_data = pending_company_data
@@ -787,6 +832,7 @@ func _spawn_proposal_paper(c_data: Dictionary, is_urg: bool, reward: int) -> voi
 	paper.set_meta("is_urgent", is_urg)
 	paper.set_meta("reward", reward)
 	paper.set_meta("stamp", "") 
+	paper.set_meta("is_folded", false) # NOVO
 
 	_make_draggable(paper, "paper")
 	ui_layer.add_child(paper)
@@ -888,7 +934,6 @@ func _update_report_text() -> void:
 		btn_next_day.disabled = false
 		btn_next_day.text = "Processar Saidas e Finalizar Dia"
 		
-	# Limpa a mesa no Dia 1 de jogos antigos
 	if GameManager.current_day == 1 and GameManager.active_contracts.size() == 0:
 		for p in spawned_papers:
 			if is_instance_valid(p): 
@@ -900,7 +945,6 @@ func _update_report_text() -> void:
 		outbox_papers.clear()
 
 func _on_next_day_pressed() -> void: 
-	# PROCESSA A CAIXA DE SAIDA!
 	for paper in outbox_papers:
 		if is_instance_valid(paper):
 			var stamp = paper.get_meta("stamp")
