@@ -5,7 +5,7 @@ var ui_layer: CanvasLayer
 const TILE_SIZE: int = 32
 
 var grid_width: int = 60
-var grid_height: int = 34 # Aumentado de 33 para 34 para cobrir os 1080p (34 * 32 = 1088)
+var grid_height: int = 34 
 
 enum Biome { PLAIN, FOREST, MOUNTAIN, RIVER }
 
@@ -44,19 +44,25 @@ var active_trains: Dictionary = {}
 func _ready() -> void:
 	_generate_biomes()
 	_setup_ui()
-	_update_network_status()
 	
+	# NOVO: Sincroniza o mapa com o save game logo que abre
+	confirmed_routes = GameManager.saved_routes.duplicate()
+	
+	_update_network_status()
 	visibility_changed.connect(_on_visibility_changed)
 
 func _on_visibility_changed() -> void:
 	if ui_layer:
 		ui_layer.visible = visible
+	if visible:
+		# Atualiza os trilhos caso tenham sido carregados no Menu
+		confirmed_routes = GameManager.saved_routes.duplicate()
+		_update_network_status()
 
 func _generate_biomes() -> void:
 	biome_map.clear()
 	gang_map.clear()
 	
-	# Preenche todo o mapa Full HD
 	for y in range(grid_height):
 		for x in range(grid_width):
 			biome_map[Vector2i(x, y)] = Biome.PLAIN
@@ -76,19 +82,29 @@ func _generate_biomes() -> void:
 			var char = row[x]
 			var cell = Vector2i(x + offset_x, y + offset_y)
 			
-			if char == ".": biome_map[cell] = Biome.PLAIN
-			elif char == "F": biome_map[cell] = Biome.FOREST
-			elif char == "M": biome_map[cell] = Biome.MOUNTAIN
-			elif char == "R": biome_map[cell] = Biome.RIVER
-			elif char == "A":
-				biome_map[cell] = Biome.PLAIN 
-				city_a = cell
-			elif char == "B":
+			if char == ".": 
 				biome_map[cell] = Biome.PLAIN
-				city_b = cell
-			elif char == "C":
-				biome_map[cell] = Biome.PLAIN
-				city_c = cell
+			else:
+				if char == "F": 
+					biome_map[cell] = Biome.FOREST
+				else:
+					if char == "M": 
+						biome_map[cell] = Biome.MOUNTAIN
+					else:
+						if char == "R": 
+							biome_map[cell] = Biome.RIVER
+						else:
+							if char == "A":
+								biome_map[cell] = Biome.PLAIN 
+								city_a = cell
+							else:
+								if char == "B":
+									biome_map[cell] = Biome.PLAIN
+									city_b = cell
+								else:
+									if char == "C":
+										biome_map[cell] = Biome.PLAIN
+										city_c = cell
 
 	if level_info.has("gang_layout"):
 		var g_layout = level_info["gang_layout"]
@@ -173,20 +189,28 @@ func _spawn_train(contract_index: int, contract: Dictionary) -> void:
 	var target_city = Vector2i(-1, -1)
 
 	if "Azul" in route_id and "Vermelha" in route_id:
-		start_city = city_a; target_city = city_b
-	elif "Azul" in route_id and "Verde" in route_id:
-		start_city = city_a; target_city = city_c
-	elif "Vermelha" in route_id and "Verde" in route_id:
-		start_city = city_b; target_city = city_c
+		start_city = city_a
+		target_city = city_b
+	else:
+		if "Azul" in route_id and "Verde" in route_id:
+			start_city = city_a
+			target_city = city_c
+		else:
+			if "Vermelha" in route_id and "Verde" in route_id:
+				start_city = city_b
+				target_city = city_c
 
 	var valid_tiles = {}
 	for r in confirmed_routes:
-		for cell in r: valid_tiles[cell] = true
+		for cell in r: 
+			valid_tiles[cell] = true
+			
 	valid_tiles[start_city] = true
 	valid_tiles[target_city] = true
 
 	var path_cells = _bfs_get_path_array(start_city, target_city, valid_tiles)
-	if path_cells.size() < 2: return 
+	if path_cells.size() < 2: 
+		return 
 	
 	var path_points = []
 	for cell in path_cells:
@@ -220,9 +244,10 @@ func _move_train(index: int, delta: float) -> void:
 	if train["progress"] >= path_len:
 		train["progress"] = path_len
 		train["direction"] = -1
-	elif train["progress"] <= 0:
-		train["progress"] = 0
-		train["direction"] = 1
+	else:
+		if train["progress"] <= 0:
+			train["progress"] = 0
+			train["direction"] = 1
 
 func _get_path_info(path: Array, dist: float) -> Dictionary:
 	var path_len = 0.0
@@ -239,11 +264,13 @@ func _get_path_info(path: Array, dist: float) -> Dictionary:
 		var seg_len = seg_lengths[i]
 		if accum + seg_len >= dist or i == path.size() - 2:
 			var t = 0.0
-			if seg_len > 0: t = (dist - accum) / seg_len
+			if seg_len > 0: 
+				t = (dist - accum) / seg_len
 			t = clamp(t, 0.0, 1.0)
 			var pos = path[i].lerp(path[i+1], t)
 			var dir = (path[i+1] - path[i]).normalized()
-			if dir == Vector2.ZERO: dir = Vector2.RIGHT
+			if dir == Vector2.ZERO: 
+				dir = Vector2.RIGHT
 			return {"pos": pos, "dir": dir}
 		accum += seg_len
 	return {"pos": path.back(), "dir": Vector2.RIGHT}
@@ -255,7 +282,8 @@ func _draw_trains() -> void:
 		if path.size() < 2: continue
 
 		var current_dist = train["progress"]
-		if train.has("delay") and train["delay"] > 0: current_dist = 0.0 
+		if train.has("delay") and train["delay"] > 0: 
+			current_dist = 0.0 
 
 		var loco_dist = current_dist
 		var wagon_dist = current_dist - (14.0 * train["direction"])
@@ -283,7 +311,8 @@ func _bfs_get_path_array(start_node: Vector2i, target_node: Vector2i, valid_tile
 	while queue.size() > 0:
 		var path: Array[Vector2i] = queue.pop_front()
 		var cell = path.back()
-		if cell == target_node: return path
+		if cell == target_node: 
+			return path
 		var neighbors = [cell + Vector2i.UP, cell + Vector2i.DOWN, cell + Vector2i.LEFT, cell + Vector2i.RIGHT]
 		for n in neighbors:
 			if valid_tiles.has(n) and not visited.has(n):
@@ -295,17 +324,21 @@ func _bfs_get_path_array(start_node: Vector2i, target_node: Vector2i, valid_tile
 
 func _is_cell_occupied_by_track(cell: Vector2i) -> bool:
 	for route in confirmed_routes:
-		if cell in route: return true
-	if cell in tentative_path: return true
+		if cell in route: 
+			return true
+	if cell in tentative_path: 
+		return true
 	return false
 
 func _draw() -> void:
-	# Grade de fundo corrigida para 34 tiles
 	for x in range(grid_width):
 		for y in range(grid_height):
 			var cell = Vector2i(x, y)
 			var b = biome_map.get(cell, Biome.PLAIN)
-			var bg_color = BIOME_DATA[Biome.PLAIN]["color"] if b == Biome.FOREST else BIOME_DATA[b]["color"]
+			var bg_color = BIOME_DATA[b]["color"]
+			if b == Biome.FOREST:
+				bg_color = BIOME_DATA[Biome.PLAIN]["color"]
+				
 			draw_rect(Rect2(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE), bg_color)
 			
 			if b == Biome.FOREST and not _is_cell_occupied_by_track(cell):
@@ -322,22 +355,32 @@ func _draw() -> void:
 	for y in range(grid_height + 1):
 		draw_line(Vector2(0, y * TILE_SIZE), Vector2(grid_width * TILE_SIZE, y * TILE_SIZE), Color(0, 0, 0, 0.1), 1.0)
 
-	for route in confirmed_routes: _draw_custom_track(route, false) 
+	for route in confirmed_routes: 
+		_draw_custom_track(route, false) 
+		
 	_draw_custom_track(tentative_path, true)
 
-	if city_a != Vector2i(-1, -1): draw_rect(Rect2(city_a.x * TILE_SIZE, city_a.y * TILE_SIZE, TILE_SIZE, TILE_SIZE), Color.DODGER_BLUE)
-	if city_b != Vector2i(-1, -1): draw_rect(Rect2(city_b.x * TILE_SIZE, city_b.y * TILE_SIZE, TILE_SIZE, TILE_SIZE), Color.CRIMSON)
-	if city_c != Vector2i(-1, -1): draw_rect(Rect2(city_c.x * TILE_SIZE, city_c.y * TILE_SIZE, TILE_SIZE, TILE_SIZE), Color.FOREST_GREEN)
+	if city_a != Vector2i(-1, -1): 
+		draw_rect(Rect2(city_a.x * TILE_SIZE, city_a.y * TILE_SIZE, TILE_SIZE, TILE_SIZE), Color.DODGER_BLUE)
+	if city_b != Vector2i(-1, -1): 
+		draw_rect(Rect2(city_b.x * TILE_SIZE, city_b.y * TILE_SIZE, TILE_SIZE, TILE_SIZE), Color.CRIMSON)
+	if city_c != Vector2i(-1, -1): 
+		draw_rect(Rect2(city_c.x * TILE_SIZE, city_c.y * TILE_SIZE, TILE_SIZE, TILE_SIZE), Color.FOREST_GREEN)
+		
 	_draw_trains()
 
 func _get_track_color(b: int, is_preview: bool) -> Color:
-	if is_preview: return Color.YELLOW
-	if b == Biome.RIVER: return Color.SADDLE_BROWN 
-	if b == Biome.MOUNTAIN: return Color.DARK_SLATE_GRAY 
+	if is_preview: 
+		return Color.YELLOW
+	if b == Biome.RIVER: 
+		return Color.SADDLE_BROWN 
+	if b == Biome.MOUNTAIN: 
+		return Color.DARK_SLATE_GRAY 
 	return Color.BLACK
 
 func _draw_custom_track(path: Array, is_preview: bool) -> void:
-	if path.size() == 0: return
+	if path.size() == 0: 
+		return
 	if path.size() == 1:
 		var b = biome_map.get(path[0], Biome.PLAIN)
 		draw_circle(Vector2(path[0].x * TILE_SIZE + 16, path[0].y * TILE_SIZE + 16), 4.0, _get_track_color(b, is_preview))
@@ -349,25 +392,44 @@ func _draw_custom_track(path: Array, is_preview: bool) -> void:
 			draw_circle(Vector2(cell.x * TILE_SIZE + 6, cell.y * TILE_SIZE + 6), 2.0, Color(0.7, 0.6, 0.4))
 
 	for i in range(path.size() - 1):
-		var p1_cell = path[i]; var p2_cell = path[i+1]
-		var b1 = biome_map.get(p1_cell, Biome.PLAIN); var b2 = biome_map.get(p2_cell, Biome.PLAIN)
+		var p1_cell = path[i]
+		var p2_cell = path[i+1]
+		var b1 = biome_map.get(p1_cell, Biome.PLAIN)
+		var b2 = biome_map.get(p2_cell, Biome.PLAIN)
 		var segment_biome = Biome.PLAIN
-		if b1 == Biome.MOUNTAIN or b2 == Biome.MOUNTAIN: segment_biome = Biome.MOUNTAIN
-		elif b1 == Biome.RIVER or b2 == Biome.RIVER: segment_biome = Biome.RIVER
-		elif b1 == Biome.FOREST or b2 == Biome.FOREST: segment_biome = Biome.FOREST
+		
+		if b1 == Biome.MOUNTAIN or b2 == Biome.MOUNTAIN: 
+			segment_biome = Biome.MOUNTAIN
+		else:
+			if b1 == Biome.RIVER or b2 == Biome.RIVER: 
+				segment_biome = Biome.RIVER
+			else:
+				if b1 == Biome.FOREST or b2 == Biome.FOREST: 
+					segment_biome = Biome.FOREST
 
 		var line_color = _get_track_color(segment_biome, is_preview)
-		var line_width = 5.0 if segment_biome == Biome.MOUNTAIN else 2.0
+		var line_width = 5.0
+		if segment_biome != Biome.MOUNTAIN:
+			line_width = 2.0
+			
 		var p1 = Vector2(p1_cell.x * TILE_SIZE + 16, p1_cell.y * TILE_SIZE + 16)
 		var p2 = Vector2(p2_cell.x * TILE_SIZE + 16, p2_cell.y * TILE_SIZE + 16)
 		draw_line(p1, p2, line_color, line_width)
 
 		if segment_biome != Biome.MOUNTAIN:
-			var dir = (p2 - p1).normalized(); var normal = Vector2(-dir.y, dir.x)
+			var dir = (p2 - p1).normalized()
+			var normal = Vector2(-dir.y, dir.x)
 			var segment_length = p1.distance_to(p2)
-			var spacing = 5.0 if segment_biome == Biome.RIVER else 10.0
+			
+			var spacing = 10.0
+			if segment_biome == Biome.RIVER:
+				spacing = 5.0
+				
 			var num_ties = int(segment_length / spacing)
-			var tie_color = Color(0.3, 0.2, 0.1) if (segment_biome == Biome.RIVER and not is_preview) else line_color
+			var tie_color = line_color
+			if segment_biome == Biome.RIVER and not is_preview:
+				tie_color = Color(0.3, 0.2, 0.1)
+				
 			for j in range(1, num_ties + 1):
 				var tie_center = p1 + dir * (j * spacing)
 				draw_line(tie_center - normal * 4, tie_center + normal * 4, tie_color, 2.0)
@@ -375,122 +437,229 @@ func _draw_custom_track(path: Array, is_preview: bool) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not visible: return
 	if validation_panel.visible: return
+	
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			if event.is_pressed():
 				var cell = _get_cell_under_mouse(event.position)
 				if cell.x >= 0 and cell.x < grid_width and cell.y >= 0 and cell.y < grid_height:
-					is_dragging = true; tentative_path = [cell]; queue_redraw()
+					is_dragging = true
+					tentative_path = [cell]
+					queue_redraw()
 			else:
-				if is_dragging: is_dragging = false; _calculate_and_show_validation(); queue_redraw()
-		elif event.button_index == MOUSE_BUTTON_RIGHT and event.is_pressed():
-			var cell = _get_cell_under_mouse(event.position); var deleted_something = false
-			var old_connections = GameManager.network_connections.duplicate()
-			if tentative_path.has(cell): tentative_path.clear(); deleted_something = true
-			else:
-				for i in range(confirmed_routes.size() - 1, -1, -1):
-					if confirmed_routes[i].has(cell):
-						var m = 0; var b_refund = 0
-						for c in confirmed_routes[i]:
-							var b = biome_map.get(c, Biome.PLAIN)
-							b_refund += BIOME_DATA[b]["build"]; m += BIOME_DATA[b]["maint"]
-						GameManager.daily_maintenance -= m; GameManager.money += b_refund 
-						confirmed_routes.remove_at(i); deleted_something = true; break 
-			if deleted_something:
-				_update_network_status() 
-				var lost = []
-				for i in range(GameManager.active_contracts.size()):
-					var c = GameManager.active_contracts[i]
-					if c["route_id"] in old_connections and not GameManager.is_contract_operating(c): lost.append(i)
-				if lost.size() > 0:
-					GameManager.pendent_angry_call = true 
-					for i in range(lost.size() - 1, -1, -1): GameManager.cancel_contract(lost[i])
-				queue_redraw()
-	elif event is InputEventMouseMotion and is_dragging:
-		var cell = _get_cell_under_mouse(event.position)
-		cell.x = clamp(cell.x, 0, grid_width - 1); cell.y = clamp(cell.y, 0, grid_height - 1)
-		if tentative_path.size() > 0:
-			var last = tentative_path.back()
-			if cell != last:
-				var segment = _get_orthogonal_path(last, cell)
-				for p in segment:
-					var idx = tentative_path.find(p)
-					if idx != -1: tentative_path.resize(idx + 1)
-					else: tentative_path.append(p)
-				queue_redraw()
+				if is_dragging: 
+					is_dragging = false
+					_calculate_and_show_validation()
+					queue_redraw()
+		else:
+			if event.button_index == MOUSE_BUTTON_RIGHT and event.is_pressed():
+				var cell = _get_cell_under_mouse(event.position)
+				var deleted_something = false
+				var old_connections = GameManager.network_connections.duplicate()
+				
+				if tentative_path.has(cell): 
+					tentative_path.clear()
+					deleted_something = true
+				else:
+					for i in range(confirmed_routes.size() - 1, -1, -1):
+						if confirmed_routes[i].has(cell):
+							var m = 0
+							var b_refund = 0
+							for c in confirmed_routes[i]:
+								var b = biome_map.get(c, Biome.PLAIN)
+								b_refund += BIOME_DATA[b]["build"]
+								m += BIOME_DATA[b]["maint"]
+							GameManager.daily_maintenance -= m
+							GameManager.money += b_refund 
+							confirmed_routes.remove_at(i)
+							deleted_something = true
+							break 
+				if deleted_something:
+					GameManager.saved_routes = confirmed_routes.duplicate() # Salva o trilho apagado
+					GameManager.save_game()
+					
+					_update_network_status() 
+					var lost = []
+					for i in range(GameManager.active_contracts.size()):
+						var c = GameManager.active_contracts[i]
+						if c["route_id"] in old_connections and not GameManager.is_contract_operating(c): 
+							lost.append(i)
+					if lost.size() > 0:
+						GameManager.pendent_angry_call = true 
+						for i in range(lost.size() - 1, -1, -1): 
+							GameManager.cancel_contract(lost[i])
+					queue_redraw()
+	else:
+		if event is InputEventMouseMotion and is_dragging:
+			var cell = _get_cell_under_mouse(event.position)
+			cell.x = clamp(cell.x, 0, grid_width - 1)
+			cell.y = clamp(cell.y, 0, grid_height - 1)
+			if tentative_path.size() > 0:
+				var last = tentative_path.back()
+				if cell != last:
+					var segment = _get_orthogonal_path(last, cell)
+					for p in segment:
+						var idx = tentative_path.find(p)
+						if idx != -1: 
+							tentative_path.resize(idx + 1)
+						else: 
+							tentative_path.append(p)
+					queue_redraw()
 
 func _get_orthogonal_path(start: Vector2i, end: Vector2i) -> Array[Vector2i]:
-	var path: Array[Vector2i] = []; var current = start
-	while current.x != end.x: current.x += sign(end.x - current.x); path.append(current)
-	while current.y != end.y: current.y += sign(end.y - current.y); path.append(current)
+	var path: Array[Vector2i] = []
+	var current = start
+	while current.x != end.x: 
+		current.x += sign(end.x - current.x)
+		path.append(current)
+	while current.y != end.y: 
+		current.y += sign(end.y - current.y)
+		path.append(current)
 	return path
 
 func _update_network_status() -> void:
 	active_trains.clear()
-	var built = {}; var toll = 0
+	var built = {}
+	var toll = 0
+	
 	for route in confirmed_routes:
 		var has_g = false
 		for cell in route:
 			built[cell] = true
-			if gang_map.has(cell): has_g = true
-		if has_g: toll += GANG_TOLL_RATE
+			if gang_map.has(cell): 
+				has_g = true
+		if has_g: 
+			toll += GANG_TOLL_RATE
+			
 	GameManager.daily_gang_toll = toll
+	
 	if city_a != Vector2i(-1, -1): built[city_a] = true
 	if city_b != Vector2i(-1, -1): built[city_b] = true
 	if city_c != Vector2i(-1, -1): built[city_c] = true
-	var connections = []; var stats = {}
+	
+	var connections = []
+	var stats = {}
+	
 	if city_a != Vector2i(-1, -1) and city_b != Vector2i(-1, -1):
 		var res = _get_route_capabilities(city_a, city_b, built)
-		if not res.is_empty(): connections.append("Azul-Vermelha"); stats["Azul-Vermelha"] = res
+		if not res.is_empty(): 
+			connections.append("Azul-Vermelha")
+			stats["Azul-Vermelha"] = res
+			
 	if city_a != Vector2i(-1, -1) and city_c != Vector2i(-1, -1):
 		var res = _get_route_capabilities(city_a, city_c, built)
-		if not res.is_empty(): connections.append("Azul-Verde"); stats["Azul-Verde"] = res
+		if not res.is_empty(): 
+			connections.append("Azul-Verde")
+			stats["Azul-Verde"] = res
+			
 	if city_b != Vector2i(-1, -1) and city_c != Vector2i(-1, -1):
 		var res = _get_route_capabilities(city_b, city_c, built)
-		if not res.is_empty(): connections.append("Vermelha-Verde"); stats["Vermelha-Verde"] = res
-	GameManager.network_connections = connections; GameManager.network_stats = stats
+		if not res.is_empty(): 
+			connections.append("Vermelha-Verde")
+			stats["Vermelha-Verde"] = res
+			
+	GameManager.network_connections = connections
+	GameManager.network_stats = stats
 	GameManager.contracts_updated.emit() 
 
 func _get_route_capabilities(start: Vector2i, target: Vector2i, valid: Dictionary) -> Dictionary:
 	var shortest = _bfs_shortest_dist(start, target, valid, false, false)
-	if shortest == -1: return {} 
-	return {"dist": shortest, "gangs": 0 if _bfs_shortest_dist(start, target, valid, true, false) != -1 else 1, "forests": 0 if _bfs_shortest_dist(start, target, valid, false, true) != -1 else 1}
+	if shortest == -1: 
+		return {} 
+		
+	var gangs = 1
+	if _bfs_shortest_dist(start, target, valid, true, false) != -1:
+		gangs = 0
+		
+	var forests = 1
+	if _bfs_shortest_dist(start, target, valid, false, true) != -1:
+		forests = 0
+		
+	return {"dist": shortest, "gangs": gangs, "forests": forests}
 
 func _bfs_shortest_dist(start: Vector2i, target: Vector2i, valid: Dictionary, avoid_g: bool, avoid_f: bool) -> int:
-	var q = [{"cell": start, "dist": 0}]; var vis = {start: true}
+	var q = [{"cell": start, "dist": 0}]
+	var vis = {start: true}
+	
 	while q.size() > 0:
-		var curr = q.pop_front(); var cell = curr["cell"]
-		if cell == target: return curr["dist"]
+		var curr = q.pop_front()
+		var cell = curr["cell"]
+		if cell == target: 
+			return curr["dist"]
+			
 		for n in [cell + Vector2i.UP, cell + Vector2i.DOWN, cell + Vector2i.LEFT, cell + Vector2i.RIGHT]:
 			if valid.has(n) and not vis.has(n):
-				if avoid_g and gang_map.has(n): continue
-				if avoid_f and biome_map.get(n, Biome.PLAIN) == Biome.FOREST: continue
-				vis[n] = true; q.push_back({"cell": n, "dist": curr["dist"] + 1})
+				if avoid_g and gang_map.has(n): 
+					continue
+				if avoid_f and biome_map.get(n, Biome.PLAIN) == Biome.FOREST: 
+					continue
+				vis[n] = true
+				q.push_back({"cell": n, "dist": curr["dist"] + 1})
 	return -1
 
 func _calculate_and_show_validation() -> void:
-	var d = tentative_path.size(); temp_cost = 0; temp_maintenance = 0
-	var bridges = 0; var tunnels = 0; var forests = 0; var has_g = false
+	var d = tentative_path.size()
+	temp_cost = 0
+	temp_maintenance = 0
+	var bridges = 0
+	var tunnels = 0
+	var forests = 0
+	var has_g = false
+	
 	for cell in tentative_path:
-		var b = biome_map.get(cell, Biome.PLAIN); temp_cost += BIOME_DATA[b]["build"]; temp_maintenance += BIOME_DATA[b]["maint"]
-		if b == Biome.MOUNTAIN: tunnels += 1
-		elif b == Biome.RIVER: bridges += 1
-		elif b == Biome.FOREST: forests += 1
-		if gang_map.has(cell): has_g = true
-	var t = "RELATORIO DE CONSTRUCAO\n\n"; btn_accept.disabled = false
-	if has_g: t += "[!] AVISO: Rota em territorio de Gangues!\nPedagio: +$" + str(GANG_TOLL_RATE) + "\n\n"
+		var b = biome_map.get(cell, Biome.PLAIN)
+		temp_cost += BIOME_DATA[b]["build"]
+		temp_maintenance += BIOME_DATA[b]["maint"]
+		
+		if b == Biome.MOUNTAIN: 
+			tunnels += 1
+		else:
+			if b == Biome.RIVER: 
+				bridges += 1
+			else:
+				if b == Biome.FOREST: 
+					forests += 1
+					
+		if gang_map.has(cell): 
+			has_g = true
+			
+	var t = "RELATORIO DE CONSTRUCAO\n\n"
+	btn_accept.disabled = false
+	
+	if has_g: 
+		t += "[!] AVISO: Rota em territorio de Gangues!\nPedagio: +$" + str(GANG_TOLL_RATE) + "\n\n"
+		
 	t += "Distancia: " + str(d) + " km\nCusto: $" + str(temp_cost) + "\n"
-	if bridges > 0: t += "- Pontes: $" + str(bridges * 600) + "\n"
-	if tunnels > 0: t += "- Tunnels: $" + str(tunnels * 400) + "\n"
+	if bridges > 0: 
+		t += "- Pontes: $" + str(bridges * 600) + "\n"
+	if tunnels > 0: 
+		t += "- Tunnels: $" + str(tunnels * 400) + "\n"
+		
 	t += "\nManutencao: $" + str(temp_maintenance) + "\nSaldo: $" + str(GameManager.money)
-	info_label.text = t; validation_panel.visible = true
+	info_label.text = t
+	validation_panel.visible = true
 
 func _on_accept_pressed() -> void:
 	if GameManager.money >= temp_cost:
-		GameManager.money -= temp_cost; GameManager.daily_maintenance += temp_maintenance
-		confirmed_routes.append(tentative_path.duplicate()); tentative_path.clear()
-		_update_network_status(); validation_panel.visible = false; queue_redraw()
-	else: info_label.text = "FUNDOS INSUFICIENTES!\nPrecisa de $" + str(temp_cost)
+		GameManager.money -= temp_cost
+		GameManager.daily_maintenance += temp_maintenance
+		
+		confirmed_routes.append(tentative_path.duplicate())
+		tentative_path.clear()
+		
+		GameManager.saved_routes = confirmed_routes.duplicate() # Salva a nova rota
+		GameManager.save_game()
+		
+		_update_network_status()
+		validation_panel.visible = false
+		queue_redraw()
+	else: 
+		info_label.text = "FUNDOS INSUFICIENTES!\nPrecisa de $" + str(temp_cost)
 
-func _on_reject_pressed() -> void: tentative_path.clear(); validation_panel.visible = false; queue_redraw()
-func _get_cell_under_mouse(p: Vector2) -> Vector2i: return Vector2i(p.x / TILE_SIZE, p.y / TILE_SIZE)
+func _on_reject_pressed() -> void: 
+	tentative_path.clear()
+	validation_panel.visible = false
+	queue_redraw()
+	
+func _get_cell_under_mouse(p: Vector2) -> Vector2i: 
+	return Vector2i(p.x / TILE_SIZE, p.y / TILE_SIZE)

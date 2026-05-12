@@ -10,9 +10,6 @@ var btn_esc_desk: Button
 var btn_esc_quit: Button
 var is_esc_open: bool = false
 
-# =======================================
-# NOVO: MENU PRINCIPAL E CARTA DE INTRO
-# =======================================
 var menu_layer: CanvasLayer
 var letter_layer: CanvasLayer
 var letter_label: Label
@@ -41,7 +38,6 @@ func _ready() -> void:
 	
 	GameManager.game_over.connect(_on_game_over)
 	
-	# Inicia o jogo no Menu Principal
 	menu_layer.visible = true
 
 func _setup_main_menu() -> void:
@@ -67,21 +63,29 @@ func _setup_main_menu() -> void:
 	
 	var btn_new = Button.new()
 	btn_new.text = "NOVO JOGO"
-	btn_new.position = Vector2(start_x, 500)
+	btn_new.position = Vector2(start_x, 450)
 	btn_new.size = Vector2(400, 70)
 	btn_new.pressed.connect(_on_btn_new_game_pressed)
 	menu_layer.add_child(btn_new)
 	
 	var btn_continue = Button.new()
-	btn_continue.text = "CONTINUAR (Em Breve)"
-	btn_continue.position = Vector2(start_x, 600)
+	btn_continue.position = Vector2(start_x, 550)
 	btn_continue.size = Vector2(400, 70)
-	btn_continue.disabled = true
+	
+	# NOVO: Ativa o botao Continuar se houver save!
+	if GameManager.has_save():
+		btn_continue.text = "CONTINUAR JOGO"
+		btn_continue.disabled = false
+		btn_continue.pressed.connect(_on_btn_continue_pressed)
+	else:
+		btn_continue.text = "NENHUM ARQUIVO ENCONTRADO"
+		btn_continue.disabled = true
+		
 	menu_layer.add_child(btn_continue)
 	
 	var btn_quit = Button.new()
 	btn_quit.text = "SAIR"
-	btn_quit.position = Vector2(start_x, 700)
+	btn_quit.position = Vector2(start_x, 650)
 	btn_quit.size = Vector2(400, 70)
 	btn_quit.pressed.connect(_on_btn_esc_quit_pressed)
 	menu_layer.add_child(btn_quit)
@@ -97,7 +101,7 @@ func _setup_intro_letter() -> void:
 	letter_layer.add_child(letter_bg)
 	
 	var paper = ColorRect.new()
-	paper.color = Color(0.8, 0.7, 0.5) # Cor de papel velho
+	paper.color = Color(0.8, 0.7, 0.5) 
 	paper.size = Vector2(800, 600)
 	paper.position = Vector2(560, 240)
 	letter_bg.add_child(paper)
@@ -121,6 +125,12 @@ func _on_btn_new_game_pressed() -> void:
 	GameManager.reset_game()
 	menu_layer.visible = false
 	_start_intro_letter()
+
+# NOVO: Funcao de Continuar o Jogo
+func _on_btn_continue_pressed() -> void:
+	if GameManager.load_game():
+		menu_layer.visible = false
+		go_to_desk()
 
 func _start_intro_letter() -> void:
 	letter_layer.visible = true
@@ -160,7 +170,6 @@ func _on_letter_input(event: InputEvent) -> void:
 					if current_intro_page < intro_texts.size():
 						_play_letter_page()
 					else:
-						# Fim da introducao, abre a mesa
 						letter_layer.visible = false
 						go_to_desk()
 

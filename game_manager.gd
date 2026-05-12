@@ -38,8 +38,11 @@ var pendent_angry_call: bool = false
 var daily_generic_companies: Array = [] 
 var daily_urgencies: Dictionary = {}
 
-# NOVO: Controla se a historia ja foi contada
 var intro_played: bool = false
+
+# NOVO: Variaveis do Save
+const SAVE_PATH = "user://trem_os_save.json"
+var saved_routes: Array = []
 
 func is_contract_operating(c: Dictionary) -> bool:
 	var rid = c["route_id"]
@@ -54,8 +57,10 @@ func is_contract_operating(c: Dictionary) -> bool:
 	
 	if tp == "Expresso" and st["dist"] > c.get("max_dist", 999): 
 		return false
+	
 	if tp == "VIP" and (st["gangs"] > 0 or active_contracts.size() > 1): 
 		return false 
+		
 	if tp == "Ecologico" and st["forests"] > 0: 
 		return false
 		
@@ -79,9 +84,11 @@ func reset_game() -> void:
 	network_stats.clear()
 	company_cooldowns.clear()
 	daily_urgencies.clear()
+	saved_routes.clear()
 	pendent_angry_call = false
-	intro_played = false # Reseta a introducao ao iniciar novo jogo
+	intro_played = false 
 	_generate_daily_generics()
+	save_game()
 
 func end_day() -> void:
 	money += get_daily_income()
@@ -106,6 +113,8 @@ func end_day() -> void:
 	_generate_daily_generics()
 	contracts_updated.emit()
 	current_day += 1
+	
+	save_game() # Salva o jogo sempre que o dia acaba!
 	
 	if money < 0: 
 		trigger_bankruptcy()
@@ -161,6 +170,7 @@ func cancel_contract(idx: int) -> void:
 		money -= p
 		active_contracts.remove_at(idx)
 		contracts_updated.emit()
+		save_game()
 
 func trigger_bankruptcy() -> void: 
 	game_over.emit(false, "FALENCIA!\nSaldo negativo.")
@@ -169,3 +179,71 @@ func trigger_victory() -> void:
 	if current_level == highest_unlocked_level and LevelData.LEVELS.has(current_level + 1): 
 		highest_unlocked_level += 1
 	game_over.emit(true, "VITORIA!\nMeta atingida.")
+
+# =======================================
+# SISTEMA DE SAVE / LOAD
+# =======================================
+func has_save() -> bool:
+	return FileAccess.file_exists(SAVE_PATH)
+
+func save_game() -> void:
+	var data = {
+		"money": money,
+		"current_day": current_day,
+		"daily_maintenance": daily_maintenance,
+		"daily_gang_toll": daily_gang_toll,
+		"active_contracts": active_contracts,
+		"company_cooldowns": company_cooldowns,
+		"intro_played": intro_played,
+		"saved_routes": _routes_to_array(saved_routes),
+		"current_level": current_level,
+		"highest_unlocked_level": highest_unlocked_level
+	}
+	var file = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+	file.store_string(JSON.stringify(data))
+	file.close()
+
+func load_game() -> bool:
+	if not has_save():
+		return false
+		
+	var file = FileAccess.open(SAVE_PATH, FileAccess.READ)
+	var data = JSON.parse_string(file.get_as_text())
+	file.close()
+	
+	if data:
+		money = data.get("money", 1500)
+		current_day = data.get("current_day", 1)
+		daily_maintenance = data.get("daily_maintenance", 0)
+		daily_gang_toll = data.get("daily_gang_toll", 0)
+		active_contracts = data.get("active_contracts", [])
+		company_cooldowns = data.get("company_cooldowns", {})
+		intro_played = data.get("intro_played", false)
+		saved_routes = _array_to_routes(data.get("saved_routes", []))
+		current_level = data.get("current_level", 1)
+		highest_unlocked_level = data.get("highest_unlocked_level", 1)
+		
+		_generate_daily_generics()
+		return true
+	
+	return false
+
+# Converte Array de Vector2i para Array de Dicionarios (compativel com JSON)
+func _routes_to_array(routes: Array) -> Array:
+	var arr = []
+	for route in routes:
+		var r_arr = []
+		for cell in route:
+			r_arr.append({"x": cell.x, "y": cell.y})
+		arr.append(r_arr)
+	return arr
+
+# Reverte Array de Dicionarios JSON para Array de Vector2i
+func _array_to_routes(arr: Array) -> Array:
+	var routes = []
+	for r_arr in arr:
+		var route = []
+		for cell_dict in r_arr:
+			route.append(Vector2i(cell_dict["x"], cell_dict["y"]))
+		routes.append(route)
+	return routes
