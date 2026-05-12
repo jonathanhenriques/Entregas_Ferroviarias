@@ -489,15 +489,11 @@ func _make_draggable(panel: Control, type: String = "panel") -> void:
 	if type == "panel" or type.begins_with("stamp"):
 		original_transforms[panel] = panel.position
 
-# =======================================
-# LÓGICA DE FÍSICA E CLIQUES (COM DOBRA)
-# =======================================
 func _on_panel_gui_input(event: InputEvent, panel: Control) -> void:
 	var type = panel.get_meta("drag_type")
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			if event.is_pressed():
-				# NOVO: Se o jogador der duplo clique no papel carimbado, ele dobra!
 				if event.double_click:
 					if type == "paper":
 						var current_stamp = panel.get_meta("stamp")
@@ -544,7 +540,6 @@ func _try_stamp_papers(stamp_pos: Vector2, stamp_type: String) -> void:
 	for i in range(spawned_papers.size() - 1, -1, -1):
 		var p = spawned_papers[i]
 		if p.get_global_rect().has_point(stamp_pos):
-			# Nao permite carimbar se ja estiver dobrado
 			if p.get_meta("is_folded"):
 				return
 				
@@ -566,23 +561,19 @@ func _try_stamp_papers(stamp_pos: Vector2, stamp_type: String) -> void:
 				p.add_child(mark)
 			return 
 
-# NOVO: Funcao que transforma o papel num pequeno envelope pardo
 func _fold_paper(paper: Control) -> void:
 	if paper.get_meta("is_folded"):
 		return
 		
 	paper.set_meta("is_folded", true)
 	
-	# Anima a reducao de tamanho e a mudanca de cor para "Pardo"
 	var tween = create_tween().set_parallel(true)
 	tween.tween_property(paper, "size", Vector2(180, 110), 0.2)
 	tween.tween_property(paper, "color", Color(0.85, 0.75, 0.6), 0.2) 
 	
-	# Esconde o texto antigo do contrato
 	for child in paper.get_children():
 		child.visible = false
 		
-	# Cria a arte frontal do Envelope Lacrado
 	var seal_bg = ColorRect.new()
 	seal_bg.color = Color(0.1, 0.1, 0.1, 0.1)
 	seal_bg.size = Vector2(160, 90)
@@ -607,21 +598,17 @@ func _fold_paper(paper: Control) -> void:
 func _try_outbox_paper(paper: Control) -> void:
 	var center = paper.global_position + (paper.size / 2.0)
 	if outbox_rect.get_global_rect().has_point(center):
-		# AGORA SÓ ACEITA SE ESTIVER DOBRADO!
 		if paper.get_meta("is_folded"):
 			spawned_papers.erase(paper)
 			outbox_papers.append(paper)
 			
 			var tween = create_tween().set_parallel(true)
-			# Empilha perfeitamente sem precisar diminuir a escala!
 			var offset = outbox_papers.size() * 5
 			var target_pos = outbox_rect.global_position + Vector2(30 + offset, 40 - offset)
 			tween.tween_property(paper, "global_position", target_pos, 0.2)
 			tween.tween_property(paper, "rotation_degrees", randf_range(-3.0, 3.0), 0.2)
 			
 			paper.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		else:
-			pass # Se nao estiver dobrado, simplesmente nao entra na bandeja
 	else:
 		if trash_rect.get_global_rect().has_point(center):
 			spawned_papers.erase(paper)
@@ -699,7 +686,8 @@ func _load_agenda_contacts() -> void:
 func _on_company_selected(data: Dictionary) -> void:
 	selected_company_data = data
 	folder_title.text = "CLIENTE: " + data["name"]
-	folder_route.text = "Exige Rota: " + data["route_name"] + " | Arquétipo: [" + data["type"] + "]"
+	# Arquétipo removido da visualização do player para reforçar a dedução narrativa
+	folder_route.text = "Exige Rota: " + data["route_name"]
 	
 	std_label.text = "CONTRATO PADRAO\n\nCarga: " + data["cargo"] + "\n\nDuracao: 5-10 dias\nPagamento: ~$" + str(data["base_reward"]) + "\n\nTEL: " + data["phone"]
 	btn_call_std.text = "PREPARAR CONTRATO"
@@ -832,7 +820,7 @@ func _spawn_proposal_paper(c_data: Dictionary, is_urg: bool, reward: int) -> voi
 	paper.set_meta("is_urgent", is_urg)
 	paper.set_meta("reward", reward)
 	paper.set_meta("stamp", "") 
-	paper.set_meta("is_folded", false) # NOVO
+	paper.set_meta("is_folded", false) 
 
 	_make_draggable(paper, "paper")
 	ui_layer.add_child(paper)
@@ -922,17 +910,9 @@ func _update_report_text() -> void:
 	t += "\n----------------\nLucro: $" + str(net)
 	report_label.text = t
 	
-	var has_op = false
-	for c in GameManager.active_contracts:
-		if GameManager.is_contract_operating(c): 
-			has_op = true
-			
-	if GameManager.current_day == 1 and not has_op: 
-		btn_next_day.disabled = true
-		btn_next_day.text = "[ Exige contrato e trilho ]"
-	else: 
-		btn_next_day.disabled = false
-		btn_next_day.text = "Processar Saidas e Finalizar Dia"
+	# BLOQUEIO REMOVIDO: O botao agora esta sempre habilitado, permitindo passar o dia sem contratos.
+	btn_next_day.disabled = false
+	btn_next_day.text = "Processar Saidas e Finalizar Dia"
 		
 	if GameManager.current_day == 1 and GameManager.active_contracts.size() == 0:
 		for p in spawned_papers:
