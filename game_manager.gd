@@ -139,7 +139,6 @@ func _generate_daily_generics() -> void:
 		"name": n.pick_random() + " (Diario)", 
 		"type": tp, 
 		"base_reward": randi_range(80, 160), 
-		# CORRECAO: Forca 4 digitos para dar 7 no total com o prefixo 555
 		"phone": "555-" + str(randi_range(1000, 9999)), 
 		"cargo": cg.pick_random(), 
 		"route_id": r["id"], 
@@ -221,6 +220,13 @@ func load_game() -> bool:
 		highest_unlocked_level = data.get("highest_unlocked_level", 1)
 		
 		_generate_daily_generics()
+		
+		# GATILHOS INCLUÍDOS AQUI PARA ATUALIZAR A INTERFACE INSTANTANEAMENTE
+		money_changed.emit(money)
+		day_changed.emit(current_day)
+		maintenance_updated.emit(daily_maintenance)
+		contracts_updated.emit()
+		
 		return true
 	
 	return false

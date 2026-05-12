@@ -613,6 +613,8 @@ func _try_outbox_paper(paper: Control) -> void:
 		if trash_rect.get_global_rect().has_point(center):
 			spawned_papers.erase(paper)
 			paper.queue_free()
+			# NOVO: Ao atirar no lixo, atualiza a agenda para poder voltar a ligar ao cliente!
+			_load_agenda_contacts()
 
 func _on_organize_pressed() -> void:
 	var tween = create_tween().set_parallel(true)
@@ -627,7 +629,6 @@ func _setup_cutscene() -> void:
 	phone_cutscene.contract_accepted.connect(_on_cutscene_accepted)
 	phone_cutscene.contract_rejected.connect(_on_cutscene_rejected)
 	phone_cutscene.call_closed.connect(_on_cutscene_closed)
-	# NOVO: Conexão do sinal de confirmação de cancelamento
 	phone_cutscene.cancel_confirmed.connect(_on_cancel_confirmed)
 
 func _update_diretrizes() -> void:
@@ -670,17 +671,31 @@ func _load_agenda_contacts() -> void:
 				if contract.has("company_name") and contract["company_name"] == c_name: 
 					has_active = true
 					
+			# NOVO: Verifica se este cliente ja tem um papel gerado na mesa ou na caixa de saida
+			var has_pending = false
+			for p in spawned_papers:
+				if is_instance_valid(p) and p.has_meta("company_data") and p.get_meta("company_data")["name"] == c_name:
+					has_pending = true
+			for p in outbox_papers:
+				if is_instance_valid(p) and p.has_meta("company_data") and p.get_meta("company_data")["name"] == c_name:
+					has_pending = true
+					
 			if has_active: 
 				btn.text = c_name + " (EM CURSO)"
 				btn.disabled = true
 				btn.add_theme_color_override("font_color", Color.DIM_GRAY)
 			else:
-				if GameManager.daily_urgencies.has(c_name): 
-					btn.text = c_name + " [!]"
-					btn.add_theme_color_override("font_color", Color.DARK_RED)
-				else: 
-					btn.text = c_name
-				btn.pressed.connect(_on_company_selected.bind(c_data))
+				if has_pending:
+					btn.text = c_name + " (AGUARDANDO)"
+					btn.disabled = true
+					btn.add_theme_color_override("font_color", Color.DIM_GRAY)
+				else:
+					if GameManager.daily_urgencies.has(c_name): 
+						btn.text = c_name + " [!]"
+						btn.add_theme_color_override("font_color", Color.DARK_RED)
+					else: 
+						btn.text = c_name
+					btn.pressed.connect(_on_company_selected.bind(c_data))
 				
 		btn.custom_minimum_size = Vector2(200, 30)
 		companies_vbox.add_child(btn)
@@ -826,6 +841,9 @@ func _spawn_proposal_paper(c_data: Dictionary, is_urg: bool, reward: int) -> voi
 	_make_draggable(paper, "paper")
 	ui_layer.add_child(paper)
 	spawned_papers.append(paper)
+	
+	# NOVO: Bloqueia o cliente de ser clicado de novo atualizando a agenda!
+	_load_agenda_contacts()
 
 func _on_cutscene_rejected() -> void:
 	var is_daily = "(Diario)" in pending_company_data["name"]
@@ -840,21 +858,17 @@ func _on_cutscene_closed() -> void:
 	folder_rect.visible = false
 	pending_company_data = {}
 
-# NOVO: O botão "X" da frota agora chama a Cutscene do Cliente Furioso
 func _on_cancel_dynamic(idx: int) -> void: 
 	var c = GameManager.active_contracts[idx]
 	phone_cutscene.start_cancel_warning(c["company_name"], idx)
 
-# NOVO: Se o jogador confirmar o rompimento do contrato na cutscene
 func _on_cancel_confirmed(idx: int) -> void:
 	if idx >= 0 and idx < GameManager.active_contracts.size():
 		var c = GameManager.active_contracts[idx]
 		var c_name = c["company_name"]
 		
-		# Cancela o contrato e cobra a multa padrao
 		GameManager.cancel_contract(idx)
 		
-		# Aplica o bloqueio de 7 dias como punicao por quebra de contrato
 		var is_daily = "(Diario)" in c_name
 		if not (is_daily and GameManager.current_day == 1):
 			GameManager.company_cooldowns[c_name] = 7
