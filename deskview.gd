@@ -38,9 +38,6 @@ var dragged_panel: Control = null
 var drag_offset: Vector2 = Vector2.ZERO
 var original_transforms: Dictionary = {}
 
-# =======================================
-# VARIAVEIS DO TELEFONE DE DISCO
-# =======================================
 var phone_rect: ColorRect
 var phone_display: Label
 var dial_rect: Control
@@ -50,24 +47,27 @@ var pending_company_data: Dictionary = {}
 var pending_is_urgent: bool = false
 
 var HOLE_ANGLES = [
-	0.0,             # 0
-	-PI * 1.5,       # 1 (-270 deg)
-	-PI * 1.3333,    # 2 (-240 deg)
-	-PI * 1.1666,    # 3 (-210 deg)
-	-PI,             # 4 (-180 deg)
-	-PI * 0.8333,    # 5 (-150 deg)
-	-PI * 0.6666,    # 6 (-120 deg)
-	-PI * 0.5,       # 7 (-90 deg)
-	-PI * 0.3333,    # 8 (-60 deg)
-	-PI * 0.1666     # 9 (-30 deg)
+	0.0, -PI * 1.5, -PI * 1.3333, -PI * 1.1666, -PI,
+	-PI * 0.8333, -PI * 0.6666, -PI * 0.5, -PI * 0.3333, -PI * 0.1666
 ]
-var STOP_ANGLE = PI / 4.0 # 45 deg (Batente metálico)
+var STOP_ANGLE = PI / 4.0 
 
 var is_dial_dragging: bool = false
 var dialing_number: int = -1
 var dial_start_angle: float = 0.0
 var dial_current_rot: float = 0.0
 var max_rot: float = 0.0
+
+# =======================================
+# VARIAVEIS DA BUROCRACIA (CARIMBOS E CAIXAS)
+# =======================================
+var spawned_papers: Array = []
+var outbox_papers: Array = []
+
+var outbox_rect: ColorRect
+var trash_rect: ColorRect
+var stamp_approve: ColorRect
+var stamp_reject: ColorRect
 
 func _ready() -> void:
 	_setup_ui()
@@ -121,7 +121,7 @@ func _setup_ui() -> void:
 	diretrizes_rect = ColorRect.new()
 	diretrizes_rect.color = Color(0.6, 0.15, 0.15) 
 	diretrizes_rect.size = Vector2(1000, 60)
-	diretrizes_rect.position = Vector2(460, 40)
+	diretrizes_rect.position = Vector2(420, 40)
 	ui_layer.add_child(diretrizes_rect)
 	
 	var selo_clip = ColorRect.new()
@@ -154,7 +154,7 @@ func _setup_ui() -> void:
 	agenda_rect.size = Vector2(300, 400)
 	agenda_rect.position = Vector2(80, 250)
 	ui_layer.add_child(agenda_rect)
-	_make_draggable(agenda_rect)
+	_make_draggable(agenda_rect, "panel")
 	
 	var lombada = ColorRect.new()
 	lombada.color = Color(0.1, 0.1, 0.1) 
@@ -179,7 +179,7 @@ func _setup_ui() -> void:
 	clipboard_rect.size = Vector2(350, 400)
 	clipboard_rect.position = Vector2(1000, 250)
 	ui_layer.add_child(clipboard_rect)
-	_make_draggable(clipboard_rect)
+	_make_draggable(clipboard_rect, "panel")
 	
 	var clipe_metal = ColorRect.new()
 	clipe_metal.color = Color(0.5, 0.5, 0.55) 
@@ -196,7 +196,7 @@ func _setup_ui() -> void:
 	clipboard_rect.add_child(report_label)
 
 	btn_next_day = Button.new()
-	btn_next_day.text = "Assinar e Finalizar Dia"
+	btn_next_day.text = "Processar Saidas e Finalizar Dia"
 	btn_next_day.position = Vector2(20, 340)
 	btn_next_day.size = Vector2(310, 40)
 	btn_next_day.pressed.connect(_on_next_day_pressed)
@@ -207,7 +207,7 @@ func _setup_ui() -> void:
 	active_paper_rect.size = Vector2(330, 400)
 	active_paper_rect.position = Vector2(1450, 250)
 	ui_layer.add_child(active_paper_rect)
-	_make_draggable(active_paper_rect)
+	_make_draggable(active_paper_rect, "panel")
 
 	var active_title = Label.new()
 	active_title.text = "FROTA: 3 LOCOMOTIVAS A CARVAO" 
@@ -227,7 +227,7 @@ func _setup_ui() -> void:
 	folder_rect.position = Vector2(740, 310) 
 	folder_rect.visible = false
 	ui_layer.add_child(folder_rect)
-	_make_draggable(folder_rect)
+	_make_draggable(folder_rect, "panel")
 	
 	var folder_tab = ColorRect.new()
 	folder_tab.color = Color(0.8, 0.65, 0.4)
@@ -296,17 +296,13 @@ func _setup_ui() -> void:
 	btn_call_urg.pressed.connect(_on_call_urgent_pressed)
 	doc_urgent.add_child(btn_call_urg)
 
-	# =======================================
-	# O TELEFONE DE DISCO FÍSICO
-	# =======================================
 	phone_rect = ColorRect.new()
-	phone_rect.color = Color(0.1, 0.25, 0.15) # Verde musgo vintage
-	phone_rect.size = Vector2(340, 260) # Formato mais quadrado/base larga
+	phone_rect.color = Color(0.1, 0.25, 0.15) 
+	phone_rect.size = Vector2(340, 260) 
 	phone_rect.position = Vector2(350, 700)
 	ui_layer.add_child(phone_rect)
-	_make_draggable(phone_rect)
+	_make_draggable(phone_rect, "panel")
 	
-	# Detalhe visual: o "gancho" e o fone em cima do telefone
 	var handset_rect = ColorRect.new()
 	handset_rect.color = Color(0.08, 0.2, 0.12)
 	handset_rect.size = Vector2(300, 40)
@@ -323,7 +319,7 @@ func _setup_ui() -> void:
 	phone_rect.add_child(phone_display)
 	
 	dial_rect = Control.new()
-	dial_rect.position = Vector2(170, 160) # Centro do disco em relacao a nova base
+	dial_rect.position = Vector2(170, 160) 
 	dial_rect.size = Vector2(240, 240)
 	dial_rect.position -= dial_rect.size / 2.0
 	dial_rect.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -331,9 +327,59 @@ func _setup_ui() -> void:
 	dial_rect.gui_input.connect(_on_dial_gui_input)
 	phone_rect.add_child(dial_rect)
 
-# =======================================
-# LÓGICA DO TELEFONE DE DISCO (ARRASTAR)
-# =======================================
+	# =======================================
+	# ELEMENTOS FISICOS DA BUROCRACIA
+	# =======================================
+	outbox_rect = ColorRect.new()
+	outbox_rect.color = Color(0.15, 0.1, 0.05) 
+	outbox_rect.size = Vector2(330, 180)
+	outbox_rect.position = Vector2(1450, 40)
+	outbox_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ui_layer.add_child(outbox_rect)
+	
+	var outbox_title = Label.new()
+	outbox_title.text = "CAIXA DE SAIDA\n(Enviar por Correio)"
+	outbox_title.add_theme_color_override("font_color", Color.LIGHT_GRAY)
+	outbox_title.position = Vector2(20, 20)
+	outbox_rect.add_child(outbox_title)
+
+	trash_rect = ColorRect.new()
+	trash_rect.color = Color(0.1, 0.1, 0.12)
+	trash_rect.size = Vector2(120, 120)
+	trash_rect.position = Vector2(1750, 920)
+	trash_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ui_layer.add_child(trash_rect)
+	
+	var trash_lbl = Label.new()
+	trash_lbl.text = "LIXEIRA\n(Rasgar)"
+	trash_lbl.add_theme_color_override("font_color", Color.DIM_GRAY)
+	trash_lbl.position = Vector2(10, 30)
+	trash_rect.add_child(trash_lbl)
+
+	stamp_approve = ColorRect.new()
+	stamp_approve.color = Color(0.2, 0.5, 0.2)
+	stamp_approve.size = Vector2(80, 100)
+	stamp_approve.position = Vector2(800, 850)
+	ui_layer.add_child(stamp_approve)
+	_make_draggable(stamp_approve, "stamp_approve")
+	
+	var lbl_a = Label.new()
+	lbl_a.text = "APROVAR"
+	lbl_a.position = Vector2(5, 40)
+	stamp_approve.add_child(lbl_a)
+
+	stamp_reject = ColorRect.new()
+	stamp_reject.color = Color(0.6, 0.2, 0.2)
+	stamp_reject.size = Vector2(80, 100)
+	stamp_reject.position = Vector2(920, 850)
+	ui_layer.add_child(stamp_reject)
+	_make_draggable(stamp_reject, "stamp_reject")
+	
+	var lbl_r = Label.new()
+	lbl_r.text = "REJEITAR"
+	lbl_r.position = Vector2(5, 40)
+	stamp_reject.add_child(lbl_r)
+
 func _on_dial_draw() -> void:
 	var center = dial_rect.size / 2.0
 	var radius = 100.0
@@ -387,7 +433,6 @@ func _on_dial_gui_input(event: InputEvent) -> void:
 					if dial_current_rot >= max_rot - deg_to_rad(15):
 						_register_dial_digit(dialing_number)
 					dialing_number = -1
-					
 	else:
 		if event is InputEventMouseMotion:
 			if is_dial_dragging:
@@ -444,26 +489,42 @@ func _check_dialed_number() -> void:
 	_update_phone_display()
 
 # =======================================
-# LÓGICA DE ARRASTAR PAPÉIS (FÍSICA)
+# LÓGICA DE FÍSICA E CARIMBOS
 # =======================================
-func _make_draggable(panel: Control) -> void:
+func _make_draggable(panel: Control, type: String = "panel") -> void:
 	panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	panel.set_meta("drag_type", type)
 	panel.gui_input.connect(_on_panel_gui_input.bind(panel))
-	original_transforms[panel] = panel.position
+	if type == "panel" or type.begins_with("stamp"):
+		original_transforms[panel] = panel.position
 
 func _on_panel_gui_input(event: InputEvent, panel: Control) -> void:
+	var type = panel.get_meta("drag_type")
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			if event.is_pressed():
 				dragged_panel = panel
-				panel.rotation_degrees = 0 
 				drag_offset = panel.get_global_mouse_position() - panel.global_position
 				panel.get_parent().move_child(panel, -1) 
+				if type == "panel" or type == "paper":
+					panel.rotation_degrees = 0 
 			else:
 				if dragged_panel == panel:
 					dragged_panel = null
-					panel.rotation_degrees = randf_range(-3.0, 3.0) 
-					_clamp_to_screen(panel)
+					
+					if type == "stamp_approve" or type == "stamp_reject":
+						_try_stamp_papers(panel.get_global_mouse_position(), type)
+						var tw = create_tween()
+						tw.tween_property(panel, "position", original_transforms[panel], 0.2)
+					else:
+						if type == "paper":
+							panel.rotation_degrees = randf_range(-4.0, 4.0) 
+							_clamp_to_screen(panel)
+							_try_outbox_paper(panel)
+						else:
+							if type == "panel":
+								panel.rotation_degrees = randf_range(-3.0, 3.0) 
+								_clamp_to_screen(panel)
 	else:
 		if event is InputEventMouseMotion:
 			if dragged_panel == panel:
@@ -478,11 +539,49 @@ func _clamp_to_screen(panel: Control) -> void:
 	p.y = clamp(p.y, 0, s.y - sz.y)
 	panel.global_position = p
 
+func _try_stamp_papers(stamp_pos: Vector2, stamp_type: String) -> void:
+	for i in range(spawned_papers.size() - 1, -1, -1):
+		var p = spawned_papers[i]
+		if p.get_global_rect().has_point(stamp_pos):
+			var current_stamp = p.get_meta("stamp")
+			if current_stamp == "":
+				p.set_meta("stamp", stamp_type)
+				
+				var mark = Label.new()
+				if stamp_type == "stamp_approve":
+					mark.text = "[ APROVADO ]"
+					mark.add_theme_color_override("font_color", Color(0.1, 0.6, 0.1, 0.8))
+				else:
+					mark.text = "[ REJEITADO ]"
+					mark.add_theme_color_override("font_color", Color(0.8, 0.1, 0.1, 0.8))
+				
+				mark.add_theme_font_size_override("font_size", 36)
+				mark.rotation_degrees = randf_range(-15.0, 15.0)
+				mark.position = p.get_local_mouse_position() - Vector2(100, 20)
+				p.add_child(mark)
+			return 
+
+func _try_outbox_paper(paper: Control) -> void:
+	var center = paper.global_position + (paper.size / 2.0)
+	if outbox_rect.get_global_rect().has_point(center):
+		spawned_papers.erase(paper)
+		outbox_papers.append(paper)
+		
+		var tween = create_tween()
+		var target_pos = outbox_rect.global_position + Vector2(15, 15) + Vector2(outbox_papers.size() * 5, outbox_papers.size() * 5)
+		tween.tween_property(paper, "global_position", target_pos, 0.2)
+		paper.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	else:
+		if trash_rect.get_global_rect().has_point(center):
+			spawned_papers.erase(paper)
+			paper.queue_free()
+
 func _on_organize_pressed() -> void:
 	var tween = create_tween().set_parallel(true)
 	for panel in original_transforms.keys():
-		tween.tween_property(panel, "position", original_transforms[panel], 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		tween.tween_property(panel, "rotation_degrees", 0.0, 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		if is_instance_valid(panel):
+			tween.tween_property(panel, "position", original_transforms[panel], 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+			tween.tween_property(panel, "rotation_degrees", 0.0, 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 
 # =======================================
 # SISTEMAS BASE DA MESA E CUTSCENE
@@ -554,7 +653,6 @@ func _on_company_selected(data: Dictionary) -> void:
 	folder_title.text = "CLIENTE: " + data["name"]
 	folder_route.text = "Exige Rota: " + data["route_name"] + " | Arquétipo: [" + data["type"] + "]"
 	
-	# AGORA COM O TELEFONE INCLUIDO NA PASTA DO CLIENTE!
 	std_label.text = "CONTRATO PADRAO\n\nCarga: " + data["cargo"] + "\n\nDuracao: 5-10 dias\nPagamento: ~$" + str(data["base_reward"]) + "\n\nTEL: " + data["phone"]
 	btn_call_std.text = "PREPARAR CONTRATO"
 	
@@ -632,21 +730,67 @@ func _process_call() -> void:
 		var rew = GameManager.daily_urgencies[pending_company_data["name"]] if pending_is_urgent else pending_company_data["base_reward"]
 		phone_cutscene.start_call(pending_company_data["name"], pending_company_data["type"], pending_company_data["cargo"], rew, pending_is_urgent)
 
+# =======================================
+# NOVO: GERACAO DE PAPEIS
+# =======================================
 func _on_cutscene_accepted(final_reward: int) -> void:
-	if pending_is_urgent:
-		GameManager.money += final_reward
-		GameManager.active_contracts.append({"company_name": pending_company_data["name"], "cargo": "[URG] " + pending_company_data["cargo"], "route_id": pending_company_data["route_id"], "route_name": pending_company_data["route_name"], "reward": 0, "days_left": 1, "is_urgent": true})
-		GameManager.daily_urgencies.erase(pending_company_data["name"]) 
-	else:
-		var new_c = {"company_name": pending_company_data["name"], "type": pending_company_data["type"], "cargo": pending_company_data["cargo"], "route_id": pending_company_data["route_id"], "route_name": pending_company_data["route_name"], "reward": final_reward, "days_left": randi_range(5, 10), "is_urgent": false}
-		if pending_company_data.has("max_dist"): 
-			new_c["max_dist"] = pending_company_data["max_dist"]
-		GameManager.active_contracts.append(new_c)
+	var is_urg = pending_is_urgent
+	var c_data = pending_company_data
+	
+	if is_urg:
+		GameManager.daily_urgencies.erase(c_data["name"]) 
 		
-	GameManager.contracts_updated.emit()
+	_spawn_proposal_paper(c_data, is_urg, final_reward)
+	
 	folder_rect.visible = false
 	selected_company_data = {}
 	pending_company_data = {}
+
+func _spawn_proposal_paper(c_data: Dictionary, is_urg: bool, reward: int) -> void:
+	var paper = ColorRect.new()
+	
+	if is_urg:
+		paper.color = Color(0.95, 0.8, 0.8) 
+		paper.size = Vector2(280, 350)
+	else:
+		paper.color = Color(0.95, 0.95, 0.85) 
+		paper.size = Vector2(300, 450)
+
+	paper.position = Vector2(800 + randf_range(-30, 30), 200 + randf_range(-30, 30))
+	paper.rotation_degrees = randf_range(-5, 5)
+
+	var content = Label.new()
+	content.add_theme_color_override("font_color", Color.BLACK)
+	content.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	content.size = paper.size - Vector2(40, 40)
+	content.position = Vector2(20, 20)
+
+	var text = "TERMO DE TRANSPORTE\n\n"
+	text += "Empresa: " + c_data["name"] + "\n"
+	text += "Carga: " + c_data["cargo"] + "\n"
+	text += "Rota Exigida: " + c_data["route_name"] + "\n\n"
+	
+	if is_urg:
+		text += "[ URGENCIA MAXIMA ]\nPagamento a vista: $" + str(reward) + "\nValidade: 1 dia\n"
+	else:
+		text += "Contrato Padrao (5-10 dias)\nPagamento Diario: $" + str(reward) + "\n"
+
+	var flav = "Termos padrao de logistica se aplicam. A Cia de Entregas Ferroviarias responsabiliza-se pela carga a partir do embarque."
+	text += "\nNota: " + flav + "\n\n"
+	text += "(Aguardando Parecer da Gestao...)"
+	
+	content.text = text
+	paper.add_child(content)
+
+	paper.set_meta("is_paper", true)
+	paper.set_meta("company_data", c_data)
+	paper.set_meta("is_urgent", is_urg)
+	paper.set_meta("reward", reward)
+	paper.set_meta("stamp", "") 
+
+	_make_draggable(paper, "paper")
+	ui_layer.add_child(paper)
+	spawned_papers.append(paper)
 
 func _on_cutscene_rejected() -> void:
 	var is_daily = "(Diario)" in pending_company_data["name"]
@@ -742,7 +886,46 @@ func _update_report_text() -> void:
 		btn_next_day.text = "[ Exige contrato e trilho ]"
 	else: 
 		btn_next_day.disabled = false
-		btn_next_day.text = "Assinar e Finalizar Dia"
+		btn_next_day.text = "Processar Saidas e Finalizar Dia"
+		
+	# Limpa a mesa no Dia 1 de jogos antigos
+	if GameManager.current_day == 1 and GameManager.active_contracts.size() == 0:
+		for p in spawned_papers:
+			if is_instance_valid(p): 
+				p.queue_free()
+		spawned_papers.clear()
+		for p in outbox_papers:
+			if is_instance_valid(p): 
+				p.queue_free()
+		outbox_papers.clear()
+
+func _on_next_day_pressed() -> void: 
+	# PROCESSA A CAIXA DE SAIDA!
+	for paper in outbox_papers:
+		if is_instance_valid(paper):
+			var stamp = paper.get_meta("stamp")
+			var c_data = paper.get_meta("company_data")
+			var is_urg = paper.get_meta("is_urgent")
+			var rew = paper.get_meta("reward")
+			
+			if stamp == "stamp_approve":
+				if is_urg:
+					GameManager.money += rew
+					GameManager.active_contracts.append({"company_name": c_data["name"], "cargo": "[URG] " + c_data["cargo"], "route_id": c_data["route_id"], "route_name": c_data["route_name"], "reward": 0, "days_left": 1, "is_urgent": true})
+				else:
+					var new_c = {"company_name": c_data["name"], "type": c_data["type"], "cargo": c_data["cargo"], "route_id": c_data["route_id"], "route_name": c_data["route_name"], "reward": rew, "days_left": randi_range(5, 10), "is_urgent": false}
+					if c_data.has("max_dist"): 
+						new_c["max_dist"] = c_data["max_dist"]
+					GameManager.active_contracts.append(new_c)
+			else:
+				if stamp == "stamp_reject":
+					GameManager.company_cooldowns[c_data["name"]] = 3
+			
+			paper.queue_free()
+			
+	outbox_papers.clear()
+	GameManager.contracts_updated.emit()
+	GameManager.end_day()
 
 func _on_stats_changed(_v) -> void: 
 	_update_report_text()
@@ -776,9 +959,6 @@ func _on_visibility_changed() -> void:
 			if not GameManager.intro_played:
 				GameManager.intro_played = true
 				phone_cutscene.start_boss_intro()
-
-func _on_next_day_pressed() -> void: 
-	GameManager.end_day()
 
 func _on_back_map_pressed() -> void: 
 	get_parent().go_to_map()

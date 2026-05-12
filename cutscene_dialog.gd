@@ -21,7 +21,7 @@ var full_text: String = ""
 var char_index: int = 0
 var offered_reward: int = 0
 var is_typing: bool = false
-var fast_forward: bool = false # NOVO: Pular animacao de texto
+var fast_forward: bool = false 
 
 func _ready() -> void:
 	layer = 200 
@@ -72,10 +72,11 @@ func _setup_visuals() -> void:
 	text_label.add_theme_font_size_override("font_size", 28)
 	dialog_box.add_child(text_label)
 
+	# NOVO: O botão agora envia a proposta em vez de aceitar magicamente
 	btn_accept = Button.new()
-	btn_accept.text = "ACEITAR"
-	btn_accept.size = Vector2(200, 50)
-	btn_accept.position = Vector2(900, 230)
+	btn_accept.text = "ENVIAR PROPOSTA"
+	btn_accept.size = Vector2(250, 50)
+	btn_accept.position = Vector2(850, 230)
 	btn_accept.pressed.connect(_on_accept)
 	dialog_box.add_child(btn_accept)
 
@@ -94,7 +95,6 @@ func _setup_visuals() -> void:
 	btn_close.pressed.connect(_on_close)
 	dialog_box.add_child(btn_close)
 
-# NOVO: Escuta o clique esquerdo para acelerar o texto
 func _input(event: InputEvent) -> void:
 	if visible:
 		if event is InputEventMouseButton:
@@ -150,7 +150,6 @@ func start_angry_call() -> void:
 	
 	_type_next_char(false)
 
-# NOVO: Introducao do Bear
 func start_boss_intro() -> void:
 	_reset_ui()
 	name_label.text = "[ TRANSMISSAO: BEAR (DIRETORIA) ]"
