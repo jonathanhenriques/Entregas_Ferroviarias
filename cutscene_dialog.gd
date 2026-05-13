@@ -6,8 +6,6 @@ signal contract_rejected()
 signal call_closed() 
 signal cancel_confirmed(idx: int)
 signal cancel_aborted()
-
-# NOVO: Sinal emitido quando o jogador escolhe uma das 3 opcoes do radio
 signal radio_choice_made(option_index: int)
 
 var overlay: ColorRect
@@ -19,7 +17,6 @@ var btn_accept: Button
 var btn_reject: Button
 var btn_close: Button 
 
-# NOVO: Botoes dinamicos para as multiplas escolhas do rádio
 var btn_opt_1: Button
 var btn_opt_2: Button
 var btn_opt_3: Button
@@ -107,7 +104,6 @@ func _setup_visuals() -> void:
 	btn_close.pressed.connect(_on_close)
 	dialog_box.add_child(btn_close)
 
-	# BOTOES DE RADIO
 	btn_opt_1 = Button.new()
 	btn_opt_1.text = "[ Pagar Pedagio ($150) ]"
 	btn_opt_1.size = Vector2(350, 50)
@@ -158,6 +154,24 @@ func start_call(company_name: String, company_type: String, company_cargo: Strin
 		full_text += "Temos um frete padrao de " + company_cargo + " [" + company_type + "] parado aqui.\n"
 		full_text += "Pagamos $" + str(offered_reward) + " por dia. Aceita os nossos termos?"
 
+	_type_next_char(true)
+
+# NOVO: Chamada para o Contrato de Risco
+func start_risk_call(company_name: String, route_name: String, base_reward: int) -> void:
+	_reset_ui()
+	current_mode = "RISK_CALL"
+	
+	var dice = randi_range(1, 6)
+	var mult = 1.0 + (dice * 0.1)
+	offered_reward = int(base_reward * mult)
+	
+	name_label.text = "[ TRANSMISSAO: " + company_name.to_upper() + " ]"
+	name_label.add_theme_color_override("font_color", Color.GOLDENROD)
+	
+	full_text = "Vejo que a sua via para " + route_name + " nao esta pronta. O nosso frete e urgente.\n"
+	full_text += "Assino o contrato hoje, mas voce tem 3 dias para colocar esse trem nos trilhos levando minha carga.\n"
+	full_text += "Se falhar, os meus advogados destroem a sua empresa. Estamos entendidos?"
+	
 	_type_next_char(true)
 
 func start_rejection_call(company_name: String, custom_reason: String = "") -> void:
@@ -220,7 +234,6 @@ func start_cancel_warning(company_name: String, idx: int) -> void:
 	
 	_type_next_char(true)
 
-# NOVO: O Chamado do Maquinista Badger
 func start_badger_radio() -> void:
 	_reset_ui()
 	current_mode = "RADIO_EVENT"

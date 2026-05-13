@@ -45,6 +45,7 @@ var dial_rect: Control
 var current_dialed: String = ""
 var pending_company_data: Dictionary = {}
 var pending_is_urgent: bool = false
+var pending_is_risk: bool = false
 
 var HOLE_ANGLES = [
 	0.0, -PI * 1.5, -PI * 1.3333, -PI * 1.1666, -PI,
@@ -408,7 +409,7 @@ func _setup_ui() -> void:
 	radio_rect.add_child(radio_speaker)
 	
 	var radio_lbl = Label.new()
-	radio_lbl.text = "RÁDIO PTT\nFREQ 104.2"
+	radio_lbl.text = "RADIO PTT\nFREQ 104.2"
 	radio_lbl.add_theme_color_override("font_color", Color.BLACK)
 	radio_lbl.position = Vector2(150, 20)
 	radio_rect.add_child(radio_lbl)
@@ -843,36 +844,55 @@ func _process_call() -> void:
 	var rid = pending_company_data["route_id"]
 	var ctype = pending_company_data["type"]
 	var has_route = rid in GameManager.network_connections
-	var is_daily = "(Diario)" in pending_company_data["name"]
-	var is_day_one = (GameManager.current_day == 1 and is_daily)
+	var is_constructing = GameManager.routes_under_construction.get(rid, 0) > 0
+
 	var route_valid = false
 	var reason = ""
 	
 	if has_route:
-		# NOVO: O cliente nao aceita novos contratos se a via estiver em obras!
-		if GameManager.routes_under_construction.get(rid, 0) > 0:
-			reason = "A rota exigida esta em obras! Nao podemos fechar contrato sem garantia de circulacao."
-		else:
+		if not is_constructing:
 			var stats = GameManager.network_stats.get(rid, {})
-			if ctype == "Expresso" and stats.get("dist", 999) > pending_company_data.get("max_dist", 999): 
+			var is_long = (ctype == "Expresso" and stats.get("dist", 999) > pending_company_data.get("max_dist", 999))
+			if is_long:
 				reason = "Rota longa!"
-			else:
-				if ctype == "VIP" and (stats.get("gangs", 0) > 0 or GameManager.active_contracts.size() > 0): 
+			if not is_long:
+				var is_vip_bad = (ctype == "VIP" and (stats.get("gangs", 0) > 0 or GameManager.active_contracts.size() > 0))
+				if is_vip_bad:
 					reason = "VIP exige seguranca/exclusividade!"
-				else:
-					if ctype == "Ecologico" and stats.get("forests", 0) > 0: 
+				if not is_vip_bad:
+					var is_eco_bad = (ctype == "Ecologico" and stats.get("forests", 0) > 0)
+					if is_eco_bad:
 						reason = "Crime ambiental!"
-					else: 
-						route_valid = true 
-					
-	if (not has_route and not is_day_one) or (has_route and not route_valid):
-		phone_cutscene.start_rejection_call(pending_company_data["name"], reason)
-		if not is_day_one: 
-			GameManager.company_cooldowns[pending_company_data["name"]] = 1 
-		folder_rect.visible = false
-	else:
-		var rew = GameManager.daily_urgencies[pending_company_data["name"]] if pending_is_urgent else pending_company_data["base_reward"]
-		phone_cutscene.start_call(pending_company_data["name"], pending_company_data["type"], pending_company_data["cargo"], rew, pending_is_urgent)
+					if not is_eco_bad:
+						route_valid = true
+
+	var can_do_risk = false
+	if not has_route:
+		can_do_risk = true
+	if has_route:
+		if is_constructing:
+			can_do_risk = true
+
+	if can_do_risk:
+		pending_is_risk = true
+		var rew = pending_company_data["base_reward"]
+		if pending_is_urgent:
+			rew = GameManager.daily_urgencies.get(pending_company_data["name"], rew)
+		phone_cutscene.start_risk_call(pending_company_data["name"], pending_company_data["route_name"], rew)
+
+	if not can_do_risk:
+		pending_is_risk = false
+		if not route_valid:
+			phone_cutscene.start_rejection_call(pending_company_data["name"], reason)
+			var is_daily = "(Diario)" in pending_company_data["name"]
+			if not (is_daily and GameManager.current_day == 1):
+				GameManager.company_cooldowns[pending_company_data["name"]] = 1 
+			folder_rect.visible = false
+		if route_valid:
+			var rew = pending_company_data["base_reward"]
+			if pending_is_urgent:
+				rew = GameManager.daily_urgencies.get(pending_company_data["name"], rew)
+			phone_cutscene.start_call(pending_company_data["name"], pending_company_data["type"], pending_company_data["cargo"], rew, pending_is_urgent)
 
 func _on_cutscene_accepted(final_reward: int) -> void:
 	var is_urg = pending_is_urgent
@@ -918,7 +938,11 @@ func _spawn_proposal_paper(c_data: Dictionary, is_urg: bool, reward: int) -> voi
 
 	var flav = "Termos padrao de logistica se aplicam. A Cia de Entregas Ferroviarias responsabiliza-se pela carga a partir do embarque."
 	text += "\nNota: " + flav + "\n\n"
-	text += "(Aguardando Parecer da Gestao...)"
+	
+	if pending_is_risk:
+		text += "[ATENCAO: CONTRATO DE RISCO]\nVia inexistente ou em obras.\nPrazo estrito: 3 dias para iniciar a operacao."
+	else:
+		text += "(Aguardando Parecer da Gestao...)"
 	
 	content.text = text
 	paper.add_child(content)
@@ -929,6 +953,7 @@ func _spawn_proposal_paper(c_data: Dictionary, is_urg: bool, reward: int) -> voi
 	paper.set_meta("reward", reward)
 	paper.set_meta("stamp", "") 
 	paper.set_meta("is_folded", false) 
+	paper.set_meta("is_risk", pending_is_risk)
 
 	_make_draggable(paper, "paper")
 	ui_layer.add_child(paper)
@@ -949,7 +974,6 @@ func _on_cutscene_closed() -> void:
 	folder_rect.visible = false
 	pending_company_data = {}
 
-# NOVO: Impede cancelar contratos se o trem estiver bloqueado em obras!
 func _on_cancel_dynamic(idx: int) -> void: 
 	var c = GameManager.active_contracts[idx]
 	if GameManager.routes_under_construction.get(c["route_id"], 0) > 0:
@@ -1009,36 +1033,39 @@ func _update_active_contracts_text() -> void:
 			var st = ""
 			var cl = Label.new()
 			
-			if is_act: 
-				if c.get("is_urgent", false):
-					st = "[PAGO]"
-				else:
-					st = "(+$" + str(c["reward"]) + ")"
-				cl.add_theme_color_override("font_color", Color.DARK_SLATE_GRAY)
+			if c.has("pending_route_days"):
+				st = "[AGUARDANDO VIA: " + str(c["pending_route_days"]) + "d]"
+				cl.add_theme_color_override("font_color", Color.DARK_GOLDENROD)
 			else:
-				cl.add_theme_color_override("font_color", Color.INDIAN_RED)
-				# NOVO: Feedback visual do bloqueio por obras
-				if GameManager.routes_under_construction.get(c["route_id"], 0) > 0:
-					st = "[OBRAS: " + str(GameManager.routes_under_construction[c["route_id"]]) + "d]"
+				if is_act: 
+					if c.get("is_urgent", false):
+						st = "[PAGO]"
+					else:
+						st = "(+$" + str(c["reward"]) + ")"
+					cl.add_theme_color_override("font_color", Color.DARK_SLATE_GRAY)
 				else:
-					if not (c["route_id"] in GameManager.network_connections): 
-						st = "[SEM ROTA]"
-					else: 
-						var tp = c.get("type", "")
-						var stats = GameManager.network_stats.get(c["route_id"], {})
-						if tp == "Expresso" and stats.get("dist", 999) > c.get("max_dist", 999):
-							st = "[PARADO: ROTA LONGA]"
-						else:
-							if tp == "VIP" and GameManager.active_contracts.size() > 1:
-								st = "[PARADO: FIM EXCLUSIVIDADE]"
+					cl.add_theme_color_override("font_color", Color.INDIAN_RED)
+					if GameManager.routes_under_construction.get(c["route_id"], 0) > 0:
+						st = "[OBRAS: " + str(GameManager.routes_under_construction[c["route_id"]]) + "d]"
+					else:
+						if not (c["route_id"] in GameManager.network_connections): 
+							st = "[SEM ROTA]"
+						else: 
+							var tp = c.get("type", "")
+							var stats = GameManager.network_stats.get(c["route_id"], {})
+							if tp == "Expresso" and stats.get("dist", 999) > c.get("max_dist", 999):
+								st = "[PARADO: ROTA LONGA]"
 							else:
-								if tp == "VIP" and stats.get("gangs", 0) > 0:
-									st = "[PARADO: GANGUES NA LINHA]"
+								if tp == "VIP" and GameManager.active_contracts.size() > 1:
+									st = "[PARADO: FIM EXCLUSIVIDADE]"
 								else:
-									if tp == "Ecologico" and stats.get("forests", 0) > 0:
-										st = "[PARADO: CRIME AMBIENTAL]"
+									if tp == "VIP" and stats.get("gangs", 0) > 0:
+										st = "[PARADO: GANGUES NA LINHA]"
 									else:
-										st = "[PARADO: ILEGAL]"
+										if tp == "Ecologico" and stats.get("forests", 0) > 0:
+											st = "[PARADO: CRIME AMBIENTAL]"
+										else:
+											st = "[PARADO: ILEGAL]"
 									
 			cl.text = "T" + str(i + 1) + ": " + c["cargo"] + "\n" + c["route_name"] + " " + st + "\n" + str(c["days_left"]) + "d"
 			cl.custom_minimum_size = Vector2(230, 0)
@@ -1066,16 +1093,6 @@ func _update_report_text() -> void:
 	
 	btn_next_day.disabled = false
 	btn_next_day.text = "Processar Saidas e Finalizar Dia"
-		
-	if GameManager.current_day == 1 and GameManager.active_contracts.size() == 0:
-		for p in spawned_papers:
-			if is_instance_valid(p): 
-				p.queue_free()
-		spawned_papers.clear()
-		for p in outbox_papers:
-			if is_instance_valid(p): 
-				p.queue_free()
-		outbox_papers.clear()
 
 func _on_next_day_pressed() -> void: 
 	var new_c_count = 0
@@ -1088,17 +1105,26 @@ func _on_next_day_pressed() -> void:
 			var c_data = paper.get_meta("company_data")
 			var is_urg = paper.get_meta("is_urgent")
 			var rew = paper.get_meta("reward")
+			var is_risk = paper.get_meta("is_risk")
 			
 			if stamp == "stamp_approve":
 				new_c_count += 1
+				
+				var new_c = {"company_name": c_data["name"], "type": c_data["type"], "cargo": c_data["cargo"], "route_id": c_data["route_id"], "route_name": c_data["route_name"], "reward": rew, "days_left": randi_range(5, 10), "is_urgent": false}
 				if is_urg:
 					pending_upfront_income += rew
-					GameManager.active_contracts.append({"company_name": c_data["name"], "cargo": "[URG] " + c_data["cargo"], "route_id": c_data["route_id"], "route_name": c_data["route_name"], "reward": 0, "days_left": 1, "is_urgent": true})
-				else:
-					var new_c = {"company_name": c_data["name"], "type": c_data["type"], "cargo": c_data["cargo"], "route_id": c_data["route_id"], "route_name": c_data["route_name"], "reward": rew, "days_left": randi_range(5, 10), "is_urgent": false}
-					if c_data.has("max_dist"): 
-						new_c["max_dist"] = c_data["max_dist"]
-					GameManager.active_contracts.append(new_c)
+					new_c["cargo"] = "[URG] " + c_data["cargo"]
+					new_c["reward"] = 0
+					new_c["days_left"] = 1
+					new_c["is_urgent"] = true
+					
+				if c_data.has("max_dist"): 
+					new_c["max_dist"] = c_data["max_dist"]
+					
+				if is_risk:
+					new_c["pending_route_days"] = 3
+					
+				GameManager.active_contracts.append(new_c)
 			else:
 				if stamp == "stamp_reject":
 					rej_c_count += 1
@@ -1233,6 +1259,17 @@ func _on_day_changed(_v) -> void:
 	_update_report_text()
 	_update_active_contracts_text()
 	_load_agenda_contacts() 
+	
+	# NOVO: Limpa a mesa de forma rigorosa nos reinicios do jogo
+	if _v == 1:
+		for p in spawned_papers:
+			if is_instance_valid(p):
+				p.queue_free()
+		spawned_papers.clear()
+		for p in outbox_papers:
+			if is_instance_valid(p):
+				p.queue_free()
+		outbox_papers.clear()
 
 func _on_visibility_changed() -> void:
 	if ui_layer: 

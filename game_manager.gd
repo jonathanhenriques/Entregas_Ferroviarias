@@ -47,15 +47,17 @@ var today_broken_contracts: int = 0
 var today_penalties: int = 0
 var pending_radio_event: bool = false
 
-# NOVO: Dicionario que guarda os dias de bloqueio de cada rota
 var routes_under_construction: Dictionary = {}
 
 func is_contract_operating(c: Dictionary) -> bool:
+	# NOVO: Contratos aguardando via nao operam
+	if c.has("pending_route_days"):
+		return false
+		
 	var rid = c["route_id"]
 	if not (rid in network_connections): 
 		return false
 		
-	# NOVO: Se a via estiver em obras, o contrato para de operar
 	if routes_under_construction.get(rid, 0) > 0:
 		return false
 	
@@ -74,6 +76,35 @@ func is_contract_operating(c: Dictionary) -> bool:
 	if tp == "Ecologico" and st["forests"] > 0: 
 		return false
 		
+	return true
+
+# NOVO: Verifica puramente se a rota fisica esta pronta e dentro da lei (Para os Contratos de Risco)
+func is_contract_route_ready(c: Dictionary) -> bool:
+	var rid = c["route_id"]
+	var has_route = rid in network_connections
+	if not has_route:
+		return false
+
+	if routes_under_construction.get(rid, 0) > 0:
+		return false
+
+	var st = network_stats.get(rid, {})
+	if st.is_empty():
+		return false
+
+	var tp = c.get("type", "")
+	if tp == "Expresso":
+		if st.get("dist", 999) > c.get("max_dist", 999):
+			return false
+	if tp == "VIP":
+		if st.get("gangs", 0) > 0:
+			return false
+		if active_contracts.size() > 1:
+			return false
+	if tp == "Ecologico":
+		if st.get("forests", 0) > 0:
+			return false
+
 	return true
 
 func get_daily_income() -> int:
@@ -113,9 +144,34 @@ func end_day(upfront_income: int = 0) -> void:
 	
 	var keep = []
 	for c in active_contracts:
-		c["days_left"] -= 1
-		if c["days_left"] > 0: 
-			keep.append(c)
+		var contract_failed = false
+		
+		# Logica dos Contratos de Risco
+		if c.has("pending_route_days"):
+			var is_ready = is_contract_route_ready(c)
+			if is_ready:
+				# O jogador conseguiu construir a tempo! Removemos o aviso.
+				c.erase("pending_route_days")
+			if not is_ready:
+				# O jogador ainda nao construiu. Desconta 1 dia.
+				c["pending_route_days"] -= 1
+				if c["pending_route_days"] <= 0:
+					contract_failed = true
+					today_broken_contracts += 1
+					var pen = int(c["reward"] * 5)
+					if c.get("is_urgent", false):
+						pen = 500
+					today_penalties += pen
+					money -= pen
+					pendent_angry_call = true
+
+		if not contract_failed:
+			if not c.has("pending_route_days"):
+				c["days_left"] -= 1
+				if c["days_left"] > 0:
+					keep.append(c)
+			if c.has("pending_route_days"):
+				keep.append(c)
 			
 	active_contracts = keep
 	
@@ -126,7 +182,6 @@ func end_day(upfront_income: int = 0) -> void:
 			
 	company_cooldowns = new_cd
 	
-	# NOVO: Desconta 1 dia no cooldown das obras ativas
 	var new_ruc = {}
 	var ruc_keys = routes_under_construction.keys()
 	for i in range(ruc_keys.size()):
