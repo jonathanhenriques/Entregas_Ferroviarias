@@ -36,7 +36,6 @@ var btn_accept: Button
 var btn_reject: Button
 var btn_go_desk: Button
 
-# NOVO: Variaveis do Modo de Obras
 var btn_edit_mode: Button
 var is_edit_mode: bool = false
 var made_changes_in_edit: bool = false
@@ -128,7 +127,6 @@ func _setup_ui() -> void:
 	btn_go_desk.pressed.connect(_on_go_desk_pressed)
 	ui_layer.add_child(btn_go_desk)
 	
-	# NOVO: Botao de Modo de Obras
 	btn_edit_mode = Button.new()
 	btn_edit_mode.text = "[ ENTRAR MODO DE OBRAS ]"
 	btn_edit_mode.position = Vector2(240, 40)
@@ -167,7 +165,6 @@ func _on_go_desk_pressed() -> void:
 	if main_node.has_method("go_to_desk"):
 		main_node.go_to_desk()
 
-# NOVO: Logica de entrar e sair do Modo de Obras
 func _on_edit_mode_pressed() -> void:
 	if not is_edit_mode:
 		is_edit_mode = true
@@ -182,7 +179,6 @@ func _on_edit_mode_pressed() -> void:
 		btn_go_desk.disabled = false
 		
 		if made_changes_in_edit:
-			# O Castigo Surpresa: Qualquer alteracao na malha gera um cooldown de 2 dias em todas as conexoes!
 			for rid in GameManager.network_connections:
 				GameManager.routes_under_construction[rid] = 2
 			GameManager.contracts_updated.emit()
@@ -201,7 +197,6 @@ func _process(delta: float) -> void:
 		var is_under_construction = (GameManager.routes_under_construction.get(c["route_id"], 0) > 0)
 		var has_physical_route = (c["route_id"] in GameManager.network_connections)
 
-		# NOVO: Mantem o trem parado na linha se a via estiver em obras, mostrando ao jogador o bloqueio!
 		if (is_op or is_under_construction) and has_physical_route:
 			needs_redraw = true
 			if not active_trains.has(i):
@@ -370,6 +365,7 @@ func _is_cell_occupied_by_track(cell: Vector2i) -> bool:
 		return true
 	return false
 
+# NOVO: Desenha a Placa de Construcao Flutuante e as Cores Diferentes!
 func _draw() -> void:
 	for x in range(grid_width):
 		for y in range(grid_height):
@@ -395,10 +391,26 @@ func _draw() -> void:
 	for y in range(grid_height + 1):
 		draw_line(Vector2(0, y * TILE_SIZE), Vector2(grid_width * TILE_SIZE, y * TILE_SIZE), Color(0, 0, 0, 0.1), 1.0)
 
+	var is_const = false
+	var max_d = 0
+	for k in GameManager.routes_under_construction.keys():
+		var d = GameManager.routes_under_construction[k]
+		if d > 0:
+			is_const = true
+			if d > max_d:
+				max_d = d
+
 	for route in confirmed_routes: 
-		_draw_custom_track(route, false) 
+		_draw_custom_track(route, false, is_const) 
+		if is_const:
+			if route.size() > 2:
+				var mid = route[route.size() / 2]
+				var px = mid.x * TILE_SIZE + 16
+				var py = mid.y * TILE_SIZE + 16
+				draw_rect(Rect2(px - 50, py - 12, 100, 24), Color(0.1, 0.1, 0.1, 0.9))
+				draw_string(ThemeDB.fallback_font, Vector2(px - 45, py + 4), "[ OBRAS: " + str(max_d) + "d ]", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color.ORANGE)
 		
-	_draw_custom_track(tentative_path, true)
+	_draw_custom_track(tentative_path, true, false)
 
 	if city_a != Vector2i(-1, -1): 
 		draw_rect(Rect2(city_a.x * TILE_SIZE, city_a.y * TILE_SIZE, TILE_SIZE, TILE_SIZE), Color.DODGER_BLUE)
@@ -409,21 +421,25 @@ func _draw() -> void:
 		
 	_draw_trains()
 
-func _get_track_color(b: int, is_preview: bool) -> Color:
+# NOVO: Injeta a cor de OBRAS
+func _get_track_color(b: int, is_preview: bool, is_construction: bool) -> Color:
 	if is_preview: 
 		return Color.YELLOW
+	if is_construction:
+		return Color(0.9, 0.7, 0.1) 
 	if b == Biome.RIVER: 
 		return Color.SADDLE_BROWN 
 	if b == Biome.MOUNTAIN: 
 		return Color.DARK_SLATE_GRAY 
 	return Color.BLACK
 
-func _draw_custom_track(path: Array, is_preview: bool) -> void:
+# NOVO: Injeta dormentes Pretos para contrastar com a via Laranja/Amarela
+func _draw_custom_track(path: Array, is_preview: bool, is_const: bool) -> void:
 	if path.size() == 0: 
 		return
 	if path.size() == 1:
 		var b = biome_map.get(path[0], Biome.PLAIN)
-		draw_circle(Vector2(path[0].x * TILE_SIZE + 16, path[0].y * TILE_SIZE + 16), 4.0, _get_track_color(b, is_preview))
+		draw_circle(Vector2(path[0].x * TILE_SIZE + 16, path[0].y * TILE_SIZE + 16), 4.0, _get_track_color(b, is_preview, is_const))
 		return
 		
 	for cell in path:
@@ -447,7 +463,7 @@ func _draw_custom_track(path: Array, is_preview: bool) -> void:
 				if b1 == Biome.FOREST or b2 == Biome.FOREST: 
 					segment_biome = Biome.FOREST
 
-		var line_color = _get_track_color(segment_biome, is_preview)
+		var line_color = _get_track_color(segment_biome, is_preview, is_const)
 		var line_width = 5.0
 		if segment_biome != Biome.MOUNTAIN:
 			line_width = 2.0
@@ -470,6 +486,9 @@ func _draw_custom_track(path: Array, is_preview: bool) -> void:
 			if segment_biome == Biome.RIVER and not is_preview:
 				tie_color = Color(0.3, 0.2, 0.1)
 				
+			if is_const:
+				tie_color = Color.BLACK
+				
 			for j in range(1, num_ties + 1):
 				var tie_center = p1 + dir * (j * spacing)
 				draw_line(tie_center - normal * 4, tie_center + normal * 4, tie_color, 2.0)
@@ -478,7 +497,6 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not visible: return
 	if validation_panel.visible: return
 	
-	# NOVO: Impede a construcao e destruicao se nao estiver no modo de obras!
 	if not is_edit_mode: return 
 	
 	if event is InputEventMouseButton:
