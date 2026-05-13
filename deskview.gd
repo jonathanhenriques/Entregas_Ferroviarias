@@ -1176,14 +1176,22 @@ func _start_eod_animation(new_c: int, rej_c: int) -> void:
 
 func _play_eod_lines() -> void:
 	for line in eod_lines_container.get_children():
+		# Verifica se a linha ainda existe na memória antes de mexer nela
+		if not is_instance_valid(line):
+			continue
+			
 		if skip_eod_anim:
 			line.visible = true
 		else:
 			line.visible = true
 			await get_tree().create_timer(0.3).timeout
 			
-	btn_eod_sleep.visible = true
-
+	# Protege o botão também, caso a tela tenha sido fechada durante o await
+	if is_instance_valid(btn_eod_sleep):
+		btn_eod_sleep.visible = true
+		
+		
+		
 func _add_eod_line(left: String, right: String, color: Color, is_title: bool) -> void:
 	var hbox = HBoxContainer.new()
 	var lbl_l = Label.new()
