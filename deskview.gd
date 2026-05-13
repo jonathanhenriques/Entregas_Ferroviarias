@@ -72,9 +72,6 @@ var btn_eod_sleep: Button
 var skip_eod_anim: bool = false
 var pending_upfront_income: int = 0
 
-# =======================================
-# NOVO: O RÁDIO DO BADGER
-# =======================================
 var radio_rect: ColorRect
 var radio_led: ColorRect
 
@@ -105,7 +102,6 @@ func _process(delta: float) -> void:
 				dial_current_rot = 0.0
 			dial_rect.queue_redraw()
 
-	# NOVO: Pisca o LED do Rádio se houver um evento pendente
 	if GameManager.pending_radio_event:
 		var time = float(Time.get_ticks_msec()) / 1000.0
 		if sin(time * 10.0) > 0:
@@ -397,11 +393,8 @@ func _setup_ui() -> void:
 	lbl_r.position = Vector2(5, 40)
 	stamp_reject.add_child(lbl_r)
 
-	# =======================================
-	# RÁDIO DO BADGER (FÍSICO)
-	# =======================================
 	radio_rect = ColorRect.new()
-	radio_rect.color = Color(0.6, 0.6, 0.65) # Metal prata sujo
+	radio_rect.color = Color(0.6, 0.6, 0.65) 
 	radio_rect.size = Vector2(250, 120)
 	radio_rect.position = Vector2(60, 800)
 	ui_layer.add_child(radio_rect)
@@ -605,7 +598,6 @@ func _on_panel_gui_input(event: InputEvent, panel: Control) -> void:
 						var tw = create_tween()
 						tw.tween_property(panel, "position", original_transforms[panel], 0.2)
 					else:
-						# NOVO: Se soltar o clique no radio e for um evento
 						if type == "radio":
 							if GameManager.pending_radio_event:
 								phone_cutscene.start_badger_radio()
@@ -727,8 +719,6 @@ func _setup_cutscene() -> void:
 	phone_cutscene.contract_rejected.connect(_on_cutscene_rejected)
 	phone_cutscene.call_closed.connect(_on_cutscene_closed)
 	phone_cutscene.cancel_confirmed.connect(_on_cancel_confirmed)
-	
-	# NOVO: Recebe a escolha do Rádio
 	phone_cutscene.radio_choice_made.connect(_on_radio_choice)
 
 func _update_diretrizes() -> void:
@@ -859,18 +849,21 @@ func _process_call() -> void:
 	var reason = ""
 	
 	if has_route:
-		var stats = GameManager.network_stats.get(rid, {})
-		
-		if ctype == "Expresso" and stats.get("dist", 999) > pending_company_data.get("max_dist", 999): 
-			reason = "Rota longa!"
+		# NOVO: O cliente nao aceita novos contratos se a via estiver em obras!
+		if GameManager.routes_under_construction.get(rid, 0) > 0:
+			reason = "A rota exigida esta em obras! Nao podemos fechar contrato sem garantia de circulacao."
 		else:
-			if ctype == "VIP" and (stats.get("gangs", 0) > 0 or GameManager.active_contracts.size() > 0): 
-				reason = "VIP exige seguranca/exclusividade!"
+			var stats = GameManager.network_stats.get(rid, {})
+			if ctype == "Expresso" and stats.get("dist", 999) > pending_company_data.get("max_dist", 999): 
+				reason = "Rota longa!"
 			else:
-				if ctype == "Ecologico" and stats.get("forests", 0) > 0: 
-					reason = "Crime ambiental!"
-				else: 
-					route_valid = true 
+				if ctype == "VIP" and (stats.get("gangs", 0) > 0 or GameManager.active_contracts.size() > 0): 
+					reason = "VIP exige seguranca/exclusividade!"
+				else:
+					if ctype == "Ecologico" and stats.get("forests", 0) > 0: 
+						reason = "Crime ambiental!"
+					else: 
+						route_valid = true 
 					
 	if (not has_route and not is_day_one) or (has_route and not route_valid):
 		phone_cutscene.start_rejection_call(pending_company_data["name"], reason)
@@ -956,8 +949,12 @@ func _on_cutscene_closed() -> void:
 	folder_rect.visible = false
 	pending_company_data = {}
 
+# NOVO: Impede cancelar contratos se o trem estiver bloqueado em obras!
 func _on_cancel_dynamic(idx: int) -> void: 
 	var c = GameManager.active_contracts[idx]
+	if GameManager.routes_under_construction.get(c["route_id"], 0) > 0:
+		phone_cutscene.start_rejection_call("FISCALIZACAO", "O trem esta retido na zona de obras! Impossivel resgatar a carga ou cancelar o contrato agora. Conclua as obras e espere a via liberar!")
+		return
 	phone_cutscene.start_cancel_warning(c["company_name"], idx)
 
 func _on_cancel_confirmed(idx: int) -> void:
@@ -974,7 +971,6 @@ func _on_cancel_confirmed(idx: int) -> void:
 		_update_active_contracts_text()
 		_load_agenda_contacts()
 
-# NOVO: O Processamento da escolha do Radio
 func _on_radio_choice(idx: int) -> void:
 	GameManager.pending_radio_event = false
 	
@@ -1021,24 +1017,28 @@ func _update_active_contracts_text() -> void:
 				cl.add_theme_color_override("font_color", Color.DARK_SLATE_GRAY)
 			else:
 				cl.add_theme_color_override("font_color", Color.INDIAN_RED)
-				if not (c["route_id"] in GameManager.network_connections): 
-					st = "[SEM ROTA]"
-				else: 
-					var tp = c.get("type", "")
-					var stats = GameManager.network_stats.get(c["route_id"], {})
-					if tp == "Expresso" and stats.get("dist", 999) > c.get("max_dist", 999):
-						st = "[PARADO: ROTA LONGA]"
-					else:
-						if tp == "VIP" and GameManager.active_contracts.size() > 1:
-							st = "[PARADO: FIM EXCLUSIVIDADE]"
+				# NOVO: Feedback visual do bloqueio por obras
+				if GameManager.routes_under_construction.get(c["route_id"], 0) > 0:
+					st = "[OBRAS: " + str(GameManager.routes_under_construction[c["route_id"]]) + "d]"
+				else:
+					if not (c["route_id"] in GameManager.network_connections): 
+						st = "[SEM ROTA]"
+					else: 
+						var tp = c.get("type", "")
+						var stats = GameManager.network_stats.get(c["route_id"], {})
+						if tp == "Expresso" and stats.get("dist", 999) > c.get("max_dist", 999):
+							st = "[PARADO: ROTA LONGA]"
 						else:
-							if tp == "VIP" and stats.get("gangs", 0) > 0:
-								st = "[PARADO: GANGUES NA LINHA]"
+							if tp == "VIP" and GameManager.active_contracts.size() > 1:
+								st = "[PARADO: FIM EXCLUSIVIDADE]"
 							else:
-								if tp == "Ecologico" and stats.get("forests", 0) > 0:
-									st = "[PARADO: CRIME AMBIENTAL]"
+								if tp == "VIP" and stats.get("gangs", 0) > 0:
+									st = "[PARADO: GANGUES NA LINHA]"
 								else:
-									st = "[PARADO: ILEGAL]"
+									if tp == "Ecologico" and stats.get("forests", 0) > 0:
+										st = "[PARADO: CRIME AMBIENTAL]"
+									else:
+										st = "[PARADO: ILEGAL]"
 									
 			cl.text = "T" + str(i + 1) + ": " + c["cargo"] + "\n" + c["route_name"] + " " + st + "\n" + str(c["days_left"]) + "d"
 			cl.custom_minimum_size = Vector2(230, 0)
@@ -1176,7 +1176,6 @@ func _start_eod_animation(new_c: int, rej_c: int) -> void:
 
 func _play_eod_lines() -> void:
 	for line in eod_lines_container.get_children():
-		# Verifica se a linha ainda existe na memória antes de mexer nela
 		if not is_instance_valid(line):
 			continue
 			
@@ -1186,12 +1185,9 @@ func _play_eod_lines() -> void:
 			line.visible = true
 			await get_tree().create_timer(0.3).timeout
 			
-	# Protege o botão também, caso a tela tenha sido fechada durante o await
 	if is_instance_valid(btn_eod_sleep):
 		btn_eod_sleep.visible = true
-		
-		
-		
+
 func _add_eod_line(left: String, right: String, color: Color, is_title: bool) -> void:
 	var hbox = HBoxContainer.new()
 	var lbl_l = Label.new()

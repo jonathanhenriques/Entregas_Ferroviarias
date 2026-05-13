@@ -45,13 +45,18 @@ var saved_routes: Array = []
 
 var today_broken_contracts: int = 0
 var today_penalties: int = 0
-
-# NOVO: Variavel que guarda se o Badger precisa falar consigo no rádio
 var pending_radio_event: bool = false
+
+# NOVO: Dicionario que guarda os dias de bloqueio de cada rota
+var routes_under_construction: Dictionary = {}
 
 func is_contract_operating(c: Dictionary) -> bool:
 	var rid = c["route_id"]
 	if not (rid in network_connections): 
+		return false
+		
+	# NOVO: Se a via estiver em obras, o contrato para de operar
+	if routes_under_construction.get(rid, 0) > 0:
 		return false
 	
 	var st = network_stats.get(rid, {})
@@ -90,6 +95,7 @@ func reset_game() -> void:
 	company_cooldowns.clear()
 	daily_urgencies.clear()
 	saved_routes.clear()
+	routes_under_construction.clear()
 	pendent_angry_call = false
 	intro_played = false 
 	today_broken_contracts = 0
@@ -120,10 +126,18 @@ func end_day(upfront_income: int = 0) -> void:
 			
 	company_cooldowns = new_cd
 	
+	# NOVO: Desconta 1 dia no cooldown das obras ativas
+	var new_ruc = {}
+	var ruc_keys = routes_under_construction.keys()
+	for i in range(ruc_keys.size()):
+		var k = ruc_keys[i]
+		if routes_under_construction[k] > 1:
+			new_ruc[k] = routes_under_construction[k] - 1
+	routes_under_construction = new_ruc
+	
 	today_broken_contracts = 0
 	today_penalties = 0
 	
-	# NOVO: Sorteia se no dia seguinte haverá um problema nos trilhos
 	pending_radio_event = false
 	if active_contracts.size() > 0:
 		if randf() < 0.3:
@@ -216,6 +230,7 @@ func save_game() -> void:
 		"company_cooldowns": company_cooldowns,
 		"intro_played": intro_played,
 		"pending_radio_event": pending_radio_event,
+		"routes_under_construction": routes_under_construction,
 		"saved_routes": _routes_to_array(saved_routes),
 		"current_level": current_level,
 		"highest_unlocked_level": highest_unlocked_level
@@ -241,6 +256,7 @@ func load_game() -> bool:
 		company_cooldowns = data.get("company_cooldowns", {})
 		intro_played = data.get("intro_played", false)
 		pending_radio_event = data.get("pending_radio_event", false)
+		routes_under_construction = data.get("routes_under_construction", {})
 		saved_routes = _array_to_routes(data.get("saved_routes", []))
 		current_level = data.get("current_level", 1)
 		highest_unlocked_level = data.get("highest_unlocked_level", 1)

@@ -36,6 +36,11 @@ var btn_accept: Button
 var btn_reject: Button
 var btn_go_desk: Button
 
+# NOVO: Variaveis do Modo de Obras
+var btn_edit_mode: Button
+var is_edit_mode: bool = false
+var made_changes_in_edit: bool = false
+
 var temp_cost: int = 0
 var temp_maintenance: int = 0
 
@@ -45,7 +50,6 @@ func _ready() -> void:
 	_generate_biomes()
 	_setup_ui()
 	
-	# NOVO: Sincroniza o mapa com o save game logo que abre
 	confirmed_routes = GameManager.saved_routes.duplicate()
 	
 	_update_network_status()
@@ -55,7 +59,6 @@ func _on_visibility_changed() -> void:
 	if ui_layer:
 		ui_layer.visible = visible
 	if visible:
-		# Atualiza os trilhos caso tenham sido carregados no Menu
 		confirmed_routes = GameManager.saved_routes.duplicate()
 		_update_network_status()
 
@@ -119,11 +122,19 @@ func _setup_ui() -> void:
 	add_child(ui_layer)
 
 	btn_go_desk = Button.new()
-	btn_go_desk.text = "Ir para a Mesa ->"
+	btn_go_desk.text = "<- Ir para a Mesa"
 	btn_go_desk.position = Vector2(40, 40)
 	btn_go_desk.size = Vector2(180, 40)
 	btn_go_desk.pressed.connect(_on_go_desk_pressed)
 	ui_layer.add_child(btn_go_desk)
+	
+	# NOVO: Botao de Modo de Obras
+	btn_edit_mode = Button.new()
+	btn_edit_mode.text = "[ ENTRAR MODO DE OBRAS ]"
+	btn_edit_mode.position = Vector2(240, 40)
+	btn_edit_mode.size = Vector2(250, 40)
+	btn_edit_mode.pressed.connect(_on_edit_mode_pressed)
+	ui_layer.add_child(btn_edit_mode)
 
 	validation_panel = Panel.new()
 	validation_panel.position = Vector2(1550, 100) 
@@ -156,6 +167,29 @@ func _on_go_desk_pressed() -> void:
 	if main_node.has_method("go_to_desk"):
 		main_node.go_to_desk()
 
+# NOVO: Logica de entrar e sair do Modo de Obras
+func _on_edit_mode_pressed() -> void:
+	if not is_edit_mode:
+		is_edit_mode = true
+		btn_edit_mode.text = "[ CONCLUIR OBRAS ]"
+		btn_edit_mode.add_theme_color_override("font_color", Color.YELLOW)
+		btn_go_desk.disabled = true
+		made_changes_in_edit = false
+	else:
+		is_edit_mode = false
+		btn_edit_mode.text = "[ ENTRAR MODO DE OBRAS ]"
+		btn_edit_mode.remove_theme_color_override("font_color")
+		btn_go_desk.disabled = false
+		
+		if made_changes_in_edit:
+			# O Castigo Surpresa: Qualquer alteracao na malha gera um cooldown de 2 dias em todas as conexoes!
+			for rid in GameManager.network_connections:
+				GameManager.routes_under_construction[rid] = 2
+			GameManager.contracts_updated.emit()
+			made_changes_in_edit = false
+			
+		queue_redraw()
+
 func _process(delta: float) -> void:
 	if not visible: return
 	
@@ -163,12 +197,18 @@ func _process(delta: float) -> void:
 	
 	for i in range(GameManager.active_contracts.size()):
 		var c = GameManager.active_contracts[i]
-		if GameManager.is_contract_operating(c):
+		var is_op = GameManager.is_contract_operating(c)
+		var is_under_construction = (GameManager.routes_under_construction.get(c["route_id"], 0) > 0)
+		var has_physical_route = (c["route_id"] in GameManager.network_connections)
+
+		# NOVO: Mantem o trem parado na linha se a via estiver em obras, mostrando ao jogador o bloqueio!
+		if (is_op or is_under_construction) and has_physical_route:
 			needs_redraw = true
 			if not active_trains.has(i):
 				_spawn_train(i, c)
 			else:
-				_move_train(i, delta)
+				if is_op and not is_edit_mode:
+					_move_train(i, delta)
 		else:
 			if active_trains.has(i):
 				active_trains.erase(i)
@@ -438,6 +478,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not visible: return
 	if validation_panel.visible: return
 	
+	# NOVO: Impede a construcao e destruicao se nao estiver no modo de obras!
+	if not is_edit_mode: return 
+	
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			if event.is_pressed():
@@ -455,7 +498,6 @@ func _unhandled_input(event: InputEvent) -> void:
 			if event.button_index == MOUSE_BUTTON_RIGHT and event.is_pressed():
 				var cell = _get_cell_under_mouse(event.position)
 				var deleted_something = false
-				var old_connections = GameManager.network_connections.duplicate()
 				
 				if tentative_path.has(cell): 
 					tentative_path.clear()
@@ -475,19 +517,10 @@ func _unhandled_input(event: InputEvent) -> void:
 							deleted_something = true
 							break 
 				if deleted_something:
-					GameManager.saved_routes = confirmed_routes.duplicate() # Salva o trilho apagado
+					made_changes_in_edit = true
+					GameManager.saved_routes = confirmed_routes.duplicate() 
 					GameManager.save_game()
-					
 					_update_network_status() 
-					var lost = []
-					for i in range(GameManager.active_contracts.size()):
-						var c = GameManager.active_contracts[i]
-						if c["route_id"] in old_connections and not GameManager.is_contract_operating(c): 
-							lost.append(i)
-					if lost.size() > 0:
-						GameManager.pendent_angry_call = true 
-						for i in range(lost.size() - 1, -1, -1): 
-							GameManager.cancel_contract(lost[i])
 					queue_redraw()
 	else:
 		if event is InputEventMouseMotion and is_dragging:
@@ -647,7 +680,9 @@ func _on_accept_pressed() -> void:
 		confirmed_routes.append(tentative_path.duplicate())
 		tentative_path.clear()
 		
-		GameManager.saved_routes = confirmed_routes.duplicate() # Salva a nova rota
+		made_changes_in_edit = true
+		
+		GameManager.saved_routes = confirmed_routes.duplicate() 
 		GameManager.save_game()
 		
 		_update_network_status()
