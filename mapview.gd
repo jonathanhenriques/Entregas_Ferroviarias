@@ -47,6 +47,28 @@ var net_maint: int = 0
 
 var active_trains: Dictionary = {}
 
+var btn_maint: Button
+var maint_panel: ColorRect
+
+# =======================================
+# 6 SLIDERS DE MANUTENÇÃO E POLÍTICA
+# =======================================
+var sld_infra: HSlider
+var sld_tracks: HSlider
+var sld_env: HSlider
+var sld_sec: HSlider
+var sld_crew: HSlider
+var sld_lobby: HSlider
+
+var lbl_infra_val: Label
+var lbl_tracks_val: Label
+var lbl_env_val: Label
+var lbl_sec_val: Label
+var lbl_crew_val: Label
+var lbl_lobby_val: Label
+
+var btn_close_maint: Button
+
 func _ready() -> void:
 	_generate_biomes()
 	_setup_ui()
@@ -137,7 +159,14 @@ func _setup_ui() -> void:
 	btn_edit_mode.pressed.connect(_on_edit_mode_pressed)
 	ui_layer.add_child(btn_edit_mode)
 
-	# Painel de Engenharia Burocrática Ampliado
+	btn_maint = Button.new()
+	btn_maint.text = "[/!\\] ORCAMENTO"
+	btn_maint.position = Vector2(1650, 40)
+	btn_maint.size = Vector2(200, 40)
+	btn_maint.add_theme_color_override("font_color", Color.ORANGE)
+	btn_maint.pressed.connect(_on_btn_maint_pressed)
+	ui_layer.add_child(btn_maint)
+
 	edit_panel = ColorRect.new()
 	edit_panel.color = Color(0.1, 0.1, 0.15, 0.95)
 	edit_panel.position = Vector2(1550, 80) 
@@ -174,6 +203,211 @@ func _setup_ui() -> void:
 	btn_cancel.pressed.connect(_on_cancel_edit_pressed)
 	edit_panel.add_child(btn_cancel)
 
+	maint_panel = ColorRect.new()
+	maint_panel.color = Color(0.15, 0.15, 0.15, 0.95)
+	maint_panel.size = Vector2(400, 460)
+	maint_panel.position = Vector2(1450, 90)
+	maint_panel.visible = false
+	ui_layer.add_child(maint_panel)
+
+	var border_maint = ReferenceRect.new()
+	border_maint.set_anchors_preset(Control.PRESET_FULL_RECT)
+	border_maint.border_color = Color.ORANGE
+	border_maint.border_width = 3
+	maint_panel.add_child(border_maint)
+
+	var lbl_mtitle = Label.new()
+	lbl_mtitle.text = "LIVRO DE MANUTENCAO DA MALHA"
+	lbl_mtitle.position = Vector2(20, 20)
+	lbl_mtitle.add_theme_color_override("font_color", Color.ORANGE)
+	maint_panel.add_child(lbl_mtitle)
+
+	var lbl_i = Label.new()
+	lbl_i.text = "Infra Pesada (Pontes/Tuneis)"
+	lbl_i.position = Vector2(20, 60)
+	maint_panel.add_child(lbl_i)
+
+	sld_infra = HSlider.new()
+	sld_infra.position = Vector2(20, 85)
+	sld_infra.size = Vector2(180, 20)
+	sld_infra.min_value = 0
+	sld_infra.max_value = 100
+	sld_infra.step = 5
+	sld_infra.value_changed.connect(_on_sld_infra_changed)
+	maint_panel.add_child(sld_infra)
+
+	lbl_infra_val = Label.new()
+	lbl_infra_val.position = Vector2(210, 82)
+	maint_panel.add_child(lbl_infra_val)
+
+	var lbl_t = Label.new()
+	lbl_t.text = "Carris (Velocidade/Quebra)"
+	lbl_t.position = Vector2(20, 115)
+	maint_panel.add_child(lbl_t)
+
+	sld_tracks = HSlider.new()
+	sld_tracks.position = Vector2(20, 140)
+	sld_tracks.size = Vector2(180, 20)
+	sld_tracks.min_value = 0
+	sld_tracks.max_value = 100
+	sld_tracks.step = 5
+	sld_tracks.value_changed.connect(_on_sld_tracks_changed)
+	maint_panel.add_child(sld_tracks)
+
+	lbl_tracks_val = Label.new()
+	lbl_tracks_val.position = Vector2(210, 137)
+	maint_panel.add_child(lbl_tracks_val)
+
+	var lbl_e = Label.new()
+	lbl_e.text = "Controlo Ambiental (Incendios)"
+	lbl_e.position = Vector2(20, 170)
+	maint_panel.add_child(lbl_e)
+
+	sld_env = HSlider.new()
+	sld_env.position = Vector2(20, 195)
+	sld_env.size = Vector2(180, 20)
+	sld_env.min_value = 0
+	sld_env.max_value = 100
+	sld_env.step = 5
+	sld_env.value_changed.connect(_on_sld_env_changed)
+	maint_panel.add_child(sld_env)
+
+	lbl_env_val = Label.new()
+	lbl_env_val.position = Vector2(210, 192)
+	maint_panel.add_child(lbl_env_val)
+
+	var lbl_s = Label.new()
+	lbl_s.text = "Seguranca (Patrulha de Gangues)"
+	lbl_s.position = Vector2(20, 225)
+	maint_panel.add_child(lbl_s)
+
+	sld_sec = HSlider.new()
+	sld_sec.position = Vector2(20, 250)
+	sld_sec.size = Vector2(180, 20)
+	sld_sec.min_value = 0
+	sld_sec.max_value = 100
+	sld_sec.step = 5
+	sld_sec.value_changed.connect(_on_sld_sec_changed)
+	maint_panel.add_child(sld_sec)
+
+	lbl_sec_val = Label.new()
+	lbl_sec_val.position = Vector2(210, 247)
+	maint_panel.add_child(lbl_sec_val)
+
+	var lbl_c = Label.new()
+	lbl_c.text = "Salarios da Equipa"
+	lbl_c.position = Vector2(20, 280)
+	maint_panel.add_child(lbl_c)
+
+	sld_crew = HSlider.new()
+	sld_crew.position = Vector2(20, 305)
+	sld_crew.size = Vector2(180, 20)
+	sld_crew.min_value = 0
+	sld_crew.max_value = 100
+	sld_crew.step = 5
+	sld_crew.value_changed.connect(_on_sld_crew_changed)
+	maint_panel.add_child(sld_crew)
+
+	lbl_crew_val = Label.new()
+	lbl_crew_val.position = Vector2(210, 302)
+	maint_panel.add_child(lbl_crew_val)
+
+	var lbl_l = Label.new()
+	lbl_l.text = "Relacoes Governamentais (Lobby)"
+	lbl_l.position = Vector2(20, 335)
+	maint_panel.add_child(lbl_l)
+
+	sld_lobby = HSlider.new()
+	sld_lobby.position = Vector2(20, 360)
+	sld_lobby.size = Vector2(180, 20)
+	sld_lobby.min_value = 0
+	sld_lobby.max_value = 100
+	sld_lobby.step = 5
+	sld_lobby.value_changed.connect(_on_sld_lobby_changed)
+	maint_panel.add_child(sld_lobby)
+
+	lbl_lobby_val = Label.new()
+	lbl_lobby_val.position = Vector2(210, 357)
+	maint_panel.add_child(lbl_lobby_val)
+
+	btn_close_maint = Button.new()
+	btn_close_maint.text = "FECHAR LIVRO"
+	btn_close_maint.position = Vector2(20, 400)
+	btn_close_maint.size = Vector2(360, 40)
+	btn_close_maint.pressed.connect(_on_btn_close_maint_pressed)
+	maint_panel.add_child(btn_close_maint)
+
+func _on_btn_maint_pressed() -> void:
+	if is_edit_mode: return 
+	maint_panel.visible = true
+	_sync_maint_ui()
+
+func _on_btn_close_maint_pressed() -> void:
+	maint_panel.visible = false
+
+func _sync_maint_ui() -> void:
+	sld_infra.value = GameManager.maint_pct_infra * 100
+	sld_tracks.value = GameManager.maint_pct_tracks * 100
+	sld_env.value = GameManager.maint_pct_env * 100
+	sld_sec.value = GameManager.maint_pct_sec * 100
+	sld_crew.value = GameManager.maint_pct_crew * 100
+	sld_lobby.value = GameManager.maint_pct_lobby * 100
+
+	var i_id = GameManager.ideal_maint_infra
+	var t_id = GameManager.ideal_maint_tracks
+	var e_id = GameManager.ideal_maint_env
+	var s_id = GameManager.ideal_maint_sec
+	var c_id = GameManager.ideal_maint_crew
+	var l_id = GameManager.ideal_maint_lobby
+
+	var p_i = int(i_id * GameManager.maint_pct_infra)
+	lbl_infra_val.text = "$" + str(p_i) + " / $" + str(i_id) + " (" + str(int(GameManager.maint_pct_infra * 100)) + "%)"
+
+	var p_t = int(t_id * GameManager.maint_pct_tracks)
+	lbl_tracks_val.text = "$" + str(p_t) + " / $" + str(t_id) + " (" + str(int(GameManager.maint_pct_tracks * 100)) + "%)"
+
+	var p_e = int(e_id * GameManager.maint_pct_env)
+	lbl_env_val.text = "$" + str(p_e) + " / $" + str(e_id) + " (" + str(int(GameManager.maint_pct_env * 100)) + "%)"
+
+	var p_s = int(s_id * GameManager.maint_pct_sec)
+	lbl_sec_val.text = "$" + str(p_s) + " / $" + str(s_id) + " (" + str(int(GameManager.maint_pct_sec * 100)) + "%)"
+
+	var p_c = int(c_id * GameManager.maint_pct_crew)
+	lbl_crew_val.text = "$" + str(p_c) + " / $" + str(c_id) + " (" + str(int(GameManager.maint_pct_crew * 100)) + "%)"
+
+	var p_l = int(l_id * GameManager.maint_pct_lobby)
+	lbl_lobby_val.text = "$" + str(p_l) + " / $" + str(l_id) + " (" + str(int(GameManager.maint_pct_lobby * 100)) + "%)"
+
+func _on_sld_infra_changed(val: float) -> void:
+	GameManager.maint_pct_infra = val / 100.0
+	GameManager.update_actual_maintenance()
+	_sync_maint_ui()
+
+func _on_sld_tracks_changed(val: float) -> void:
+	GameManager.maint_pct_tracks = val / 100.0
+	GameManager.update_actual_maintenance()
+	_sync_maint_ui()
+
+func _on_sld_env_changed(val: float) -> void:
+	GameManager.maint_pct_env = val / 100.0
+	GameManager.update_actual_maintenance()
+	_sync_maint_ui()
+
+func _on_sld_sec_changed(val: float) -> void:
+	GameManager.maint_pct_sec = val / 100.0
+	GameManager.update_actual_maintenance()
+	_sync_maint_ui()
+
+func _on_sld_crew_changed(val: float) -> void:
+	GameManager.maint_pct_crew = val / 100.0
+	GameManager.update_actual_maintenance()
+	_sync_maint_ui()
+
+func _on_sld_lobby_changed(val: float) -> void:
+	GameManager.maint_pct_lobby = val / 100.0
+	GameManager.update_actual_maintenance()
+	_sync_maint_ui()
+
 func _on_go_desk_pressed() -> void:
 	var main_node = get_parent()
 	if main_node.has_method("go_to_desk"):
@@ -183,6 +417,8 @@ func _on_edit_mode_pressed() -> void:
 	is_edit_mode = true
 	btn_edit_mode.visible = false
 	btn_go_desk.visible = false
+	btn_maint.visible = false
+	maint_panel.visible = false
 	
 	draft_paths.clear()
 	deleted_paths.clear()
@@ -197,13 +433,13 @@ func _on_cancel_edit_pressed() -> void:
 	edit_panel.visible = false
 	btn_edit_mode.visible = true
 	btn_go_desk.visible = true
+	btn_maint.visible = true
 	
 	draft_paths.clear()
 	deleted_paths.clear()
 	tentative_path.clear()
 	queue_redraw()
 
-# NOVO: Painel que JUNTA o Relatório de Construção com o Projeto de Engenharia
 func _update_edit_panel() -> void:
 	var build_cost = 0
 	var build_maint = 0
@@ -256,7 +492,7 @@ func _update_edit_panel() -> void:
 	var t = "== PROJETO DE ENGENHARIA ==\n\n"
 
 	if has_gangs:
-		t += "[!] AVISO: Rota em territorio de Gangues!\nPedagio: +$" + str(GANG_TOLL_RATE) + "\n\n"
+		t += "[!] AVISO: Rota em territorio de Gangues!\nPedagio e Risco ampliados!\n\n"
 
 	t += "[ DETALHES DA OBRA ]\n"
 	t += "Distancia total: " + str(dist_total) + " km\n"
@@ -269,7 +505,7 @@ func _update_edit_panel() -> void:
 	t += "Reembolso Demolicao: +$" + str(refund_val) + "\n"
 	t += "---------------------------\n"
 	t += "CUSTO LIQUIDO: $" + str(net_cost) + "\n"
-	t += "Nova Manutencao: $" + str(net_maint) + " /dia\n\n"
+	t += "Nova Manutencao Ideal: $" + str(net_maint) + " /dia\n\n"
 	t += "Saldo Atual: $" + str(GameManager.money) + "\n"
 
 	if draft_paths.size() > 0 or deleted_paths.size() > 0:
@@ -290,7 +526,6 @@ func _update_edit_panel() -> void:
 
 func _on_confirm_edit_pressed() -> void:
 	GameManager.money -= net_cost
-	GameManager.daily_maintenance += net_maint
 	
 	for d in deleted_paths:
 		confirmed_routes.erase(d)
@@ -299,6 +534,7 @@ func _on_confirm_edit_pressed() -> void:
 		confirmed_routes.append(p.duplicate())
 		
 	GameManager.saved_routes = confirmed_routes.duplicate() 
+	
 	_update_network_status()
 	
 	for rid in GameManager.network_connections:
@@ -381,6 +617,7 @@ func _spawn_train(contract_index: int, contract: Dictionary) -> void:
 		"delay": contract_index * 1.5
 	}
 
+# A VELOCIDADE DO COMBOIO É DITADA PELA SAÚDE OCULTA!
 func _move_train(index: int, delta: float) -> void:
 	var train = active_trains[index]
 	if train["path"].size() < 2: return
@@ -388,10 +625,13 @@ func _move_train(index: int, delta: float) -> void:
 		train["delay"] -= delta
 		return
 	
+	var speed_mult = 0.2 + (0.8 * GameManager.health_tracks)
+	
 	var path_len = 0.0
 	for i in range(train["path"].size() - 1):
 		path_len += train["path"][i].distance_to(train["path"][i+1])
-	train["progress"] += train["speed"] * delta * train["direction"]
+		
+	train["progress"] += train["speed"] * speed_mult * delta * train["direction"]
 
 	if train["progress"] >= path_len:
 		train["progress"] = path_len
@@ -637,27 +877,63 @@ func _update_network_status() -> void:
 	active_trains.clear()
 	var built = {}
 	var toll = 0
+	
+	var i_infra = 0
+	var i_tracks = 0
+	var i_env = 0
+	var i_sec = 0
+	
 	for route in confirmed_routes:
 		var has_g = false
 		for cell in route:
 			built[cell] = true
 			if gang_map.has(cell): has_g = true
 		if has_g: toll += GANG_TOLL_RATE
-	GameManager.daily_gang_toll = toll
+		
+	for cell in built.keys():
+		var b = biome_map.get(cell, Biome.PLAIN)
+		if b == Biome.MOUNTAIN or b == Biome.RIVER:
+			i_infra += BIOME_DATA[b]["maint"]
+		if b == Biome.PLAIN:
+			i_tracks += BIOME_DATA[b]["maint"]
+		if b == Biome.FOREST:
+			i_env += BIOME_DATA[b]["maint"]
+			
+	i_sec = toll
+
+	GameManager.ideal_maint_infra = i_infra
+	GameManager.ideal_maint_tracks = i_tracks
+	GameManager.ideal_maint_env = i_env
+	GameManager.ideal_maint_sec = i_sec
+	
+	# NOVO: Calculo dos custos ideais da equipa e do lobby baseado na complexidade da rede
+	GameManager.ideal_maint_crew = GameManager.active_contracts.size() * 25
+	GameManager.ideal_maint_lobby = 50
+	
+	GameManager.update_actual_maintenance()
+	
+	if is_instance_valid(maint_panel):
+		_sync_maint_ui()
+	
 	if city_a != Vector2i(-1, -1): built[city_a] = true
 	if city_b != Vector2i(-1, -1): built[city_b] = true
 	if city_c != Vector2i(-1, -1): built[city_c] = true
+	
 	var connections = []
 	var stats = {}
+	
 	if city_a != Vector2i(-1, -1) and city_b != Vector2i(-1, -1):
 		var res = _get_route_capabilities(city_a, city_b, built)
 		if not res.is_empty(): connections.append("Azul-Vermelha"); stats["Azul-Vermelha"] = res
+			
 	if city_a != Vector2i(-1, -1) and city_c != Vector2i(-1, -1):
 		var res = _get_route_capabilities(city_a, city_c, built)
 		if not res.is_empty(): connections.append("Azul-Verde"); stats["Azul-Verde"] = res
+			
 	if city_b != Vector2i(-1, -1) and city_c != Vector2i(-1, -1):
 		var res = _get_route_capabilities(city_b, city_c, built)
 		if not res.is_empty(): connections.append("Vermelha-Verde"); stats["Vermelha-Verde"] = res
+			
 	GameManager.network_connections = connections
 	GameManager.network_stats = stats
 	GameManager.contracts_updated.emit() 

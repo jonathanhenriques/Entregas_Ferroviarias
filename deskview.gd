@@ -76,9 +76,6 @@ var pending_upfront_income: int = 0
 var radio_rect: ColorRect
 var radio_led: ColorRect
 
-# =======================================
-# NOVO: O BLOCO DE TAREFAS (CADERNO)
-# =======================================
 var task_pad_rect: ColorRect
 var task_vbox: VBoxContainer
 
@@ -428,11 +425,8 @@ func _setup_ui() -> void:
 	radio_led.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	radio_rect.add_child(radio_led)
 
-	# =======================================
-	# NOVO: O CADERNO DE TAREFAS (POST-ITS)
-	# =======================================
 	task_pad_rect = ColorRect.new()
-	task_pad_rect.color = Color(0.95, 0.92, 0.65) # Cor amarelada de Post-it / Caderno
+	task_pad_rect.color = Color(0.95, 0.92, 0.65)
 	task_pad_rect.size = Vector2(280, 280)
 	task_pad_rect.position = Vector2(1080, 680)
 	ui_layer.add_child(task_pad_rect)
@@ -1011,7 +1005,7 @@ func _on_cutscene_closed() -> void:
 func _on_cancel_dynamic(idx: int) -> void: 
 	var c = GameManager.active_contracts[idx]
 	if GameManager.routes_under_construction.get(c["route_id"], 0) > 0:
-		phone_cutscene.start_rejection_call("FISCALIZACAO", "O trem esta retido na zona de obras! Impossivel resgatar a carga ou cancelar o contrato agora. Conclua as obras e espere a via liberar!")
+		phone_cutscene.start_rejection_call("FISCALIZACAO", "O comboio esta retido na zona de obras! Impossivel resgatar a carga ou cancelar o contrato agora. Conclua as obras e espere a via libertar!")
 		return
 	phone_cutscene.start_cancel_warning(c["company_name"], idx)
 
@@ -1050,7 +1044,6 @@ func _on_radio_choice(idx: int) -> void:
 	_update_diretrizes()
 	_update_active_contracts_text()
 
-# NOVO: Função que lê a mente do GameManager e atualiza o Caderno Amarelo de Tarefas
 func _update_task_pad() -> void:
 	for child in task_vbox.get_children():
 		child.queue_free()
@@ -1160,15 +1153,20 @@ func _update_active_contracts_text() -> void:
 			contracts_vbox.add_child(hbox)
 			i += 1
 
+# NOVO: Injeta as despesas de Equipa e Lobby no Resumo Financeiro da Mesa
 func _update_report_text() -> void:
 	var inc = GameManager.get_daily_income()
-	var exp = GameManager.daily_maintenance + GameManager.BASE_COST + GameManager.daily_gang_toll
+	var exp = GameManager.daily_maintenance + GameManager.BASE_COST + GameManager.daily_gang_toll + GameManager.daily_crew_cost + GameManager.daily_lobby_cost
 	var net = inc - exp
 	
-	var t = "RELATORIO ADMINISTRATIVO\n\nDia: " + str(GameManager.current_day) + "\nCaixa: $" + str(GameManager.money) + "\n\nReceita: +$" + str(inc) + "\nManutencao: -$" + str(GameManager.daily_maintenance) + "\nTaxas: -$" + str(GameManager.BASE_COST)
+	var t = "RELATORIO ADMINISTRATIVO\n\nDia: " + str(GameManager.current_day) + "\nCaixa: $" + str(GameManager.money) + "\n\nReceita: +$" + str(inc) + "\nManutencao Via: -$" + str(GameManager.daily_maintenance) + "\nTaxas e Base: -$" + str(GameManager.BASE_COST)
 	
+	if GameManager.daily_crew_cost > 0:
+		t += "\nSalarios (Equipa): -$" + str(GameManager.daily_crew_cost)
+	if GameManager.daily_lobby_cost > 0:
+		t += "\nLobby/Estado: -$" + str(GameManager.daily_lobby_cost)
 	if GameManager.daily_gang_toll > 0: 
-		t += "\nPropinas: -$" + str(GameManager.daily_gang_toll)
+		t += "\nPropinas (Gangues): -$" + str(GameManager.daily_gang_toll)
 		
 	t += "\n----------------\nLucro: $" + str(net)
 	report_label.text = t
@@ -1219,6 +1217,7 @@ func _on_next_day_pressed() -> void:
 	
 	_start_eod_animation(new_c_count, rej_c_count)
 
+# NOVO: Injeta as despesas de Equipa e Lobby na impressao do Recibo Diário
 func _start_eod_animation(new_c: int, rej_c: int) -> void:
 	skip_eod_anim = false
 	eod_layer.visible = true
@@ -1263,14 +1262,18 @@ func _start_eod_animation(new_c: int, rej_c: int) -> void:
 	if GameManager.daily_maintenance > 0:
 		_add_eod_line("Manutencao da Via", "-$" + str(GameManager.daily_maintenance), c_red, false)
 		
-	_add_eod_line("Taxas Operacionais", "-$" + str(GameManager.BASE_COST), c_red, false)
+	_add_eod_line("Custos Base da Garagem", "-$" + str(GameManager.BASE_COST), c_red, false)
 	
+	if GameManager.daily_crew_cost > 0:
+		_add_eod_line("Salarios da Equipa", "-$" + str(GameManager.daily_crew_cost), c_red, false)
+	if GameManager.daily_lobby_cost > 0:
+		_add_eod_line("Lobby Governamental", "-$" + str(GameManager.daily_lobby_cost), c_red, false)
 	if GameManager.daily_gang_toll > 0:
 		_add_eod_line("Extorsao (Gangues)", "-$" + str(GameManager.daily_gang_toll), c_red, false)
 		
 	_add_eod_line("-----------------------", "---------", c_gray, false)
 	
-	var final_money = GameManager.money + pending_upfront_income + inc - GameManager.daily_maintenance - GameManager.BASE_COST - GameManager.daily_gang_toll
+	var final_money = GameManager.money + pending_upfront_income + inc - GameManager.daily_maintenance - GameManager.BASE_COST - GameManager.daily_gang_toll - GameManager.daily_crew_cost - GameManager.daily_lobby_cost
 	var final_color = c_green
 	if final_money < 0:
 		final_color = c_red

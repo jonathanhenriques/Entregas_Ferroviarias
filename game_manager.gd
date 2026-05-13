@@ -27,6 +27,10 @@ var daily_maintenance: int = 0 :
 
 var daily_gang_toll: int = 0
 
+# NOVO: Variaveis de custo dos novos sliders
+var daily_crew_cost: int = 0
+var daily_lobby_cost: int = 0
+
 var active_contracts: Array = []
 const MAX_CONTRACTS: int = 3 
 const BASE_COST: int = 25 
@@ -48,6 +52,41 @@ var today_penalties: int = 0
 var pending_radio_event: bool = false
 
 var routes_under_construction: Dictionary = {}
+
+# =======================================
+# GESTÃO DE MANUTENÇÃO (6 SLIDERS E SAÚDE)
+# =======================================
+var maint_pct_infra: float = 1.0
+var maint_pct_tracks: float = 1.0
+var maint_pct_env: float = 1.0
+var maint_pct_sec: float = 1.0
+var maint_pct_crew: float = 1.0
+var maint_pct_lobby: float = 1.0
+
+var ideal_maint_infra: int = 0
+var ideal_maint_tracks: int = 0
+var ideal_maint_env: int = 0
+var ideal_maint_sec: int = 0
+var ideal_maint_crew: int = 0
+var ideal_maint_lobby: int = 0
+
+# SAÚDE OCULTA (0.0 a 1.0) - O "Delay" Mecanico
+var health_infra: float = 1.0
+var health_tracks: float = 1.0
+var health_env: float = 1.0
+var health_sec: float = 1.0
+var health_crew: float = 1.0
+var health_lobby: float = 1.0
+
+func update_actual_maintenance() -> void:
+	var infra_cost = int(ideal_maint_infra * maint_pct_infra)
+	var tracks_cost = int(ideal_maint_tracks * maint_pct_tracks)
+	var env_cost = int(ideal_maint_env * maint_pct_env)
+	
+	daily_maintenance = infra_cost + tracks_cost + env_cost
+	daily_gang_toll = int(ideal_maint_sec * maint_pct_sec)
+	daily_crew_cost = int(ideal_maint_crew * maint_pct_crew)
+	daily_lobby_cost = int(ideal_maint_lobby * maint_pct_lobby)
 
 func is_contract_operating(c: Dictionary) -> bool:
 	if c.has("pending_route_days"):
@@ -118,6 +157,8 @@ func reset_game() -> void:
 	current_day = 1
 	daily_maintenance = 0
 	daily_gang_toll = 0
+	daily_crew_cost = 0
+	daily_lobby_cost = 0
 	active_contracts.clear()
 	network_connections.clear()
 	network_stats.clear()
@@ -130,6 +171,21 @@ func reset_game() -> void:
 	today_broken_contracts = 0
 	today_penalties = 0
 	pending_radio_event = false
+	
+	maint_pct_infra = 1.0
+	maint_pct_tracks = 1.0
+	maint_pct_env = 1.0
+	maint_pct_sec = 1.0
+	maint_pct_crew = 1.0
+	maint_pct_lobby = 1.0
+	
+	health_infra = 1.0
+	health_tracks = 1.0
+	health_env = 1.0
+	health_sec = 1.0
+	health_crew = 1.0
+	health_lobby = 1.0
+	
 	_generate_daily_generics()
 	save_game()
 
@@ -139,6 +195,8 @@ func end_day(upfront_income: int = 0) -> void:
 	money -= daily_maintenance
 	money -= BASE_COST
 	money -= daily_gang_toll 
+	money -= daily_crew_cost
+	money -= daily_lobby_cost
 	
 	var keep = []
 	for c in active_contracts:
@@ -185,10 +243,28 @@ func end_day(upfront_income: int = 0) -> void:
 			new_ruc[k] = routes_under_construction[k] - 1
 	routes_under_construction = new_ruc
 	
+	# CALCULO DO DESGASTE DIARIO (SAUDE OCULTA)
+	var change_infra = (maint_pct_infra - 0.7) * 0.2
+	health_infra = clamp(health_infra + change_infra, 0.05, 1.0)
+	
+	var change_tracks = (maint_pct_tracks - 0.7) * 0.2
+	health_tracks = clamp(health_tracks + change_tracks, 0.05, 1.0)
+	
+	var change_env = (maint_pct_env - 0.7) * 0.2
+	health_env = clamp(health_env + change_env, 0.05, 1.0)
+	
+	var change_sec = (maint_pct_sec - 0.8) * 0.2
+	health_sec = clamp(health_sec + change_sec, 0.05, 1.0)
+	
+	var change_crew = (maint_pct_crew - 0.8) * 0.25
+	health_crew = clamp(health_crew + change_crew, 0.05, 1.0)
+	
+	var change_lobby = (maint_pct_lobby - 0.9) * 0.3
+	health_lobby = clamp(health_lobby + change_lobby, 0.05, 1.0)
+	
 	today_broken_contracts = 0
 	today_penalties = 0
 	
-	# CORREÇÃO: O Badger só apita se houver trens de facto operando!
 	pending_radio_event = false
 	var has_op_train = false
 	for c in active_contracts:
@@ -282,6 +358,8 @@ func save_game() -> void:
 		"current_day": current_day,
 		"daily_maintenance": daily_maintenance,
 		"daily_gang_toll": daily_gang_toll,
+		"daily_crew_cost": daily_crew_cost,
+		"daily_lobby_cost": daily_lobby_cost,
 		"active_contracts": active_contracts,
 		"company_cooldowns": company_cooldowns,
 		"intro_played": intro_played,
@@ -289,7 +367,19 @@ func save_game() -> void:
 		"routes_under_construction": routes_under_construction,
 		"saved_routes": _routes_to_array(saved_routes),
 		"current_level": current_level,
-		"highest_unlocked_level": highest_unlocked_level
+		"highest_unlocked_level": highest_unlocked_level,
+		"maint_pct_infra": maint_pct_infra,
+		"maint_pct_tracks": maint_pct_tracks,
+		"maint_pct_env": maint_pct_env,
+		"maint_pct_sec": maint_pct_sec,
+		"maint_pct_crew": maint_pct_crew,
+		"maint_pct_lobby": maint_pct_lobby,
+		"health_infra": health_infra,
+		"health_tracks": health_tracks,
+		"health_env": health_env,
+		"health_sec": health_sec,
+		"health_crew": health_crew,
+		"health_lobby": health_lobby
 	}
 	var file = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	file.store_string(JSON.stringify(data))
@@ -308,6 +398,8 @@ func load_game() -> bool:
 		current_day = data.get("current_day", 1)
 		daily_maintenance = data.get("daily_maintenance", 0)
 		daily_gang_toll = data.get("daily_gang_toll", 0)
+		daily_crew_cost = data.get("daily_crew_cost", 0)
+		daily_lobby_cost = data.get("daily_lobby_cost", 0)
 		active_contracts = data.get("active_contracts", [])
 		company_cooldowns = data.get("company_cooldowns", {})
 		intro_played = data.get("intro_played", false)
@@ -316,6 +408,20 @@ func load_game() -> bool:
 		saved_routes = _array_to_routes(data.get("saved_routes", []))
 		current_level = data.get("current_level", 1)
 		highest_unlocked_level = data.get("highest_unlocked_level", 1)
+		
+		maint_pct_infra = data.get("maint_pct_infra", 1.0)
+		maint_pct_tracks = data.get("maint_pct_tracks", 1.0)
+		maint_pct_env = data.get("maint_pct_env", 1.0)
+		maint_pct_sec = data.get("maint_pct_sec", 1.0)
+		maint_pct_crew = data.get("maint_pct_crew", 1.0)
+		maint_pct_lobby = data.get("maint_pct_lobby", 1.0)
+		
+		health_infra = data.get("health_infra", 1.0)
+		health_tracks = data.get("health_tracks", 1.0)
+		health_env = data.get("health_env", 1.0)
+		health_sec = data.get("health_sec", 1.0)
+		health_crew = data.get("health_crew", 1.0)
+		health_lobby = data.get("health_lobby", 1.0)
 		
 		today_broken_contracts = 0
 		today_penalties = 0
