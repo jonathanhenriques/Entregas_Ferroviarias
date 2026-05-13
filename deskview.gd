@@ -76,6 +76,12 @@ var pending_upfront_income: int = 0
 var radio_rect: ColorRect
 var radio_led: ColorRect
 
+# =======================================
+# NOVO: O BLOCO DE TAREFAS (CADERNO)
+# =======================================
+var task_pad_rect: ColorRect
+var task_vbox: VBoxContainer
+
 func _ready() -> void:
 	_setup_ui()
 	_setup_cutscene()
@@ -92,6 +98,7 @@ func _ready() -> void:
 	_update_report_text()
 	_update_active_contracts_text()
 	_update_diretrizes() 
+	_update_task_pad()
 
 func _process(delta: float) -> void:
 	if not visible: return
@@ -420,6 +427,33 @@ func _setup_ui() -> void:
 	radio_led.position = Vector2(150, 70)
 	radio_led.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	radio_rect.add_child(radio_led)
+
+	# =======================================
+	# NOVO: O CADERNO DE TAREFAS (POST-ITS)
+	# =======================================
+	task_pad_rect = ColorRect.new()
+	task_pad_rect.color = Color(0.95, 0.92, 0.65) # Cor amarelada de Post-it / Caderno
+	task_pad_rect.size = Vector2(280, 280)
+	task_pad_rect.position = Vector2(1080, 680)
+	ui_layer.add_child(task_pad_rect)
+	_make_draggable(task_pad_rect, "panel")
+
+	var pad_clip = ColorRect.new()
+	pad_clip.color = Color(0.7, 0.2, 0.2) 
+	pad_clip.size = Vector2(280, 20)
+	task_pad_rect.add_child(pad_clip)
+
+	var task_title = Label.new()
+	task_title.text = "TAREFAS PENDENTES"
+	task_title.add_theme_color_override("font_color", Color.BLACK)
+	task_title.position = Vector2(10, 25)
+	task_pad_rect.add_child(task_title)
+
+	task_vbox = VBoxContainer.new()
+	task_vbox.position = Vector2(10, 50)
+	task_vbox.size = Vector2(260, 220)
+	task_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	task_pad_rect.add_child(task_vbox)
 
 func _setup_eod_ui() -> void:
 	eod_layer = CanvasLayer.new()
@@ -1016,6 +1050,54 @@ func _on_radio_choice(idx: int) -> void:
 	_update_diretrizes()
 	_update_active_contracts_text()
 
+# NOVO: Função que lê a mente do GameManager e atualiza o Caderno Amarelo de Tarefas
+func _update_task_pad() -> void:
+	for child in task_vbox.get_children():
+		child.queue_free()
+		
+	var has_tasks = false
+	
+	for c in GameManager.active_contracts:
+		if c.has("pending_route_days"):
+			var l = Label.new()
+			l.text = "[ ] Via p/ " + c["route_name"] + " (" + str(c["pending_route_days"]) + "d)"
+			l.add_theme_color_override("font_color", Color(0.7, 0.1, 0.1))
+			l.add_theme_font_size_override("font_size", 14)
+			l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			l.custom_minimum_size = Vector2(260, 0)
+			task_vbox.add_child(l)
+			has_tasks = true
+			
+	for k in GameManager.routes_under_construction.keys():
+		var d = GameManager.routes_under_construction[k]
+		if d > 0:
+			var l = Label.new()
+			l.text = "[ ] Aguardar Obras na Via (" + str(d) + "d)"
+			l.add_theme_color_override("font_color", Color(0.2, 0.2, 0.6))
+			l.add_theme_font_size_override("font_size", 14)
+			l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			l.custom_minimum_size = Vector2(260, 0)
+			task_vbox.add_child(l)
+			has_tasks = true
+			break 
+			
+	if GameManager.money < 0:
+		var l = Label.new()
+		l.text = "[!] SALDO NEGATIVO! Gerar receita URGENTE!"
+		l.add_theme_color_override("font_color", Color.RED)
+		l.add_theme_font_size_override("font_size", 14)
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.custom_minimum_size = Vector2(260, 0)
+		task_vbox.add_child(l)
+		has_tasks = true
+		
+	if not has_tasks:
+		var l = Label.new()
+		l.text = "Tudo em ordem. Tome um cafe."
+		l.add_theme_color_override("font_color", Color.DIM_GRAY)
+		l.add_theme_font_size_override("font_size", 14)
+		task_vbox.add_child(l)
+
 func _update_active_contracts_text() -> void:
 	for child in contracts_vbox.get_children(): 
 		child.queue_free()
@@ -1249,18 +1331,20 @@ func _on_eod_input(event: InputEvent) -> void:
 func _on_stats_changed(_v) -> void: 
 	_update_report_text()
 	_update_diretrizes()
+	_update_task_pad()
 
 func _on_contracts_updated() -> void: 
 	_update_report_text()
 	_update_active_contracts_text()
 	_load_agenda_contacts() 
+	_update_task_pad()
 
 func _on_day_changed(_v) -> void: 
 	_update_report_text()
 	_update_active_contracts_text()
 	_load_agenda_contacts() 
+	_update_task_pad()
 	
-	# NOVO: Limpa a mesa de forma rigorosa nos reinicios do jogo
 	if _v == 1:
 		for p in spawned_papers:
 			if is_instance_valid(p):
@@ -1278,6 +1362,7 @@ func _on_visibility_changed() -> void:
 		_load_agenda_contacts()
 		_update_report_text()
 		_update_diretrizes()
+		_update_task_pad()
 		folder_rect.visible = false 
 		
 		_on_organize_pressed()
