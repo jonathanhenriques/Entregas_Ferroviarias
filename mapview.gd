@@ -25,23 +25,28 @@ var city_a: Vector2i = Vector2i(-1, -1)
 var city_b: Vector2i = Vector2i(-1, -1) 
 var city_c: Vector2i = Vector2i(-1, -1) 
 
-var is_dragging: bool = false
-var drag_current: Vector2i
-var tentative_path: Array[Vector2i] = []
 var confirmed_routes: Array = [] 
 
-var validation_panel: Panel
-var info_label: Label
-var btn_accept: Button
-var btn_reject: Button
-var btn_go_desk: Button
+# =======================================
+# VARIAVEIS DO MODO DE OBRAS (RASCUNHO)
+# =======================================
+var is_edit_mode: bool = false
+var is_dragging: bool = false
+var tentative_path: Array[Vector2i] = []
+
+var draft_paths: Array = []
+var deleted_paths: Array = []
 
 var btn_edit_mode: Button
-var is_edit_mode: bool = false
-var made_changes_in_edit: bool = false
+var btn_go_desk: Button
 
-var temp_cost: int = 0
-var temp_maintenance: int = 0
+var edit_panel: ColorRect
+var edit_info: Label
+var btn_confirm: Button
+var btn_cancel: Button
+
+var net_cost: int = 0
+var net_maint: int = 0
 
 var active_trains: Dictionary = {}
 
@@ -131,34 +136,46 @@ func _setup_ui() -> void:
 	btn_edit_mode.text = "[ ENTRAR MODO DE OBRAS ]"
 	btn_edit_mode.position = Vector2(240, 40)
 	btn_edit_mode.size = Vector2(250, 40)
+	btn_edit_mode.add_theme_color_override("font_color", Color.YELLOW)
 	btn_edit_mode.pressed.connect(_on_edit_mode_pressed)
 	ui_layer.add_child(btn_edit_mode)
 
-	validation_panel = Panel.new()
-	validation_panel.position = Vector2(1550, 100) 
-	validation_panel.size = Vector2(320, 400) 
-	validation_panel.visible = false
-	ui_layer.add_child(validation_panel)
+	# NOVO: Painel de Engenharia Burocrática
+	edit_panel = ColorRect.new()
+	edit_panel.color = Color(0.1, 0.1, 0.15, 0.95)
+	edit_panel.position = Vector2(1550, 100) 
+	edit_panel.size = Vector2(320, 360) 
+	edit_panel.visible = false
+	ui_layer.add_child(edit_panel)
+	
+	var border = ReferenceRect.new()
+	border.set_anchors_preset(Control.PRESET_FULL_RECT)
+	border.border_color = Color.GOLDENROD
+	border.border_width = 3
+	edit_panel.add_child(border)
 
-	info_label = Label.new()
-	info_label.position = Vector2(15, 15)
-	info_label.size = Vector2(290, 320) 
-	info_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	validation_panel.add_child(info_label)
+	edit_info = Label.new()
+	edit_info.position = Vector2(15, 15)
+	edit_info.size = Vector2(290, 260) 
+	edit_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	edit_info.add_theme_font_size_override("font_size", 18)
+	edit_panel.add_child(edit_info)
 
-	btn_accept = Button.new()
-	btn_accept.text = "Aprovar Rota"
-	btn_accept.position = Vector2(15, 340) 
-	btn_accept.size = Vector2(135, 40)
-	btn_accept.pressed.connect(_on_accept_pressed)
-	validation_panel.add_child(btn_accept)
+	btn_confirm = Button.new()
+	btn_confirm.text = "CONFIRMAR OBRAS"
+	btn_confirm.position = Vector2(15, 300) 
+	btn_confirm.size = Vector2(140, 45)
+	btn_confirm.add_theme_color_override("font_color", Color.GREEN_YELLOW)
+	btn_confirm.pressed.connect(_on_confirm_edit_pressed)
+	edit_panel.add_child(btn_confirm)
 
-	btn_reject = Button.new()
-	btn_reject.text = "Cancelar"
-	btn_reject.position = Vector2(170, 340) 
-	btn_reject.size = Vector2(135, 40)
-	btn_reject.pressed.connect(_on_reject_pressed)
-	validation_panel.add_child(btn_reject)
+	btn_cancel = Button.new()
+	btn_cancel.text = "DESCARTAR TUDO"
+	btn_cancel.position = Vector2(165, 300) 
+	btn_cancel.size = Vector2(140, 45)
+	btn_cancel.add_theme_color_override("font_color", Color.INDIAN_RED)
+	btn_cancel.pressed.connect(_on_cancel_edit_pressed)
+	edit_panel.add_child(btn_cancel)
 
 func _on_go_desk_pressed() -> void:
 	var main_node = get_parent()
@@ -166,25 +183,122 @@ func _on_go_desk_pressed() -> void:
 		main_node.go_to_desk()
 
 func _on_edit_mode_pressed() -> void:
-	if not is_edit_mode:
-		is_edit_mode = true
-		btn_edit_mode.text = "[ CONCLUIR OBRAS ]"
-		btn_edit_mode.add_theme_color_override("font_color", Color.YELLOW)
-		btn_go_desk.disabled = true
-		made_changes_in_edit = false
-	else:
-		is_edit_mode = false
-		btn_edit_mode.text = "[ ENTRAR MODO DE OBRAS ]"
-		btn_edit_mode.remove_theme_color_override("font_color")
-		btn_go_desk.disabled = false
+	is_edit_mode = true
+	btn_edit_mode.visible = false
+	btn_go_desk.visible = false
+	
+	draft_paths.clear()
+	deleted_paths.clear()
+	tentative_path.clear()
+	
+	edit_panel.visible = true
+	_update_edit_panel()
+	queue_redraw()
+
+func _on_cancel_edit_pressed() -> void:
+	is_edit_mode = false
+	edit_panel.visible = false
+	btn_edit_mode.visible = true
+	btn_go_desk.visible = true
+	
+	draft_paths.clear()
+	deleted_paths.clear()
+	tentative_path.clear()
+	queue_redraw()
+
+# NOVO: O painel que valida a engneharia da via!
+func _update_edit_panel() -> void:
+	var cost = 0
+	var maint = 0
+	var has_gangs = false
+	
+	for path in draft_paths:
+		for cell in path:
+			var b = biome_map.get(cell, Biome.PLAIN)
+			cost += BIOME_DATA[b]["build"]
+			maint += BIOME_DATA[b]["maint"]
+			if gang_map.has(cell):
+				has_gangs = true
+
+	var refund = 0
+	var r_maint = 0
+	for path in deleted_paths:
+		for cell in path:
+			var b = biome_map.get(cell, Biome.PLAIN)
+			refund += BIOME_DATA[b]["build"]
+			r_maint += BIOME_DATA[b]["maint"]
+
+	net_cost = cost - refund
+	net_maint = maint - r_maint
+
+	var temp_valid = {}
+	for r in confirmed_routes:
+		if not deleted_paths.has(r):
+			for cell in r:
+				temp_valid[cell] = true
+	for r in draft_paths:
+		for cell in r:
+			temp_valid[cell] = true
+
+	temp_valid[city_a] = true
+	temp_valid[city_b] = true
+	temp_valid[city_c] = true
+
+	var has_conn = false
+	if _bfs_shortest_dist(city_a, city_b, temp_valid, false, false) != -1: has_conn = true
+	if _bfs_shortest_dist(city_a, city_c, temp_valid, false, false) != -1: has_conn = true
+	if _bfs_shortest_dist(city_b, city_c, temp_valid, false, false) != -1: has_conn = true
+
+	var is_valid = true
+	var t = "== PROJETO DE ENGENHARIA ==\n\n"
+
+	if has_gangs:
+		t += "[!] CUIDADO: Obras em zona de gangues!\n\n"
+
+	t += "Novos Trilhos: $" + str(cost) + "\n"
+	t += "Reembolso Demolicao: +$" + str(refund) + "\n"
+	t += "CUSTO LIQUIDO: $" + str(net_cost) + "\n\n"
+	t += "Nova Manutencao: $" + str(net_maint) + " /dia\n\n"
+
+	if draft_paths.size() > 0 or deleted_paths.size() > 0:
+		if not has_conn:
+			var total_tiles = temp_valid.size()
+			if total_tiles > 3: 
+				is_valid = false
+				t += "[ ERRO: A malha nao conecta nenhuma cidade! ]\n"
 		
-		if made_changes_in_edit:
-			for rid in GameManager.network_connections:
-				GameManager.routes_under_construction[rid] = 2
-			GameManager.contracts_updated.emit()
-			made_changes_in_edit = false
-			
-		queue_redraw()
+		if net_cost > GameManager.money:
+			is_valid = false
+			t += "[ ERRO: Voce nao tem fundos no Caixa! ]\n"
+	else:
+		is_valid = false
+		t += "Nenhuma alteracao estrutural desenhada."
+
+	edit_info.text = t
+	btn_confirm.disabled = not is_valid
+
+func _on_confirm_edit_pressed() -> void:
+	GameManager.money -= net_cost
+	GameManager.daily_maintenance += net_maint
+	
+	for d in deleted_paths:
+		confirmed_routes.erase(d)
+		
+	for p in draft_paths:
+		confirmed_routes.append(p.duplicate())
+		
+	GameManager.saved_routes = confirmed_routes.duplicate() 
+	
+	_update_network_status()
+	
+	# O CASTIGO DAS OBRAS: As rotas afetadas ganham 2 dias de cooldown!
+	for rid in GameManager.network_connections:
+		GameManager.routes_under_construction[rid] = 2
+		
+	GameManager.contracts_updated.emit()
+	GameManager.save_game()
+	
+	_on_cancel_edit_pressed() 
 
 func _process(delta: float) -> void:
 	if not visible: return
@@ -363,9 +477,11 @@ func _is_cell_occupied_by_track(cell: Vector2i) -> bool:
 			return true
 	if cell in tentative_path: 
 		return true
+	for draft in draft_paths:
+		if cell in draft:
+			return true
 	return false
 
-# NOVO: Desenha a Placa de Construcao Flutuante e as Cores Diferentes!
 func _draw() -> void:
 	for x in range(grid_width):
 		for y in range(grid_height):
@@ -400,17 +516,23 @@ func _draw() -> void:
 			if d > max_d:
 				max_d = d
 
+	# NOVO: Desenha as Rotas Confirmadas (Vermelhas se marcadas para demolicao)
 	for route in confirmed_routes: 
-		_draw_custom_track(route, false, is_const) 
-		if is_const:
+		var is_del = deleted_paths.has(route)
+		_draw_custom_track(route, false, is_const, is_del) 
+		if is_const and not is_del:
 			if route.size() > 2:
 				var mid = route[route.size() / 2]
 				var px = mid.x * TILE_SIZE + 16
 				var py = mid.y * TILE_SIZE + 16
 				draw_rect(Rect2(px - 50, py - 12, 100, 24), Color(0.1, 0.1, 0.1, 0.9))
 				draw_string(ThemeDB.fallback_font, Vector2(px - 45, py + 4), "[ OBRAS: " + str(max_d) + "d ]", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color.ORANGE)
+	
+	# NOVO: Desenha os rascunhos de obras em Amarelo
+	for draft in draft_paths:
+		_draw_custom_track(draft, true, false, false)
 		
-	_draw_custom_track(tentative_path, true, false)
+	_draw_custom_track(tentative_path, true, false, false)
 
 	if city_a != Vector2i(-1, -1): 
 		draw_rect(Rect2(city_a.x * TILE_SIZE, city_a.y * TILE_SIZE, TILE_SIZE, TILE_SIZE), Color.DODGER_BLUE)
@@ -421,8 +543,9 @@ func _draw() -> void:
 		
 	_draw_trains()
 
-# NOVO: Injeta a cor de OBRAS
-func _get_track_color(b: int, is_preview: bool, is_construction: bool) -> Color:
+func _get_track_color(b: int, is_preview: bool, is_construction: bool, is_deleted: bool = false) -> Color:
+	if is_deleted: 
+		return Color(0.8, 0.2, 0.2, 0.7) 
 	if is_preview: 
 		return Color.YELLOW
 	if is_construction:
@@ -433,13 +556,12 @@ func _get_track_color(b: int, is_preview: bool, is_construction: bool) -> Color:
 		return Color.DARK_SLATE_GRAY 
 	return Color.BLACK
 
-# NOVO: Injeta dormentes Pretos para contrastar com a via Laranja/Amarela
-func _draw_custom_track(path: Array, is_preview: bool, is_const: bool) -> void:
+func _draw_custom_track(path: Array, is_preview: bool, is_const: bool, is_deleted: bool = false) -> void:
 	if path.size() == 0: 
 		return
 	if path.size() == 1:
 		var b = biome_map.get(path[0], Biome.PLAIN)
-		draw_circle(Vector2(path[0].x * TILE_SIZE + 16, path[0].y * TILE_SIZE + 16), 4.0, _get_track_color(b, is_preview, is_const))
+		draw_circle(Vector2(path[0].x * TILE_SIZE + 16, path[0].y * TILE_SIZE + 16), 4.0, _get_track_color(b, is_preview, is_const, is_deleted))
 		return
 		
 	for cell in path:
@@ -463,7 +585,7 @@ func _draw_custom_track(path: Array, is_preview: bool, is_const: bool) -> void:
 				if b1 == Biome.FOREST or b2 == Biome.FOREST: 
 					segment_biome = Biome.FOREST
 
-		var line_color = _get_track_color(segment_biome, is_preview, is_const)
+		var line_color = _get_track_color(segment_biome, is_preview, is_const, is_deleted)
 		var line_width = 5.0
 		if segment_biome != Biome.MOUNTAIN:
 			line_width = 2.0
@@ -486,18 +608,17 @@ func _draw_custom_track(path: Array, is_preview: bool, is_const: bool) -> void:
 			if segment_biome == Biome.RIVER and not is_preview:
 				tie_color = Color(0.3, 0.2, 0.1)
 				
-			if is_const:
+			if is_const and not is_deleted:
 				tie_color = Color.BLACK
 				
 			for j in range(1, num_ties + 1):
 				var tie_center = p1 + dir * (j * spacing)
 				draw_line(tie_center - normal * 4, tie_center + normal * 4, tie_color, 2.0)
 
+# NOVO: Dinamica de Desenho e Demolicao por Blocos
 func _unhandled_input(event: InputEvent) -> void:
 	if not visible: return
-	if validation_panel.visible: return
-	
-	if not is_edit_mode: return 
+	if edit_panel.visible == false and not is_edit_mode: return 
 	
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_LEFT:
@@ -510,36 +631,35 @@ func _unhandled_input(event: InputEvent) -> void:
 			else:
 				if is_dragging: 
 					is_dragging = false
-					_calculate_and_show_validation()
+					if tentative_path.size() > 0:
+						draft_paths.append(tentative_path.duplicate())
+						tentative_path.clear()
+						_update_edit_panel()
 					queue_redraw()
 		else:
 			if event.button_index == MOUSE_BUTTON_RIGHT and event.is_pressed():
 				var cell = _get_cell_under_mouse(event.position)
-				var deleted_something = false
+				var handled = false
 				
-				if tentative_path.has(cell): 
-					tentative_path.clear()
-					deleted_something = true
-				else:
-					for i in range(confirmed_routes.size() - 1, -1, -1):
-						if confirmed_routes[i].has(cell):
-							var m = 0
-							var b_refund = 0
-							for c in confirmed_routes[i]:
-								var b = biome_map.get(c, Biome.PLAIN)
-								b_refund += BIOME_DATA[b]["build"]
-								m += BIOME_DATA[b]["maint"]
-							GameManager.daily_maintenance -= m
-							GameManager.money += b_refund 
-							confirmed_routes.remove_at(i)
-							deleted_something = true
-							break 
-				if deleted_something:
-					made_changes_in_edit = true
-					GameManager.saved_routes = confirmed_routes.duplicate() 
-					GameManager.save_game()
-					_update_network_status() 
-					queue_redraw()
+				# Tenta apagar um rascunho primeiro
+				for i in range(draft_paths.size() - 1, -1, -1):
+					if draft_paths[i].has(cell):
+						draft_paths.remove_at(i)
+						handled = true
+						break
+				
+				# Se nao apagou rascunho, marca/desmarca uma via construida para demolicao
+				if not handled:
+					for r in confirmed_routes:
+						if r.has(cell):
+							if deleted_paths.has(r):
+								deleted_paths.erase(r) 
+							else:
+								deleted_paths.append(r)
+							break
+							
+				_update_edit_panel()
+				queue_redraw()
 	else:
 		if event is InputEventMouseMotion and is_dragging:
 			var cell = _get_cell_under_mouse(event.position)
@@ -647,72 +767,6 @@ func _bfs_shortest_dist(start: Vector2i, target: Vector2i, valid: Dictionary, av
 				vis[n] = true
 				q.push_back({"cell": n, "dist": curr["dist"] + 1})
 	return -1
-
-func _calculate_and_show_validation() -> void:
-	var d = tentative_path.size()
-	temp_cost = 0
-	temp_maintenance = 0
-	var bridges = 0
-	var tunnels = 0
-	var forests = 0
-	var has_g = false
-	
-	for cell in tentative_path:
-		var b = biome_map.get(cell, Biome.PLAIN)
-		temp_cost += BIOME_DATA[b]["build"]
-		temp_maintenance += BIOME_DATA[b]["maint"]
-		
-		if b == Biome.MOUNTAIN: 
-			tunnels += 1
-		else:
-			if b == Biome.RIVER: 
-				bridges += 1
-			else:
-				if b == Biome.FOREST: 
-					forests += 1
-					
-		if gang_map.has(cell): 
-			has_g = true
-			
-	var t = "RELATORIO DE CONSTRUCAO\n\n"
-	btn_accept.disabled = false
-	
-	if has_g: 
-		t += "[!] AVISO: Rota em territorio de Gangues!\nPedagio: +$" + str(GANG_TOLL_RATE) + "\n\n"
-		
-	t += "Distancia: " + str(d) + " km\nCusto: $" + str(temp_cost) + "\n"
-	if bridges > 0: 
-		t += "- Pontes: $" + str(bridges * 600) + "\n"
-	if tunnels > 0: 
-		t += "- Tunnels: $" + str(tunnels * 400) + "\n"
-		
-	t += "\nManutencao: $" + str(temp_maintenance) + "\nSaldo: $" + str(GameManager.money)
-	info_label.text = t
-	validation_panel.visible = true
-
-func _on_accept_pressed() -> void:
-	if GameManager.money >= temp_cost:
-		GameManager.money -= temp_cost
-		GameManager.daily_maintenance += temp_maintenance
-		
-		confirmed_routes.append(tentative_path.duplicate())
-		tentative_path.clear()
-		
-		made_changes_in_edit = true
-		
-		GameManager.saved_routes = confirmed_routes.duplicate() 
-		GameManager.save_game()
-		
-		_update_network_status()
-		validation_panel.visible = false
-		queue_redraw()
-	else: 
-		info_label.text = "FUNDOS INSUFICIENTES!\nPrecisa de $" + str(temp_cost)
-
-func _on_reject_pressed() -> void: 
-	tentative_path.clear()
-	validation_panel.visible = false
-	queue_redraw()
 	
 func _get_cell_under_mouse(p: Vector2) -> Vector2i: 
 	return Vector2i(p.x / TILE_SIZE, p.y / TILE_SIZE)
