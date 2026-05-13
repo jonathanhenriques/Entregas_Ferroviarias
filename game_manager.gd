@@ -50,7 +50,6 @@ var pending_radio_event: bool = false
 var routes_under_construction: Dictionary = {}
 
 func is_contract_operating(c: Dictionary) -> bool:
-	# NOVO: Contratos aguardando via nao operam
 	if c.has("pending_route_days"):
 		return false
 		
@@ -78,7 +77,6 @@ func is_contract_operating(c: Dictionary) -> bool:
 		
 	return true
 
-# NOVO: Verifica puramente se a rota fisica esta pronta e dentro da lei (Para os Contratos de Risco)
 func is_contract_route_ready(c: Dictionary) -> bool:
 	var rid = c["route_id"]
 	var has_route = rid in network_connections
@@ -146,14 +144,11 @@ func end_day(upfront_income: int = 0) -> void:
 	for c in active_contracts:
 		var contract_failed = false
 		
-		# Logica dos Contratos de Risco
 		if c.has("pending_route_days"):
 			var is_ready = is_contract_route_ready(c)
 			if is_ready:
-				# O jogador conseguiu construir a tempo! Removemos o aviso.
 				c.erase("pending_route_days")
 			if not is_ready:
-				# O jogador ainda nao construiu. Desconta 1 dia.
 				c["pending_route_days"] -= 1
 				if c["pending_route_days"] <= 0:
 					contract_failed = true
@@ -193,8 +188,14 @@ func end_day(upfront_income: int = 0) -> void:
 	today_broken_contracts = 0
 	today_penalties = 0
 	
+	# CORREÇÃO: O Badger só apita se houver trens de facto operando!
 	pending_radio_event = false
-	if active_contracts.size() > 0:
+	var has_op_train = false
+	for c in active_contracts:
+		if is_contract_operating(c):
+			has_op_train = true
+			
+	if has_op_train:
 		if randf() < 0.3:
 			pending_radio_event = true
 	
