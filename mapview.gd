@@ -92,7 +92,6 @@ func _check_disasters() -> void:
 	GameManager.pending_disaster_check = false
 	var needs_save = false
 	
-	# Mapeia todos os trilhos construídos
 	var valid_built = {}
 	for r in confirmed_routes:
 		for c in r: valid_built[c] = true
@@ -100,7 +99,6 @@ func _check_disasters() -> void:
 	if city_b != Vector2i(-1, -1): valid_built[city_b] = true
 	if city_c != Vector2i(-1, -1): valid_built[city_c] = true
 		
-	# Identifica os trilhos que estão em rotas paralisadas por obras (Imunes a desastres)
 	var immune_tiles = {}
 	if GameManager.routes_under_construction.get("Azul-Vermelha", 0) > 0:
 		var p = _bfs_get_path_array(city_a, city_b, valid_built)
@@ -112,7 +110,6 @@ func _check_disasters() -> void:
 		var p = _bfs_get_path_array(city_b, city_c, valid_built)
 		for c in p: immune_tiles[c] = true
 	
-	# Passa por todos os trilhos confirmados rolando a chance de quebrar baseado na saúde INDIVIDUAL!
 	for route in confirmed_routes:
 		for cell in route:
 			if immune_tiles.has(cell):
@@ -125,7 +122,6 @@ func _check_disasters() -> void:
 			if GameManager.tile_data.has(cell):
 				tile_health = GameManager.tile_data[cell].get("h", 1.0)
 				
-			# Se a saúde do bloco estiver crítica (abaixo de 25%), chance de 15% de desastre nesta noite
 			if tile_health <= 0.25:
 				if randf() < 0.15:
 					GameManager.broken_tiles.append(cell)
@@ -133,9 +129,6 @@ func _check_disasters() -> void:
 	
 	if needs_save:
 		GameManager.save_game()
-
-
-
 
 func _generate_biomes() -> void:
 	biome_map.clear()
@@ -594,7 +587,6 @@ func _update_edit_panel() -> void:
 	edit_info.text = t
 	btn_confirm.disabled = not is_valid
 
-# NOVO: Ao confirmar as obras, o jogo atualiza a saude individual dos blocos tocados
 func _on_confirm_edit_pressed() -> void:
 	GameManager.money -= net_cost
 	
@@ -603,12 +595,14 @@ func _on_confirm_edit_pressed() -> void:
 	for d in deleted_paths:
 		confirmed_routes.erase(d)
 		for cell in d:
-			affected_tiles[cell] = true
+			if cell != city_a and cell != city_b and cell != city_c:
+				affected_tiles[cell] = true
 			if GameManager.broken_tiles.has(cell):
 				GameManager.broken_tiles.erase(cell)
 				
 	for r_cell in repair_tiles:
-		affected_tiles[r_cell] = true
+		if r_cell != city_a and r_cell != city_b and r_cell != city_c:
+			affected_tiles[r_cell] = true
 		if GameManager.broken_tiles.has(r_cell):
 			GameManager.broken_tiles.erase(r_cell)
 		if not GameManager.tile_data.has(r_cell):
@@ -619,7 +613,8 @@ func _on_confirm_edit_pressed() -> void:
 	for p in draft_paths:
 		confirmed_routes.append(p.duplicate())
 		for cell in p:
-			affected_tiles[cell] = true
+			if cell != city_a and cell != city_b and cell != city_c:
+				affected_tiles[cell] = true
 			if not GameManager.tile_data.has(cell):
 				GameManager.tile_data[cell] = {"h": 1.0, "t": _get_tile_type(cell)}
 			else:
@@ -659,7 +654,6 @@ func _on_confirm_edit_pressed() -> void:
 		
 	_update_network_status()
 	
-	# Congela as operacoes apenas das vias que utilizaram os blocos modificados!
 	if cd_ab and GameManager.network_connections.has("Azul-Vermelha"):
 		GameManager.routes_under_construction["Azul-Vermelha"] = 2
 	if cd_ac and GameManager.network_connections.has("Azul-Verde"):
@@ -744,7 +738,6 @@ func _spawn_train(contract_index: int, contract: Dictionary) -> void:
 		"delay": contract_index * 1.5
 	}
 
-# NOVO: O comboio agora lê a saúde de cada bloco exato em que passa para calcular o seu abrandamento
 func _move_train(index: int, delta: float) -> void:
 	var train = active_trains[index]
 	if train["path"].size() < 2: return
@@ -847,6 +840,7 @@ func _is_cell_occupied_by_track(cell: Vector2i) -> bool:
 		if cell in draft: return true
 	return false
 
+# A correção visual reside aqui: o mapa volta a usar o sistema infalível de "const_cells"!
 func _draw() -> void:
 	for x in range(grid_width):
 		for y in range(grid_height):
@@ -869,7 +863,6 @@ func _draw() -> void:
 	for y in range(grid_height + 1):
 		draw_line(Vector2(0, y * TILE_SIZE), Vector2(grid_width * TILE_SIZE, y * TILE_SIZE), Color(0, 0, 0, 0.1), 1.0)
 
-	# NOVO: Placa flutuante de Obras apenas nas rotas paralisadas!
 	var valid_built = {}
 	for r in confirmed_routes:
 		for c in r: valid_built[c] = true
@@ -886,7 +879,7 @@ func _draw() -> void:
 		path_ac = _bfs_get_path_array(city_a, city_c, valid_built)
 	if city_b != Vector2i(-1, -1) and city_c != Vector2i(-1, -1):
 		path_bc = _bfs_get_path_array(city_b, city_c, valid_built)
-		
+
 	var const_cells = {}
 	if GameManager.routes_under_construction.get("Azul-Vermelha", 0) > 0:
 		for c in path_ab: const_cells[c] = GameManager.routes_under_construction["Azul-Vermelha"]
@@ -900,6 +893,7 @@ func _draw() -> void:
 		var is_del = deleted_paths.has(route)
 		var route_is_const = false
 		var max_d = 0
+		
 		for cell in route:
 			if const_cells.has(cell):
 				route_is_const = true
