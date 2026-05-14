@@ -1026,29 +1026,44 @@ func _on_cancel_confirmed(idx: int) -> void:
 func _on_radio_choice(idx: int) -> void:
 	GameManager.pending_radio_event = false
 	
-	if idx == 0:
-		GameManager.money -= 150
+	if phone_cutscene.current_mode == "RADIO_DISASTER":
+		pass 
 	else:
-		if idx == 1:
-			if GameManager.active_contracts.size() > 0:
-				GameManager.active_contracts[0]["days_left"] -= 2
+		if idx == 0:
+			GameManager.money -= 150
 		else:
-			if idx == 2:
-				if randf() > 0.5:
-					pass 
-				else:
-					GameManager.money -= 300 
+			if idx == 1:
+				if GameManager.active_contracts.size() > 0:
+					GameManager.active_contracts[0]["days_left"] -= 2
+			else:
+				if idx == 2:
+					if randf() > 0.5:
+						pass 
+					else:
+						GameManager.money -= 300 
 					
 	GameManager.save_game()
 	_update_report_text()
 	_update_diretrizes()
 	_update_active_contracts_text()
+	_update_task_pad()
 
+# NOVO: Caderneta mostra quando houverem buracos não consertados na via
 func _update_task_pad() -> void:
 	for child in task_vbox.get_children():
 		child.queue_free()
 		
 	var has_tasks = false
+	
+	if GameManager.broken_tiles.size() > 0:
+		var l = Label.new()
+		l.text = "[!] URGENTE: Consertar a via destruida!"
+		l.add_theme_color_override("font_color", Color.RED)
+		l.add_theme_font_size_override("font_size", 14)
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.custom_minimum_size = Vector2(260, 0)
+		task_vbox.add_child(l)
+		has_tasks = true
 	
 	for c in GameManager.active_contracts:
 		if c.has("pending_route_days"):
@@ -1091,6 +1106,7 @@ func _update_task_pad() -> void:
 		l.add_theme_font_size_override("font_size", 14)
 		task_vbox.add_child(l)
 
+# NOVO: Status da Frota exibe quando a via foi destruída
 func _update_active_contracts_text() -> void:
 	for child in contracts_vbox.get_children(): 
 		child.queue_free()
@@ -1126,21 +1142,24 @@ func _update_active_contracts_text() -> void:
 						if not (c["route_id"] in GameManager.network_connections): 
 							st = "[SEM ROTA]"
 						else: 
-							var tp = c.get("type", "")
 							var stats = GameManager.network_stats.get(c["route_id"], {})
-							if tp == "Expresso" and stats.get("dist", 999) > c.get("max_dist", 999):
-								st = "[PARADO: ROTA LONGA]"
+							if stats.get("is_broken", false):
+								st = "[VIA DESTRUIDA]"
 							else:
-								if tp == "VIP" and GameManager.active_contracts.size() > 1:
-									st = "[PARADO: FIM EXCLUSIVIDADE]"
+								var tp = c.get("type", "")
+								if tp == "Expresso" and stats.get("dist", 999) > c.get("max_dist", 999):
+									st = "[PARADO: ROTA LONGA]"
 								else:
-									if tp == "VIP" and stats.get("gangs", 0) > 0:
-										st = "[PARADO: GANGUES NA LINHA]"
+									if tp == "VIP" and GameManager.active_contracts.size() > 1:
+										st = "[PARADO: FIM EXCLUSIVIDADE]"
 									else:
-										if tp == "Ecologico" and stats.get("forests", 0) > 0:
-											st = "[PARADO: CRIME AMBIENTAL]"
+										if tp == "VIP" and stats.get("gangs", 0) > 0:
+											st = "[PARADO: GANGUES NA LINHA]"
 										else:
-											st = "[PARADO: ILEGAL]"
+											if tp == "Ecologico" and stats.get("forests", 0) > 0:
+												st = "[PARADO: CRIME AMBIENTAL]"
+											else:
+												st = "[PARADO: ILEGAL]"
 									
 			cl.text = "T" + str(i + 1) + ": " + c["cargo"] + "\n" + c["route_name"] + " " + st + "\n" + str(c["days_left"]) + "d"
 			cl.custom_minimum_size = Vector2(230, 0)
@@ -1153,7 +1172,6 @@ func _update_active_contracts_text() -> void:
 			contracts_vbox.add_child(hbox)
 			i += 1
 
-# NOVO: Injeta as despesas de Equipa e Lobby no Resumo Financeiro da Mesa
 func _update_report_text() -> void:
 	var inc = GameManager.get_daily_income()
 	var exp = GameManager.daily_maintenance + GameManager.BASE_COST + GameManager.daily_gang_toll + GameManager.daily_crew_cost + GameManager.daily_lobby_cost
@@ -1217,7 +1235,6 @@ func _on_next_day_pressed() -> void:
 	
 	_start_eod_animation(new_c_count, rej_c_count)
 
-# NOVO: Injeta as despesas de Equipa e Lobby na impressao do Recibo Diário
 func _start_eod_animation(new_c: int, rej_c: int) -> void:
 	skip_eod_anim = false
 	eod_layer.visible = true
@@ -1358,6 +1375,7 @@ func _on_day_changed(_v) -> void:
 				p.queue_free()
 		outbox_papers.clear()
 
+# NOVO: Garante que o rádio vai apitar caso o jogador entre na mesa e a via esteja destruída!
 func _on_visibility_changed() -> void:
 	if ui_layer: 
 		ui_layer.visible = visible
@@ -1369,6 +1387,9 @@ func _on_visibility_changed() -> void:
 		folder_rect.visible = false 
 		
 		_on_organize_pressed()
+		
+		if GameManager.broken_tiles.size() > 0:
+			GameManager.pending_radio_event = true
 		
 		if GameManager.pendent_angry_call: 
 			GameManager.pendent_angry_call = false

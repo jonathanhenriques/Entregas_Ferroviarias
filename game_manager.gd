@@ -27,7 +27,6 @@ var daily_maintenance: int = 0 :
 
 var daily_gang_toll: int = 0
 
-# NOVO: Variaveis de custo dos novos sliders
 var daily_crew_cost: int = 0
 var daily_lobby_cost: int = 0
 
@@ -53,9 +52,6 @@ var pending_radio_event: bool = false
 
 var routes_under_construction: Dictionary = {}
 
-# =======================================
-# GESTÃO DE MANUTENÇÃO (6 SLIDERS E SAÚDE)
-# =======================================
 var maint_pct_infra: float = 1.0
 var maint_pct_tracks: float = 1.0
 var maint_pct_env: float = 1.0
@@ -70,13 +66,12 @@ var ideal_maint_sec: int = 0
 var ideal_maint_crew: int = 0
 var ideal_maint_lobby: int = 0
 
-# SAÚDE OCULTA (0.0 a 1.0) - O "Delay" Mecanico
-var health_infra: float = 1.0
-var health_tracks: float = 1.0
-var health_env: float = 1.0
-var health_sec: float = 1.0
-var health_crew: float = 1.0
-var health_lobby: float = 1.0
+# =======================================
+# NOVO: SAÚDE INDIVIDUAL POR TILE (IDADE)
+# =======================================
+var tile_data: Dictionary = {} 
+var pending_disaster_check: bool = false
+var broken_tiles: Array = []
 
 func update_actual_maintenance() -> void:
 	var infra_cost = int(ideal_maint_infra * maint_pct_infra)
@@ -101,6 +96,9 @@ func is_contract_operating(c: Dictionary) -> bool:
 	
 	var st = network_stats.get(rid, {})
 	if st.is_empty(): 
+		return false
+		
+	if st.get("is_broken", false):
 		return false
 	
 	var tp = c.get("type", "")
@@ -127,6 +125,9 @@ func is_contract_route_ready(c: Dictionary) -> bool:
 
 	var st = network_stats.get(rid, {})
 	if st.is_empty():
+		return false
+		
+	if st.get("is_broken", false):
 		return false
 
 	var tp = c.get("type", "")
@@ -179,12 +180,9 @@ func reset_game() -> void:
 	maint_pct_crew = 1.0
 	maint_pct_lobby = 1.0
 	
-	health_infra = 1.0
-	health_tracks = 1.0
-	health_env = 1.0
-	health_sec = 1.0
-	health_crew = 1.0
-	health_lobby = 1.0
+	tile_data.clear()
+	broken_tiles.clear()
+	pending_disaster_check = false
 	
 	_generate_daily_generics()
 	save_game()
@@ -243,24 +241,24 @@ func end_day(upfront_income: int = 0) -> void:
 			new_ruc[k] = routes_under_construction[k] - 1
 	routes_under_construction = new_ruc
 	
-	# CALCULO DO DESGASTE DIARIO (SAUDE OCULTA)
-	var change_infra = (maint_pct_infra - 0.7) * 0.2
-	health_infra = clamp(health_infra + change_infra, 0.05, 1.0)
-	
-	var change_tracks = (maint_pct_tracks - 0.7) * 0.2
-	health_tracks = clamp(health_tracks + change_tracks, 0.05, 1.0)
-	
-	var change_env = (maint_pct_env - 0.7) * 0.2
-	health_env = clamp(health_env + change_env, 0.05, 1.0)
-	
-	var change_sec = (maint_pct_sec - 0.8) * 0.2
-	health_sec = clamp(health_sec + change_sec, 0.05, 1.0)
-	
-	var change_crew = (maint_pct_crew - 0.8) * 0.25
-	health_crew = clamp(health_crew + change_crew, 0.05, 1.0)
-	
-	var change_lobby = (maint_pct_lobby - 0.9) * 0.3
-	health_lobby = clamp(health_lobby + change_lobby, 0.05, 1.0)
+	# NOVO: O desgaste diário agora é aplicado bloco a bloco!
+	for key in tile_data.keys():
+		var data = tile_data[key]
+		var h = data["h"]
+		var t = data["t"]
+		var change = 0.0
+		
+		if t == "infra":
+			change = (maint_pct_infra - 0.7) * 0.2
+		if t == "tracks":
+			change = (maint_pct_tracks - 0.7) * 0.2
+		if t == "env":
+			change = (maint_pct_env - 0.7) * 0.2
+			
+		h = clamp(h + change, 0.05, 1.0)
+		tile_data[key]["h"] = h
+		
+	pending_disaster_check = true
 	
 	today_broken_contracts = 0
 	today_penalties = 0
@@ -374,12 +372,8 @@ func save_game() -> void:
 		"maint_pct_sec": maint_pct_sec,
 		"maint_pct_crew": maint_pct_crew,
 		"maint_pct_lobby": maint_pct_lobby,
-		"health_infra": health_infra,
-		"health_tracks": health_tracks,
-		"health_env": health_env,
-		"health_sec": health_sec,
-		"health_crew": health_crew,
-		"health_lobby": health_lobby
+		"tile_data": tile_data,
+		"broken_tiles": _vec_array_to_dict_array(broken_tiles)
 	}
 	var file = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	file.store_string(JSON.stringify(data))
@@ -416,12 +410,8 @@ func load_game() -> bool:
 		maint_pct_crew = data.get("maint_pct_crew", 1.0)
 		maint_pct_lobby = data.get("maint_pct_lobby", 1.0)
 		
-		health_infra = data.get("health_infra", 1.0)
-		health_tracks = data.get("health_tracks", 1.0)
-		health_env = data.get("health_env", 1.0)
-		health_sec = data.get("health_sec", 1.0)
-		health_crew = data.get("health_crew", 1.0)
-		health_lobby = data.get("health_lobby", 1.0)
+		tile_data = data.get("tile_data", {})
+		broken_tiles = _dict_array_to_vec_array(data.get("broken_tiles", []))
 		
 		today_broken_contracts = 0
 		today_penalties = 0
@@ -454,3 +444,15 @@ func _array_to_routes(arr: Array) -> Array:
 			route.append(Vector2i(cell_dict["x"], cell_dict["y"]))
 		routes.append(route)
 	return routes
+
+func _vec_array_to_dict_array(arr: Array) -> Array:
+	var res = []
+	for v in arr:
+		res.append({"x": v.x, "y": v.y})
+	return res
+
+func _dict_array_to_vec_array(arr: Array) -> Array:
+	var res = []
+	for d in arr:
+		res.append(Vector2i(d["x"], d["y"]))
+	return res

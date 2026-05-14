@@ -33,6 +33,7 @@ var tentative_path: Array[Vector2i] = []
 
 var draft_paths: Array = []
 var deleted_paths: Array = []
+var repair_tiles: Array = [] 
 
 var btn_edit_mode: Button
 var btn_go_desk: Button
@@ -50,9 +51,6 @@ var active_trains: Dictionary = {}
 var btn_maint: Button
 var maint_panel: ColorRect
 
-# =======================================
-# 6 SLIDERS DE MANUTENÇÃO E POLÍTICA
-# =======================================
 var sld_infra: HSlider
 var sld_tracks: HSlider
 var sld_env: HSlider
@@ -75,6 +73,7 @@ func _ready() -> void:
 	
 	confirmed_routes = GameManager.saved_routes.duplicate()
 	
+	_check_disasters()
 	_update_network_status()
 	visibility_changed.connect(_on_visibility_changed)
 
@@ -83,7 +82,60 @@ func _on_visibility_changed() -> void:
 		ui_layer.visible = visible
 	if visible:
 		confirmed_routes = GameManager.saved_routes.duplicate()
+		_check_disasters()
 		_update_network_status()
+
+func _check_disasters() -> void:
+	if not GameManager.pending_disaster_check:
+		return
+		
+	GameManager.pending_disaster_check = false
+	var needs_save = false
+	
+	# Mapeia todos os trilhos construídos
+	var valid_built = {}
+	for r in confirmed_routes:
+		for c in r: valid_built[c] = true
+	if city_a != Vector2i(-1, -1): valid_built[city_a] = true
+	if city_b != Vector2i(-1, -1): valid_built[city_b] = true
+	if city_c != Vector2i(-1, -1): valid_built[city_c] = true
+		
+	# Identifica os trilhos que estão em rotas paralisadas por obras (Imunes a desastres)
+	var immune_tiles = {}
+	if GameManager.routes_under_construction.get("Azul-Vermelha", 0) > 0:
+		var p = _bfs_get_path_array(city_a, city_b, valid_built)
+		for c in p: immune_tiles[c] = true
+	if GameManager.routes_under_construction.get("Azul-Verde", 0) > 0:
+		var p = _bfs_get_path_array(city_a, city_c, valid_built)
+		for c in p: immune_tiles[c] = true
+	if GameManager.routes_under_construction.get("Vermelha-Verde", 0) > 0:
+		var p = _bfs_get_path_array(city_b, city_c, valid_built)
+		for c in p: immune_tiles[c] = true
+	
+	# Passa por todos os trilhos confirmados rolando a chance de quebrar baseado na saúde INDIVIDUAL!
+	for route in confirmed_routes:
+		for cell in route:
+			if immune_tiles.has(cell):
+				continue
+				
+			if GameManager.broken_tiles.has(cell):
+				continue
+				
+			var tile_health = 1.0
+			if GameManager.tile_data.has(cell):
+				tile_health = GameManager.tile_data[cell].get("h", 1.0)
+				
+			# Se a saúde do bloco estiver crítica (abaixo de 25%), chance de 15% de desastre nesta noite
+			if tile_health <= 0.25:
+				if randf() < 0.15:
+					GameManager.broken_tiles.append(cell)
+					needs_save = true
+	
+	if needs_save:
+		GameManager.save_game()
+
+
+
 
 func _generate_biomes() -> void:
 	biome_map.clear()
@@ -423,6 +475,7 @@ func _on_edit_mode_pressed() -> void:
 	draft_paths.clear()
 	deleted_paths.clear()
 	tentative_path.clear()
+	repair_tiles.clear()
 	
 	edit_panel.visible = true
 	_update_edit_panel()
@@ -438,10 +491,20 @@ func _on_cancel_edit_pressed() -> void:
 	draft_paths.clear()
 	deleted_paths.clear()
 	tentative_path.clear()
+	repair_tiles.clear()
 	queue_redraw()
+
+func _get_tile_type(cell: Vector2i) -> String:
+	var b = biome_map.get(cell, Biome.PLAIN)
+	if b == Biome.MOUNTAIN or b == Biome.RIVER:
+		return "infra"
+	if b == Biome.FOREST:
+		return "env"
+	return "tracks"
 
 func _update_edit_panel() -> void:
 	var build_cost = 0
+	var repair_cost = 0
 	var build_maint = 0
 	var tunnel_count = 0
 	var bridge_count = 0
@@ -461,15 +524,20 @@ func _update_edit_panel() -> void:
 			if b == Biome.FOREST: forest_count += 1
 			if gang_map.has(cell): has_gangs = true
 
+	for cell in repair_tiles:
+		var b = biome_map.get(cell, Biome.PLAIN)
+		repair_cost += BIOME_DATA[b]["build"]
+
 	var refund_val = 0
 	var refund_maint = 0
 	for path in deleted_paths:
 		for cell in path:
-			var b = biome_map.get(cell, Biome.PLAIN)
-			refund_val += BIOME_DATA[b]["build"]
-			refund_maint += BIOME_DATA[b]["maint"]
+			if not GameManager.broken_tiles.has(cell):
+				var b = biome_map.get(cell, Biome.PLAIN)
+				refund_val += BIOME_DATA[b]["build"]
+				refund_maint += BIOME_DATA[b]["maint"]
 
-	net_cost = build_cost - refund_val
+	net_cost = build_cost + repair_cost - refund_val
 	net_maint = build_maint - refund_maint
 
 	var temp_valid = {}
@@ -495,20 +563,22 @@ func _update_edit_panel() -> void:
 		t += "[!] AVISO: Rota em territorio de Gangues!\nPedagio e Risco ampliados!\n\n"
 
 	t += "[ DETALHES DA OBRA ]\n"
-	t += "Distancia total: " + str(dist_total) + " km\n"
+	t += "Distancia Construcao: " + str(dist_total) + " km\n"
 	if tunnel_count > 0: t += "- Tuneis: " + str(tunnel_count) + "\n"
 	if bridge_count > 0: t += "- Pontes: " + str(bridge_count) + "\n"
 	if forest_count > 0: t += "- Desmatamento: " + str(forest_count) + "\n"
+	t += "Reparos Solicitados: " + str(repair_tiles.size()) + "\n"
 	
 	t += "\n[ FINANCEIRO ]\n"
-	t += "Novas Obras: $" + str(build_cost) + "\n"
-	t += "Reembolso Demolicao: +$" + str(refund_val) + "\n"
+	if build_cost > 0: t += "Novas Obras: $" + str(build_cost) + "\n"
+	if repair_cost > 0: t += "Custos de Reparo: $" + str(repair_cost) + "\n"
+	if refund_val > 0: t += "Reembolso Demolicao: +$" + str(refund_val) + "\n"
 	t += "---------------------------\n"
 	t += "CUSTO LIQUIDO: $" + str(net_cost) + "\n"
 	t += "Nova Manutencao Ideal: $" + str(net_maint) + " /dia\n\n"
 	t += "Saldo Atual: $" + str(GameManager.money) + "\n"
 
-	if draft_paths.size() > 0 or deleted_paths.size() > 0:
+	if draft_paths.size() > 0 or deleted_paths.size() > 0 or repair_tiles.size() > 0:
 		if not has_conn:
 			if temp_valid.size() > 3: 
 				is_valid = false
@@ -524,21 +594,78 @@ func _update_edit_panel() -> void:
 	edit_info.text = t
 	btn_confirm.disabled = not is_valid
 
+# NOVO: Ao confirmar as obras, o jogo atualiza a saude individual dos blocos tocados
 func _on_confirm_edit_pressed() -> void:
 	GameManager.money -= net_cost
 	
+	var affected_tiles = {}
+	
 	for d in deleted_paths:
 		confirmed_routes.erase(d)
+		for cell in d:
+			affected_tiles[cell] = true
+			if GameManager.broken_tiles.has(cell):
+				GameManager.broken_tiles.erase(cell)
+				
+	for r_cell in repair_tiles:
+		affected_tiles[r_cell] = true
+		if GameManager.broken_tiles.has(r_cell):
+			GameManager.broken_tiles.erase(r_cell)
+		if not GameManager.tile_data.has(r_cell):
+			GameManager.tile_data[r_cell] = {"h": 1.0, "t": _get_tile_type(r_cell)}
+		else:
+			GameManager.tile_data[r_cell]["h"] = 1.0
 		
 	for p in draft_paths:
 		confirmed_routes.append(p.duplicate())
+		for cell in p:
+			affected_tiles[cell] = true
+			if not GameManager.tile_data.has(cell):
+				GameManager.tile_data[cell] = {"h": 1.0, "t": _get_tile_type(cell)}
+			else:
+				GameManager.tile_data[cell]["h"] = 1.0
 		
 	GameManager.saved_routes = confirmed_routes.duplicate() 
 	
+	var built = {}
+	for route in confirmed_routes:
+		for cell in route:
+			built[cell] = true
+	if city_a != Vector2i(-1, -1): built[city_a] = true
+	if city_b != Vector2i(-1, -1): built[city_b] = true
+	if city_c != Vector2i(-1, -1): built[city_c] = true
+	
+	var path_ab = []
+	var path_ac = []
+	var path_bc = []
+	
+	if city_a != Vector2i(-1, -1) and city_b != Vector2i(-1, -1):
+		path_ab = _bfs_get_path_array(city_a, city_b, built)
+	if city_a != Vector2i(-1, -1) and city_c != Vector2i(-1, -1):
+		path_ac = _bfs_get_path_array(city_a, city_c, built)
+	if city_b != Vector2i(-1, -1) and city_c != Vector2i(-1, -1):
+		path_bc = _bfs_get_path_array(city_b, city_c, built)
+	
+	var cd_ab = false
+	var cd_ac = false
+	var cd_bc = false
+	
+	for c in path_ab:
+		if affected_tiles.has(c): cd_ab = true
+	for c in path_ac:
+		if affected_tiles.has(c): cd_ac = true
+	for c in path_bc:
+		if affected_tiles.has(c): cd_bc = true
+		
 	_update_network_status()
 	
-	for rid in GameManager.network_connections:
-		GameManager.routes_under_construction[rid] = 2
+	# Congela as operacoes apenas das vias que utilizaram os blocos modificados!
+	if cd_ab and GameManager.network_connections.has("Azul-Vermelha"):
+		GameManager.routes_under_construction["Azul-Vermelha"] = 2
+	if cd_ac and GameManager.network_connections.has("Azul-Verde"):
+		GameManager.routes_under_construction["Azul-Verde"] = 2
+	if cd_bc and GameManager.network_connections.has("Vermelha-Verde"):
+		GameManager.routes_under_construction["Vermelha-Verde"] = 2
 		
 	GameManager.contracts_updated.emit()
 	GameManager.save_game()
@@ -617,15 +744,24 @@ func _spawn_train(contract_index: int, contract: Dictionary) -> void:
 		"delay": contract_index * 1.5
 	}
 
-# A VELOCIDADE DO COMBOIO É DITADA PELA SAÚDE OCULTA!
+# NOVO: O comboio agora lê a saúde de cada bloco exato em que passa para calcular o seu abrandamento
 func _move_train(index: int, delta: float) -> void:
 	var train = active_trains[index]
 	if train["path"].size() < 2: return
 	if train.has("delay") and train["delay"] > 0:
 		train["delay"] -= delta
 		return
+		
+	var current_dist = train["progress"]
+	var loco_info = _get_path_info(train["path"], current_dist)
+	var pos = loco_info["pos"]
+	var cell = Vector2i(int(pos.x / TILE_SIZE), int(pos.y / TILE_SIZE))
 	
-	var speed_mult = 0.2 + (0.8 * GameManager.health_tracks)
+	var tile_health = 1.0
+	if GameManager.tile_data.has(cell):
+		tile_health = GameManager.tile_data[cell].get("h", 1.0)
+	
+	var speed_mult = 0.2 + (0.8 * tile_health)
 	
 	var path_len = 0.0
 	for i in range(train["path"].size() - 1):
@@ -733,24 +869,54 @@ func _draw() -> void:
 	for y in range(grid_height + 1):
 		draw_line(Vector2(0, y * TILE_SIZE), Vector2(grid_width * TILE_SIZE, y * TILE_SIZE), Color(0, 0, 0, 0.1), 1.0)
 
-	var is_const = false
-	var max_d = 0
-	for k in GameManager.routes_under_construction.keys():
-		var d = GameManager.routes_under_construction[k]
-		if d > 0:
-			is_const = true
-			if d > max_d: max_d = d
+	# NOVO: Placa flutuante de Obras apenas nas rotas paralisadas!
+	var valid_built = {}
+	for r in confirmed_routes:
+		for c in r: valid_built[c] = true
+	if city_a != Vector2i(-1, -1): valid_built[city_a] = true
+	if city_b != Vector2i(-1, -1): valid_built[city_b] = true
+	if city_c != Vector2i(-1, -1): valid_built[city_c] = true
+	
+	var path_ab = []
+	var path_ac = []
+	var path_bc = []
+	if city_a != Vector2i(-1, -1) and city_b != Vector2i(-1, -1):
+		path_ab = _bfs_get_path_array(city_a, city_b, valid_built)
+	if city_a != Vector2i(-1, -1) and city_c != Vector2i(-1, -1):
+		path_ac = _bfs_get_path_array(city_a, city_c, valid_built)
+	if city_b != Vector2i(-1, -1) and city_c != Vector2i(-1, -1):
+		path_bc = _bfs_get_path_array(city_b, city_c, valid_built)
+		
+	var const_cells = {}
+	if GameManager.routes_under_construction.get("Azul-Vermelha", 0) > 0:
+		for c in path_ab: const_cells[c] = GameManager.routes_under_construction["Azul-Vermelha"]
+	if GameManager.routes_under_construction.get("Azul-Verde", 0) > 0:
+		for c in path_ac: const_cells[c] = GameManager.routes_under_construction["Azul-Verde"]
+	if GameManager.routes_under_construction.get("Vermelha-Verde", 0) > 0:
+		for c in path_bc: const_cells[c] = GameManager.routes_under_construction["Vermelha-Verde"]
 
+	var drawn_texts = {}
 	for route in confirmed_routes: 
 		var is_del = deleted_paths.has(route)
-		_draw_custom_track(route, false, is_const, is_del) 
-		if is_const and not is_del:
+		var route_is_const = false
+		var max_d = 0
+		for cell in route:
+			if const_cells.has(cell):
+				route_is_const = true
+				if const_cells[cell] > max_d: max_d = const_cells[cell]
+				
+		_draw_custom_track(route, false, route_is_const, is_del) 
+		if route_is_const and not is_del:
 			if route.size() > 2:
 				var mid = route[route.size() / 2]
 				var px = mid.x * TILE_SIZE + 16
 				var py = mid.y * TILE_SIZE + 16
-				draw_rect(Rect2(px - 50, py - 12, 100, 24), Color(0.1, 0.1, 0.1, 0.9))
-				draw_string(ThemeDB.fallback_font, Vector2(px - 45, py + 4), "[ OBRAS: " + str(max_d) + "d ]", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color.ORANGE)
+				
+				var mid_str = str(mid.x) + "_" + str(mid.y)
+				if not drawn_texts.has(mid_str):
+					drawn_texts[mid_str] = true
+					draw_rect(Rect2(px - 50, py - 12, 100, 24), Color(0.1, 0.1, 0.1, 0.9))
+					draw_string(ThemeDB.fallback_font, Vector2(px - 45, py + 4), "[ OBRAS: " + str(max_d) + "d ]", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color.ORANGE)
 	
 	for draft in draft_paths:
 		_draw_custom_track(draft, true, false, false)
@@ -760,6 +926,20 @@ func _draw() -> void:
 	if city_b != Vector2i(-1, -1): draw_rect(Rect2(city_b.x * TILE_SIZE, city_b.y * TILE_SIZE, TILE_SIZE, TILE_SIZE), Color.CRIMSON)
 	if city_c != Vector2i(-1, -1): draw_rect(Rect2(city_c.x * TILE_SIZE, city_c.y * TILE_SIZE, TILE_SIZE, TILE_SIZE), Color.FOREST_GREEN)
 	_draw_trains()
+	
+	for cell in GameManager.broken_tiles:
+		var px = cell.x * TILE_SIZE + 16
+		var py = cell.y * TILE_SIZE + 16
+		var b_type = biome_map.get(cell, Biome.PLAIN)
+		if b_type == Biome.FOREST:
+			draw_circle(Vector2(px, py), 14.0, Color(0.8, 0.2, 0.0))
+			draw_circle(Vector2(px, py - 4), 8.0, Color(0.9, 0.6, 0.1))
+		else:
+			draw_line(Vector2(px - 14, py - 14), Vector2(px + 14, py + 14), Color.RED, 4.0)
+			draw_line(Vector2(px + 14, py - 14), Vector2(px - 14, py + 14), Color.RED, 4.0)
+			
+		if repair_tiles.has(cell):
+			draw_arc(Vector2(px, py), 18.0, 0, TAU, 16, Color.YELLOW, 3.0)
 
 func _get_track_color(b: int, is_preview: bool, is_construction: bool, is_deleted: bool = false) -> Color:
 	if is_deleted: return Color(0.8, 0.2, 0.2, 0.7) 
@@ -834,16 +1014,36 @@ func _unhandled_input(event: InputEvent) -> void:
 			if event.button_index == MOUSE_BUTTON_RIGHT and event.is_pressed():
 				var cell = _get_cell_under_mouse(event.position)
 				var handled = false
+				
 				for i in range(draft_paths.size() - 1, -1, -1):
 					if draft_paths[i].has(cell):
 						draft_paths.remove_at(i)
 						handled = true
 						break
+						
+				if not handled:
+					if GameManager.broken_tiles.has(cell):
+						var route_is_deleted = false
+						for r in deleted_paths:
+							if r.has(cell): route_is_deleted = true
+						
+						if not route_is_deleted: 
+							if repair_tiles.has(cell):
+								repair_tiles.erase(cell)
+							else:
+								repair_tiles.append(cell)
+							handled = true
+							
 				if not handled:
 					for r in confirmed_routes:
 						if r.has(cell):
-							if deleted_paths.has(r): deleted_paths.erase(r) 
-							else: deleted_paths.append(r)
+							if deleted_paths.has(r): 
+								deleted_paths.erase(r) 
+							else: 
+								deleted_paths.append(r)
+								for c in r:
+									if repair_tiles.has(c):
+										repair_tiles.erase(c)
 							break
 				_update_edit_panel()
 				queue_redraw()
@@ -906,7 +1106,6 @@ func _update_network_status() -> void:
 	GameManager.ideal_maint_env = i_env
 	GameManager.ideal_maint_sec = i_sec
 	
-	# NOVO: Calculo dos custos ideais da equipa e do lobby baseado na complexidade da rede
 	GameManager.ideal_maint_crew = GameManager.active_contracts.size() * 25
 	GameManager.ideal_maint_lobby = 50
 	
@@ -919,20 +1118,48 @@ func _update_network_status() -> void:
 	if city_b != Vector2i(-1, -1): built[city_b] = true
 	if city_c != Vector2i(-1, -1): built[city_c] = true
 	
+	var built_unbroken = built.duplicate()
+	for bt in GameManager.broken_tiles:
+		built_unbroken.erase(bt)
+	
 	var connections = []
 	var stats = {}
 	
 	if city_a != Vector2i(-1, -1) and city_b != Vector2i(-1, -1):
-		var res = _get_route_capabilities(city_a, city_b, built)
-		if not res.is_empty(): connections.append("Azul-Vermelha"); stats["Azul-Vermelha"] = res
+		var res_unb = _get_route_capabilities(city_a, city_b, built_unbroken)
+		if not res_unb.is_empty(): 
+			connections.append("Azul-Vermelha")
+			stats["Azul-Vermelha"] = res_unb
+		else:
+			var res_b = _get_route_capabilities(city_a, city_b, built)
+			if not res_b.is_empty():
+				connections.append("Azul-Vermelha")
+				res_b["is_broken"] = true
+				stats["Azul-Vermelha"] = res_b
 			
 	if city_a != Vector2i(-1, -1) and city_c != Vector2i(-1, -1):
-		var res = _get_route_capabilities(city_a, city_c, built)
-		if not res.is_empty(): connections.append("Azul-Verde"); stats["Azul-Verde"] = res
+		var res_unb = _get_route_capabilities(city_a, city_c, built_unbroken)
+		if not res_unb.is_empty(): 
+			connections.append("Azul-Verde")
+			stats["Azul-Verde"] = res_unb
+		else:
+			var res_b = _get_route_capabilities(city_a, city_c, built)
+			if not res_b.is_empty():
+				connections.append("Azul-Verde")
+				res_b["is_broken"] = true
+				stats["Azul-Verde"] = res_b
 			
 	if city_b != Vector2i(-1, -1) and city_c != Vector2i(-1, -1):
-		var res = _get_route_capabilities(city_b, city_c, built)
-		if not res.is_empty(): connections.append("Vermelha-Verde"); stats["Vermelha-Verde"] = res
+		var res_unb = _get_route_capabilities(city_b, city_c, built_unbroken)
+		if not res_unb.is_empty(): 
+			connections.append("Vermelha-Verde")
+			stats["Vermelha-Verde"] = res_unb
+		else:
+			var res_b = _get_route_capabilities(city_b, city_c, built)
+			if not res_b.is_empty():
+				connections.append("Vermelha-Verde")
+				res_b["is_broken"] = true
+				stats["Vermelha-Verde"] = res_b
 			
 	GameManager.network_connections = connections
 	GameManager.network_stats = stats

@@ -156,7 +156,6 @@ func start_call(company_name: String, company_type: String, company_cargo: Strin
 
 	_type_next_char(true)
 
-# NOVO: Chamada para o Contrato de Risco
 func start_risk_call(company_name: String, route_name: String, base_reward: int) -> void:
 	_reset_ui()
 	current_mode = "RISK_CALL"
@@ -182,7 +181,7 @@ func start_rejection_call(company_name: String, custom_reason: String = "") -> v
 	name_label.add_theme_color_override("font_color", Color.INDIAN_RED)
 	
 	if custom_reason == "":
-		full_text = "Voce esta a brincar comigo? Acabei de ver os relatorios dos fiscais...\n"
+		full_text = "Voce esta de brincadeira comigo? Acabei de ver os relatorios dos fiscais...\n"
 		full_text += "A sua empresa NAO TEM infraestrutura construida nesta regiao!\n"
 		full_text += "Vou bloquear o seu numero. So ligue quando for profissional."
 	else:
@@ -199,7 +198,7 @@ func start_angry_call() -> void:
 	name_label.text = "[ TRANSMISSAO: CLIENTE FURIOSO ]"
 	name_label.add_theme_color_override("font_color", Color.RED)
 	
-	full_text = "OS NOSSOS COMBOIOS ESTAO PARADOS NO MEIO DO NADA!\n"
+	full_text = "OS NOSSOS TRENS ESTAO PARADOS NO MEIO DO NADA!\n"
 	full_text += "Os nossos maquinistas reportam que VOCE DESTRUIU AS LINHAS!\n"
 	full_text += "O contrato esta rescindido e os nossos advogados ja cobraram a multa!"
 	
@@ -234,18 +233,32 @@ func start_cancel_warning(company_name: String, idx: int) -> void:
 	
 	_type_next_char(true)
 
+# NOVO: O Badger agora relata o desastre físico!
 func start_badger_radio() -> void:
 	_reset_ui()
-	current_mode = "RADIO_EVENT"
 	
 	name_label.text = "[ FREQUENCIA 104.2: MAQUINISTA BADGER ]"
 	name_label.add_theme_color_override("font_color", Color.SKY_BLUE)
 	
-	full_text = "Chefe. Aqui e o Badger. Motoqueiros trancaram a linha na planicie de novo.\n\n"
-	full_text += "O povo das cidades ta esperando esses suprimentos pra comer hoje, mas se eu passar com o trem "
-	full_text += "por cima desses bandidos, eles vao atirar contra a caldeira. E se a gente recuar, a carga atrasa e a empresa perde moral.\n\n"
-	full_text += "Aguardo ordens, Chefe."
-	
+	if GameManager.broken_tiles.size() > 0:
+		current_mode = "RADIO_DISASTER"
+		full_text = "ALERTA VERMELHO CHEFE! A via cedeu logo a frente do nosso trem!\n\n"
+		full_text += "A composicao esta parada e nao podemos avancar. Precisamos que o senhor entre no Mapa, "
+		full_text += "ative o Modo de Obras e reconstrua o trecho destruido imediatamente!\n\n"
+		full_text += "A carga vai apodrecer aqui se nao formos rapidos!"
+		
+		btn_opt_1.text = "[ Entendido. Preparando obras. ]"
+	else:
+		current_mode = "RADIO_EVENT"
+		full_text = "Chefe. Aqui e o Badger. Motoqueiros trancaram a linha na planicie de novo.\n\n"
+		full_text += "O povo das cidades ta esperando esses suprimentos pra comer hoje, mas se eu passar com o trem "
+		full_text += "por cima desses bandidos, eles vao atirar contra a caldeira. E se a gente recuar, a carga atrasa e a empresa perde moral.\n\n"
+		full_text += "Aguardo ordens, Chefe."
+		
+		btn_opt_1.text = "[ Pagar Pedagio ($150) ]"
+		btn_opt_2.text = "[ Recuar (Atrasa a Carga) ]"
+		btn_opt_3.text = "[ Avancar a Forca (Risco) ]"
+		
 	_type_next_char(false)
 
 func _reset_ui() -> void:
@@ -281,23 +294,27 @@ func _type_next_char(is_negotiation: bool) -> void:
 		is_typing = false
 		_show_buttons(is_negotiation)
 
+# NOVO: Exibe apenas 1 botão se for desastre
 func _show_buttons(is_negotiation: bool) -> void:
 	if current_mode == "RADIO_EVENT":
 		btn_opt_1.visible = true
 		btn_opt_2.visible = true
 		btn_opt_3.visible = true
 	else:
-		if is_negotiation:
-			btn_accept.visible = true
-			btn_reject.visible = true
-			if current_mode == "CANCEL_WARNING":
-				btn_accept.text = "ROMPER CONTRATO"
-				btn_reject.text = "VOLTAR ATRAS"
-			else:
-				btn_accept.text = "ENVIAR PROPOSTA"
-				btn_reject.text = "DESLIGAR"
+		if current_mode == "RADIO_DISASTER":
+			btn_opt_1.visible = true
 		else:
-			btn_close.visible = true
+			if is_negotiation:
+				btn_accept.visible = true
+				btn_reject.visible = true
+				if current_mode == "CANCEL_WARNING":
+					btn_accept.text = "ROMPER CONTRATO"
+					btn_reject.text = "VOLTAR ATRAS"
+				else:
+					btn_accept.text = "ENVIAR PROPOSTA"
+					btn_reject.text = "DESLIGAR"
+			else:
+				btn_close.visible = true
 
 func _on_accept() -> void:
 	visible = false

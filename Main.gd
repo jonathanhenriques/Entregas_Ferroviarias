@@ -72,7 +72,6 @@ func _setup_main_menu() -> void:
 	btn_continue.position = Vector2(start_x, 550)
 	btn_continue.size = Vector2(400, 70)
 	
-	# NOVO: Ativa o botao Continuar se houver save!
 	if GameManager.has_save():
 		btn_continue.text = "CONTINUAR JOGO"
 		btn_continue.disabled = false
@@ -126,7 +125,6 @@ func _on_btn_new_game_pressed() -> void:
 	menu_layer.visible = false
 	_start_intro_letter()
 
-# NOVO: Funcao de Continuar o Jogo
 func _on_btn_continue_pressed() -> void:
 	if GameManager.load_game():
 		menu_layer.visible = false
@@ -227,7 +225,7 @@ func _setup_esc_menu() -> void:
 	esc_layer.add_child(btn_esc_map)
 	
 	btn_esc_desk = Button.new()
-	btn_esc_desk.text = "VOLTAR À MESA"
+	btn_esc_desk.text = "VOLTAR A MESA"
 	btn_esc_desk.position = Vector2(start_x, start_y + 80)
 	btn_esc_desk.size = Vector2(menu_w, 60)
 	btn_esc_desk.pressed.connect(_on_btn_esc_desk_pressed)
@@ -244,6 +242,9 @@ func _setup_esc_menu() -> void:
 	esc_layer.visible = false
 
 func _toggle_esc_menu() -> void:
+	if not is_instance_valid(esc_layer):
+		return
+		
 	is_esc_open = not is_esc_open
 	esc_layer.visible = is_esc_open
 	
@@ -258,12 +259,15 @@ func _toggle_esc_menu() -> void:
 		btn_esc_map.disabled = false
 		btn_esc_map.text = "VOLTAR AO MAPA"
 		btn_esc_desk.disabled = false
-		btn_esc_desk.text = "VOLTAR À MESA"
+		btn_esc_desk.text = "VOLTAR A MESA"
 
 func _on_btn_esc_map_pressed() -> void: go_to_map()
 func _on_btn_esc_desk_pressed() -> void: go_to_desk()
 func _on_btn_esc_quit_pressed() -> void: get_tree().quit()
 
 func _on_game_over(is_victory: bool, message: String) -> void:
-	if esc_layer: esc_layer.queue_free()
+	# A correção: Escondemos o menu em vez de destrui-lo!
+	if is_instance_valid(esc_layer): 
+		esc_layer.visible = false
+		is_esc_open = false
 	go_to_desk()
