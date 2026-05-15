@@ -587,6 +587,7 @@ func _update_edit_panel() -> void:
 	edit_info.text = t
 	btn_confirm.disabled = not is_valid
 
+# CORREÇÃO: A lógica de Subtração (Isolamento de Obras) foi implementada aqui
 func _on_confirm_edit_pressed() -> void:
 	GameManager.money -= net_cost
 	
@@ -630,36 +631,29 @@ func _on_confirm_edit_pressed() -> void:
 	if city_b != Vector2i(-1, -1): built[city_b] = true
 	if city_c != Vector2i(-1, -1): built[city_c] = true
 	
-	var path_ab = []
-	var path_ac = []
-	var path_bc = []
-	
-	if city_a != Vector2i(-1, -1) and city_b != Vector2i(-1, -1):
-		path_ab = _bfs_get_path_array(city_a, city_b, built)
-	if city_a != Vector2i(-1, -1) and city_c != Vector2i(-1, -1):
-		path_ac = _bfs_get_path_array(city_a, city_c, built)
-	if city_b != Vector2i(-1, -1) and city_c != Vector2i(-1, -1):
-		path_bc = _bfs_get_path_array(city_b, city_c, built)
-	
-	var cd_ab = false
-	var cd_ac = false
-	var cd_bc = false
-	
-	for c in path_ab:
-		if affected_tiles.has(c): cd_ab = true
-	for c in path_ac:
-		if affected_tiles.has(c): cd_ac = true
-	for c in path_bc:
-		if affected_tiles.has(c): cd_bc = true
+	var built_unbroken = built.duplicate()
+	for bt in GameManager.broken_tiles:
+		built_unbroken.erase(bt)
+		
+	# A SUBTRAÇÃO LÓGICA: Mapa imaginário sem os blocos mexidos hoje
+	var untouched_unbroken = built_unbroken.duplicate()
+	for cell in affected_tiles.keys():
+		untouched_unbroken.erase(cell)
 		
 	_update_network_status()
 	
-	if cd_ab and GameManager.network_connections.has("Azul-Vermelha"):
-		GameManager.routes_under_construction["Azul-Vermelha"] = 2
-	if cd_ac and GameManager.network_connections.has("Azul-Verde"):
-		GameManager.routes_under_construction["Azul-Verde"] = 2
-	if cd_bc and GameManager.network_connections.has("Vermelha-Verde"):
-		GameManager.routes_under_construction["Vermelha-Verde"] = 2
+	# Só congela a via se o caminho não for possível no mapa imaginário (intocado)
+	if GameManager.network_connections.has("Azul-Vermelha"):
+		if _bfs_shortest_dist(city_a, city_b, untouched_unbroken, false, false) == -1:
+			GameManager.routes_under_construction["Azul-Vermelha"] = 2
+			
+	if GameManager.network_connections.has("Azul-Verde"):
+		if _bfs_shortest_dist(city_a, city_c, untouched_unbroken, false, false) == -1:
+			GameManager.routes_under_construction["Azul-Verde"] = 2
+			
+	if GameManager.network_connections.has("Vermelha-Verde"):
+		if _bfs_shortest_dist(city_b, city_c, untouched_unbroken, false, false) == -1:
+			GameManager.routes_under_construction["Vermelha-Verde"] = 2
 		
 	GameManager.contracts_updated.emit()
 	GameManager.save_game()
@@ -840,7 +834,6 @@ func _is_cell_occupied_by_track(cell: Vector2i) -> bool:
 		if cell in draft: return true
 	return false
 
-# A correção visual reside aqui: o mapa volta a usar o sistema infalível de "const_cells"!
 func _draw() -> void:
 	for x in range(grid_width):
 		for y in range(grid_height):
@@ -870,23 +863,16 @@ func _draw() -> void:
 	if city_b != Vector2i(-1, -1): valid_built[city_b] = true
 	if city_c != Vector2i(-1, -1): valid_built[city_c] = true
 	
-	var path_ab = []
-	var path_ac = []
-	var path_bc = []
-	if city_a != Vector2i(-1, -1) and city_b != Vector2i(-1, -1):
-		path_ab = _bfs_get_path_array(city_a, city_b, valid_built)
-	if city_a != Vector2i(-1, -1) and city_c != Vector2i(-1, -1):
-		path_ac = _bfs_get_path_array(city_a, city_c, valid_built)
-	if city_b != Vector2i(-1, -1) and city_c != Vector2i(-1, -1):
-		path_bc = _bfs_get_path_array(city_b, city_c, valid_built)
-
 	var const_cells = {}
 	if GameManager.routes_under_construction.get("Azul-Vermelha", 0) > 0:
-		for c in path_ab: const_cells[c] = GameManager.routes_under_construction["Azul-Vermelha"]
+		var p = _bfs_get_path_array(city_a, city_b, valid_built)
+		for c in p: const_cells[c] = GameManager.routes_under_construction["Azul-Vermelha"]
 	if GameManager.routes_under_construction.get("Azul-Verde", 0) > 0:
-		for c in path_ac: const_cells[c] = GameManager.routes_under_construction["Azul-Verde"]
+		var p = _bfs_get_path_array(city_a, city_c, valid_built)
+		for c in p: const_cells[c] = GameManager.routes_under_construction["Azul-Verde"]
 	if GameManager.routes_under_construction.get("Vermelha-Verde", 0) > 0:
-		for c in path_bc: const_cells[c] = GameManager.routes_under_construction["Vermelha-Verde"]
+		var p = _bfs_get_path_array(city_b, city_c, valid_built)
+		for c in p: const_cells[c] = GameManager.routes_under_construction["Vermelha-Verde"]
 
 	var drawn_texts = {}
 	for route in confirmed_routes: 
@@ -903,14 +889,14 @@ func _draw() -> void:
 		if route_is_const and not is_del:
 			if route.size() > 2:
 				var mid = route[route.size() / 2]
-				var px = mid.x * TILE_SIZE + 16
-				var py = mid.y * TILE_SIZE + 16
-				
-				var mid_str = str(mid.x) + "_" + str(mid.y)
-				if not drawn_texts.has(mid_str):
-					drawn_texts[mid_str] = true
-					draw_rect(Rect2(px - 50, py - 12, 100, 24), Color(0.1, 0.1, 0.1, 0.9))
-					draw_string(ThemeDB.fallback_font, Vector2(px - 45, py + 4), "[ OBRAS: " + str(max_d) + "d ]", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color.ORANGE)
+				if const_cells.has(mid):
+					var px = mid.x * TILE_SIZE + 16
+					var py = mid.y * TILE_SIZE + 16
+					var mid_str = str(mid.x) + "_" + str(mid.y)
+					if not drawn_texts.has(mid_str):
+						drawn_texts[mid_str] = true
+						draw_rect(Rect2(px - 50, py - 12, 100, 24), Color(0.1, 0.1, 0.1, 0.9))
+						draw_string(ThemeDB.fallback_font, Vector2(px - 45, py + 4), "[ OBRAS: " + str(max_d) + "d ]", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color.ORANGE)
 	
 	for draft in draft_paths:
 		_draw_custom_track(draft, true, false, false)

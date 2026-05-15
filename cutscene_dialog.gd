@@ -191,6 +191,7 @@ func start_rejection_call(company_name: String, custom_reason: String = "") -> v
 	
 	_type_next_char(false)
 
+# CORREÇÃO DO BUG DE TEXTO: Cliente agora relata o real motivo do cancelamento do Risco.
 func start_angry_call() -> void:
 	_reset_ui()
 	current_mode = "ANGRY"
@@ -198,9 +199,9 @@ func start_angry_call() -> void:
 	name_label.text = "[ TRANSMISSAO: CLIENTE FURIOSO ]"
 	name_label.add_theme_color_override("font_color", Color.RED)
 	
-	full_text = "OS NOSSOS TRENS ESTAO PARADOS NO MEIO DO NADA!\n"
-	full_text += "Os nossos maquinistas reportam que VOCE DESTRUIU AS LINHAS!\n"
-	full_text += "O contrato esta rescindido e os nossos advogados ja cobraram a multa!"
+	full_text = "VOCE ACHA QUE SOMOS PALHACOS? O nosso prazo estourou e o trem nao saiu do lugar!\n"
+	full_text += "A via nao atendeu as exigencias a tempo! Nao sei se foi atraso nas obras, buraco no trilho ou quebra das regras VIP e Ecologicas...\n"
+	full_text += "O contrato de risco esta rescindido e a multa ja foi debitada da sua conta!"
 	
 	_type_next_char(false)
 
@@ -233,7 +234,6 @@ func start_cancel_warning(company_name: String, idx: int) -> void:
 	
 	_type_next_char(true)
 
-# NOVO: O Badger agora relata o desastre físico!
 func start_badger_radio() -> void:
 	_reset_ui()
 	
@@ -294,7 +294,6 @@ func _type_next_char(is_negotiation: bool) -> void:
 		is_typing = false
 		_show_buttons(is_negotiation)
 
-# NOVO: Exibe apenas 1 botão se for desastre
 func _show_buttons(is_negotiation: bool) -> void:
 	if current_mode == "RADIO_EVENT":
 		btn_opt_1.visible = true

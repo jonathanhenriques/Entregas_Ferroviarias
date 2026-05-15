@@ -60,12 +60,15 @@ var dial_current_rot: float = 0.0
 var max_rot: float = 0.0
 
 var spawned_papers: Array = []
-var outbox_papers: Array = []
 
 var outbox_rect: ColorRect
 var trash_rect: ColorRect
-var stamp_approve: ColorRect
+
+var tool_pen: ColorRect
 var stamp_reject: ColorRect
+var stamp_cia: ColorRect
+
+var pad_extension: ColorRect
 
 var eod_layer: CanvasLayer
 var eod_lines_container: VBoxContainer
@@ -145,12 +148,6 @@ func _setup_ui() -> void:
 	diretrizes_rect.position = Vector2(420, 40)
 	ui_layer.add_child(diretrizes_rect)
 	
-	var selo_clip = ColorRect.new()
-	selo_clip.color = Color(0.1, 0.1, 0.1)
-	selo_clip.size = Vector2(25, 60)
-	selo_clip.position = Vector2(0, 0)
-	diretrizes_rect.add_child(selo_clip)
-	
 	diretrizes_label = Label.new()
 	diretrizes_label.position = Vector2(40, 10)
 	diretrizes_label.add_theme_font_size_override("font_size", 16)
@@ -170,10 +167,107 @@ func _setup_ui() -> void:
 	diretrizes_bar.add_theme_stylebox_override("fill", fg_bar)
 	diretrizes_rect.add_child(diretrizes_bar)
 
+	outbox_rect = ColorRect.new()
+	outbox_rect.color = Color(0.3, 0.25, 0.2, 0.5) 
+	outbox_rect.size = Vector2(340, 480) 
+	outbox_rect.position = Vector2(1500, 40)
+	outbox_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ui_layer.add_child(outbox_rect)
+	
+	var outbox_border = ReferenceRect.new()
+	outbox_border.set_anchors_preset(Control.PRESET_FULL_RECT)
+	outbox_border.border_color = Color(0.6, 0.5, 0.4)
+	outbox_border.border_width = 4
+	outbox_rect.add_child(outbox_border)
+	
+	var outbox_title = Label.new()
+	outbox_title.text = "BANDEJA DE SAIDA\n(Contratos Validados)"
+	outbox_title.add_theme_color_override("font_color", Color.WHITE)
+	outbox_title.position = Vector2(20, 20)
+	outbox_rect.add_child(outbox_title)
+
+	trash_rect = ColorRect.new()
+	trash_rect.color = Color(0.1, 0.1, 0.12)
+	trash_rect.size = Vector2(150, 150)
+	trash_rect.position = Vector2(1700, 880)
+	trash_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ui_layer.add_child(trash_rect)
+	
+	var trash_lbl = Label.new()
+	trash_lbl.text = "LIXEIRA"
+	trash_lbl.add_theme_color_override("font_color", Color.DIM_GRAY)
+	trash_lbl.position = Vector2(40, 60)
+	trash_rect.add_child(trash_lbl)
+
+	var tool_y = 120
+
+	tool_pen = ColorRect.new()
+	tool_pen.color = Color(0.7, 0.7, 0.7) 
+	tool_pen.size = Vector2(15, 100)
+	tool_pen.position = Vector2(500, tool_y)
+	ui_layer.add_child(tool_pen)
+	_make_draggable(tool_pen, "tool_pen")
+	
+	var pen_tip = ColorRect.new()
+	pen_tip.color = Color.BLACK
+	pen_tip.size = Vector2(15, 15)
+	pen_tip.position = Vector2(0, 100)
+	pen_tip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tool_pen.add_child(pen_tip)
+
+	stamp_reject = ColorRect.new()
+	stamp_reject.color = Color(0.6, 0.2, 0.2)
+	stamp_reject.size = Vector2(70, 90)
+	stamp_reject.position = Vector2(600, tool_y)
+	ui_layer.add_child(stamp_reject)
+	_make_draggable(stamp_reject, "tool_reject")
+	
+	var lbl_r = Label.new()
+	lbl_r.text = "REJEITAR"
+	lbl_r.add_theme_font_size_override("font_size", 12)
+	lbl_r.position = Vector2(5, 40)
+	stamp_reject.add_child(lbl_r)
+
+	stamp_cia = ColorRect.new()
+	stamp_cia.color = Color(0.2, 0.3, 0.5)
+	stamp_cia.size = Vector2(70, 90)
+	stamp_cia.position = Vector2(720, tool_y)
+	ui_layer.add_child(stamp_cia)
+	_make_draggable(stamp_cia, "tool_cia")
+	
+	var lbl_cia = Label.new()
+	lbl_cia.text = "SELO CIA"
+	lbl_cia.add_theme_font_size_override("font_size", 12)
+	lbl_cia.position = Vector2(5, 40)
+	stamp_cia.add_child(lbl_cia)
+
+	# NOVO: Bloco Físico de Extensões na Mesa
+	pad_extension = ColorRect.new()
+	pad_extension.color = Color(0.35, 0.4, 0.45)
+	pad_extension.size = Vector2(140, 180)
+	pad_extension.position = Vector2(40, 600)
+	ui_layer.add_child(pad_extension)
+	
+	var pad_clip_ext = ColorRect.new()
+	pad_clip_ext.color = Color(0.1, 0.1, 0.1)
+	pad_clip_ext.size = Vector2(140, 20)
+	pad_extension.add_child(pad_clip_ext)
+	
+	var pad_ext_lbl = Label.new()
+	pad_ext_lbl.text = "FORMS.\nEXTENSAO"
+	pad_ext_lbl.add_theme_font_size_override("font_size", 14)
+	pad_ext_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	pad_ext_lbl.position = Vector2(0, 50)
+	pad_ext_lbl.size = Vector2(140, 40)
+	pad_extension.add_child(pad_ext_lbl)
+	
+	pad_extension.mouse_filter = Control.MOUSE_FILTER_STOP
+	pad_extension.gui_input.connect(_on_pad_extension_input)
+
 	agenda_rect = ColorRect.new()
 	agenda_rect.color = Color(0.85, 0.8, 0.6) 
 	agenda_rect.size = Vector2(300, 400)
-	agenda_rect.position = Vector2(80, 250)
+	agenda_rect.position = Vector2(80, 200)
 	ui_layer.add_child(agenda_rect)
 	_make_draggable(agenda_rect, "panel")
 	
@@ -226,7 +320,7 @@ func _setup_ui() -> void:
 	active_paper_rect = ColorRect.new()
 	active_paper_rect.color = Color(0.85, 0.9, 0.95) 
 	active_paper_rect.size = Vector2(330, 400)
-	active_paper_rect.position = Vector2(1450, 250)
+	active_paper_rect.position = Vector2(1450, 550) 
 	ui_layer.add_child(active_paper_rect)
 	_make_draggable(active_paper_rect, "panel")
 
@@ -348,56 +442,6 @@ func _setup_ui() -> void:
 	dial_rect.gui_input.connect(_on_dial_gui_input)
 	phone_rect.add_child(dial_rect)
 
-	outbox_rect = ColorRect.new()
-	outbox_rect.color = Color(0.15, 0.1, 0.05) 
-	outbox_rect.size = Vector2(330, 180)
-	outbox_rect.position = Vector2(1450, 40)
-	outbox_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	ui_layer.add_child(outbox_rect)
-	
-	var outbox_title = Label.new()
-	outbox_title.text = "CAIXA DE SAIDA\n(Enviar por Correio)"
-	outbox_title.add_theme_color_override("font_color", Color.LIGHT_GRAY)
-	outbox_title.position = Vector2(20, 20)
-	outbox_rect.add_child(outbox_title)
-
-	trash_rect = ColorRect.new()
-	trash_rect.color = Color(0.1, 0.1, 0.12)
-	trash_rect.size = Vector2(120, 120)
-	trash_rect.position = Vector2(1750, 920)
-	trash_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	ui_layer.add_child(trash_rect)
-	
-	var trash_lbl = Label.new()
-	trash_lbl.text = "LIXEIRA\n(Rasgar)"
-	trash_lbl.add_theme_color_override("font_color", Color.DIM_GRAY)
-	trash_lbl.position = Vector2(10, 30)
-	trash_rect.add_child(trash_lbl)
-
-	stamp_approve = ColorRect.new()
-	stamp_approve.color = Color(0.2, 0.5, 0.2)
-	stamp_approve.size = Vector2(80, 100)
-	stamp_approve.position = Vector2(800, 850)
-	ui_layer.add_child(stamp_approve)
-	_make_draggable(stamp_approve, "stamp_approve")
-	
-	var lbl_a = Label.new()
-	lbl_a.text = "APROVAR"
-	lbl_a.position = Vector2(5, 40)
-	stamp_approve.add_child(lbl_a)
-
-	stamp_reject = ColorRect.new()
-	stamp_reject.color = Color(0.6, 0.2, 0.2)
-	stamp_reject.size = Vector2(80, 100)
-	stamp_reject.position = Vector2(920, 850)
-	ui_layer.add_child(stamp_reject)
-	_make_draggable(stamp_reject, "stamp_reject")
-	
-	var lbl_r = Label.new()
-	lbl_r.text = "REJEITAR"
-	lbl_r.position = Vector2(5, 40)
-	stamp_reject.add_child(lbl_r)
-
 	radio_rect = ColorRect.new()
 	radio_rect.color = Color(0.6, 0.6, 0.65) 
 	radio_rect.size = Vector2(250, 120)
@@ -486,6 +530,87 @@ func _setup_eod_ui() -> void:
 	eod_receipt.add_child(btn_eod_sleep)
 	
 	eod_layer.visible = false
+
+# NOVO: Geração do Formulário de Extensão
+func _on_pad_extension_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_LEFT and event.is_pressed():
+			_spawn_extension_form()
+
+func _spawn_extension_form() -> void:
+	var paper = ColorRect.new()
+	paper.color = Color(0.7, 0.75, 0.8) 
+	paper.size = Vector2(300, 420)
+	paper.position = Vector2(500 + randf_range(-30, 30), 200 + randf_range(-30, 30))
+	paper.rotation_degrees = randf_range(-4, 4)
+
+	var content = Label.new()
+	content.add_theme_color_override("font_color", Color.BLACK)
+	content.text = "REQUERIMENTO DE EXTENSAO\n\nSolicito +3 dias de prazo.\nCiente da multa de -30% no valor.\n\nContrato Alvo:"
+	content.position = Vector2(20, 20)
+	paper.add_child(content)
+
+	paper.set_meta("is_paper", true)
+	paper.set_meta("is_extension", true)
+	paper.set_meta("selected_idx", -1)
+	paper.set_meta("action", "")
+	paper.set_meta("is_processed", false)
+	paper.set_meta("has_cia_stamp", false)
+
+	_make_draggable(paper, "paper")
+
+	if GameManager.active_contracts.size() == 0:
+		var lbl_empty = Label.new()
+		lbl_empty.text = "(Nenhum contrato ativo)"
+		lbl_empty.add_theme_color_override("font_color", Color.DIM_GRAY)
+		lbl_empty.position = Vector2(20, 180)
+		paper.add_child(lbl_empty)
+	else:
+		for i in range(GameManager.active_contracts.size()):
+			var c = GameManager.active_contracts[i]
+			
+			var cb_bg = ColorRect.new()
+			cb_bg.color = Color.BLACK
+			cb_bg.size = Vector2(24, 24)
+			cb_bg.position = Vector2(20, 180 + (i * 40))
+			cb_bg.set_meta("is_checkbox", true)
+
+			var cb_fg = ColorRect.new()
+			cb_fg.color = Color.WHITE
+			cb_fg.size = Vector2(20, 20)
+			cb_fg.position = Vector2(2, 2)
+			cb_bg.add_child(cb_fg)
+
+			var cb_mark = Label.new()
+			cb_mark.text = "X"
+			cb_mark.add_theme_color_override("font_color", Color.BLACK)
+			cb_mark.add_theme_font_size_override("font_size", 20)
+			cb_mark.position = Vector2(2, -4)
+			cb_mark.visible = false
+			cb_fg.add_child(cb_mark)
+
+			var lbl = Label.new()
+			lbl.text = "T" + str(i+1) + " - " + c["company_name"]
+			lbl.add_theme_color_override("font_color", Color.BLACK)
+			lbl.position = Vector2(55, 180 + (i * 40))
+			paper.add_child(lbl)
+
+			cb_bg.mouse_filter = Control.MOUSE_FILTER_STOP
+			cb_bg.gui_input.connect(_on_extension_checkbox_input.bind(cb_bg, paper, i, cb_mark))
+			paper.add_child(cb_bg)
+
+	ui_layer.add_child(paper)
+	spawned_papers.append(paper)
+
+func _on_extension_checkbox_input(event: InputEvent, cb_bg: ColorRect, paper: Control, idx: int, mark: Label) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.is_pressed():
+		for child in paper.get_children():
+			if child.has_meta("is_checkbox"):
+				var inner = child.get_child(0)
+				inner.get_child(0).visible = false
+		mark.visible = true
+		paper.set_meta("selected_idx", idx)
+		cb_bg.accept_event()
 
 func _on_dial_draw() -> void:
 	var center = dial_rect.size / 2.0
@@ -599,7 +724,7 @@ func _make_draggable(panel: Control, type: String = "panel") -> void:
 	panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	panel.set_meta("drag_type", type)
 	panel.gui_input.connect(_on_panel_gui_input.bind(panel))
-	if type == "panel" or type == "radio" or type.begins_with("stamp"):
+	if type == "panel" or type == "radio" or type.begins_with("tool"):
 		original_transforms[panel] = panel.position
 
 func _on_panel_gui_input(event: InputEvent, panel: Control) -> void:
@@ -607,23 +732,17 @@ func _on_panel_gui_input(event: InputEvent, panel: Control) -> void:
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			if event.is_pressed():
-				if event.double_click:
-					if type == "paper":
-						var current_stamp = panel.get_meta("stamp")
-						if current_stamp != "":
-							_fold_paper(panel)
-				else:
-					dragged_panel = panel
-					drag_offset = panel.get_global_mouse_position() - panel.global_position
-					panel.get_parent().move_child(panel, -1) 
-					if type == "panel" or type == "paper":
-						panel.rotation_degrees = 0 
+				dragged_panel = panel
+				drag_offset = panel.get_global_mouse_position() - panel.global_position
+				panel.get_parent().move_child(panel, -1) 
+				if type == "panel" or type == "paper":
+					panel.rotation_degrees = 0 
 			else:
 				if dragged_panel == panel:
 					dragged_panel = null
 					
-					if type == "stamp_approve" or type == "stamp_reject":
-						_try_stamp_papers(panel.get_global_mouse_position(), type)
+					if type.begins_with("tool"):
+						_try_apply_tool(panel.get_global_mouse_position(), type)
 						var tw = create_tween()
 						tw.tween_property(panel, "position", original_transforms[panel], 0.2)
 					else:
@@ -636,7 +755,6 @@ func _on_panel_gui_input(event: InputEvent, panel: Control) -> void:
 							if type == "paper":
 								panel.rotation_degrees = randf_range(-4.0, 4.0) 
 								_clamp_to_screen(panel)
-								_try_outbox_paper(panel)
 							else:
 								if type == "panel":
 									panel.rotation_degrees = randf_range(-3.0, 3.0) 
@@ -655,84 +773,61 @@ func _clamp_to_screen(panel: Control) -> void:
 	p.y = clamp(p.y, 0, s.y - sz.y)
 	panel.global_position = p
 
-func _try_stamp_papers(stamp_pos: Vector2, stamp_type: String) -> void:
+func _try_apply_tool(pos: Vector2, tool_type: String) -> void:
 	for i in range(spawned_papers.size() - 1, -1, -1):
 		var p = spawned_papers[i]
-		if p.get_global_rect().has_point(stamp_pos):
-			if p.get_meta("is_folded"):
-				return
+		if p.get_global_rect().has_point(pos):
+			
+			if tool_type == "tool_pen":
+				if p.has_meta("node_reject"):
+					var old_mark = p.get_meta("node_reject")
+					if is_instance_valid(old_mark):
+						old_mark.queue_free()
+					p.remove_meta("node_reject")
+					
+				if not p.has_meta("node_approve"):
+					var mark = Label.new()
+					mark.text = "Ass: Diretor Geral"
+					mark.add_theme_font_size_override("font_size", 28)
+					mark.add_theme_color_override("font_color", Color(0.1, 0.1, 0.6))
+					mark.rotation_degrees = randf_range(-10.0, 10.0)
+					mark.position = p.get_local_mouse_position() - Vector2(80, 20)
+					p.add_child(mark)
+					p.set_meta("node_approve", mark)
+					
+				p.set_meta("action", "approve")
 				
-			var current_stamp = p.get_meta("stamp")
-			if current_stamp == "":
-				p.set_meta("stamp", stamp_type)
-				
-				var mark = Label.new()
-				if stamp_type == "stamp_approve":
-					mark.text = "[ APROVADO ]"
-					mark.add_theme_color_override("font_color", Color(0.1, 0.6, 0.1, 0.8))
-				else:
+			if tool_type == "tool_reject":
+				if p.has_meta("node_approve"):
+					var old_mark = p.get_meta("node_approve")
+					if is_instance_valid(old_mark):
+						old_mark.queue_free()
+					p.remove_meta("node_approve")
+					
+				if not p.has_meta("node_reject"):
+					var mark = Label.new()
 					mark.text = "[ REJEITADO ]"
+					mark.add_theme_font_size_override("font_size", 36)
 					mark.add_theme_color_override("font_color", Color(0.8, 0.1, 0.1, 0.8))
+					mark.rotation_degrees = randf_range(-15.0, 15.0)
+					mark.position = p.get_local_mouse_position() - Vector2(100, 20)
+					p.add_child(mark)
+					p.set_meta("node_reject", mark)
+					
+				p.set_meta("action", "reject")
 				
-				mark.add_theme_font_size_override("font_size", 36)
-				mark.rotation_degrees = randf_range(-15.0, 15.0)
-				mark.position = p.get_local_mouse_position() - Vector2(100, 20)
-				p.add_child(mark)
+			if tool_type == "tool_cia":
+				if not p.has_meta("node_cia"):
+					var seal = Label.new()
+					seal.text = "( SELO DA CIA )"
+					seal.add_theme_font_size_override("font_size", 20)
+					seal.add_theme_color_override("font_color", Color(0.2, 0.3, 0.5, 0.7))
+					seal.rotation_degrees = randf_range(-20.0, 20.0)
+					seal.position = p.get_local_mouse_position() - Vector2(80, 15)
+					p.add_child(seal)
+					p.set_meta("node_cia", seal)
+					
 			return 
-
-func _fold_paper(paper: Control) -> void:
-	if paper.get_meta("is_folded"):
-		return
-		
-	paper.set_meta("is_folded", true)
-	
-	var tween = create_tween().set_parallel(true)
-	tween.tween_property(paper, "size", Vector2(180, 110), 0.2)
-	tween.tween_property(paper, "color", Color(0.85, 0.75, 0.6), 0.2) 
-	
-	for child in paper.get_children():
-		child.visible = false
-		
-	var seal_bg = ColorRect.new()
-	seal_bg.color = Color(0.1, 0.1, 0.1, 0.1)
-	seal_bg.size = Vector2(160, 90)
-	seal_bg.position = Vector2(10, 10)
-	paper.add_child(seal_bg)
-		
-	var seal = Label.new()
-	var s = paper.get_meta("stamp")
-	if s == "stamp_approve":
-		seal.text = "[ APROVADO ]\nLacrado"
-		seal.add_theme_color_override("font_color", Color(0.1, 0.5, 0.1))
-	else:
-		seal.text = "[ REJEITADO ]\nLacrado"
-		seal.add_theme_color_override("font_color", Color(0.6, 0.1, 0.1))
-		
-	seal.add_theme_font_size_override("font_size", 20)
-	seal.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	seal.position = Vector2(10, 25)
-	seal.size = Vector2(160, 60)
-	paper.add_child(seal)
-
-func _try_outbox_paper(paper: Control) -> void:
-	var center = paper.global_position + (paper.size / 2.0)
-	if outbox_rect.get_global_rect().has_point(center):
-		if paper.get_meta("is_folded"):
-			spawned_papers.erase(paper)
-			outbox_papers.append(paper)
-			
-			var tween = create_tween().set_parallel(true)
-			var offset = outbox_papers.size() * 5
-			var target_pos = outbox_rect.global_position + Vector2(30 + offset, 40 - offset)
-			tween.tween_property(paper, "global_position", target_pos, 0.2)
-			tween.tween_property(paper, "rotation_degrees", randf_range(-3.0, 3.0), 0.2)
-			
-			paper.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	else:
-		if trash_rect.get_global_rect().has_point(center):
-			spawned_papers.erase(paper)
-			paper.queue_free()
-			_load_agenda_contacts()
 
 func _on_organize_pressed() -> void:
 	var tween = create_tween().set_parallel(true)
@@ -792,10 +887,7 @@ func _load_agenda_contacts() -> void:
 					
 			var has_pending = false
 			for p in spawned_papers:
-				if is_instance_valid(p) and p.has_meta("company_data") and p.get_meta("company_data")["name"] == c_name:
-					has_pending = true
-			for p in outbox_papers:
-				if is_instance_valid(p) and p.has_meta("company_data") and p.get_meta("company_data")["name"] == c_name:
+				if is_instance_valid(p) and p.get_meta("is_extension", false) == false and p.has_meta("company_data") and p.get_meta("company_data")["name"] == c_name:
 					has_pending = true
 					
 			if has_active: 
@@ -970,18 +1062,18 @@ func _spawn_proposal_paper(c_data: Dictionary, is_urg: bool, reward: int) -> voi
 	if pending_is_risk:
 		text += "[ATENCAO: CONTRATO DE RISCO]\nVia inexistente ou em obras.\nPrazo estrito: 3 dias para iniciar a operacao."
 	else:
-		text += "(Aguardando Parecer da Gestao...)"
+		text += "(Aguarde validacao manual para Enviar)"
 	
 	content.text = text
 	paper.add_child(content)
 
 	paper.set_meta("is_paper", true)
+	paper.set_meta("is_extension", false)
 	paper.set_meta("company_data", c_data)
 	paper.set_meta("is_urgent", is_urg)
 	paper.set_meta("reward", reward)
-	paper.set_meta("stamp", "") 
-	paper.set_meta("is_folded", false) 
 	paper.set_meta("is_risk", pending_is_risk)
+	paper.set_meta("action", "")
 
 	_make_draggable(paper, "paper")
 	ui_layer.add_child(paper)
@@ -1048,7 +1140,6 @@ func _on_radio_choice(idx: int) -> void:
 	_update_active_contracts_text()
 	_update_task_pad()
 
-# NOVO: Caderneta mostra quando houverem buracos não consertados na via
 func _update_task_pad() -> void:
 	for child in task_vbox.get_children():
 		child.queue_free()
@@ -1106,7 +1197,6 @@ func _update_task_pad() -> void:
 		l.add_theme_font_size_override("font_size", 14)
 		task_vbox.add_child(l)
 
-# NOVO: Status da Frota exibe quando a via foi destruída
 func _update_active_contracts_text() -> void:
 	for child in contracts_vbox.get_children(): 
 		child.queue_free()
@@ -1192,50 +1282,73 @@ func _update_report_text() -> void:
 	btn_next_day.disabled = false
 	btn_next_day.text = "Processar Saidas e Finalizar Dia"
 
+# NOVO: O loop finaliza os novos requerimentos de extensão
 func _on_next_day_pressed() -> void: 
 	var new_c_count = 0
 	var rej_c_count = 0
+	var ext_c_count = 0
 	pending_upfront_income = 0
 	
-	for paper in outbox_papers:
-		if is_instance_valid(paper):
-			var stamp = paper.get_meta("stamp")
-			var c_data = paper.get_meta("company_data")
-			var is_urg = paper.get_meta("is_urgent")
-			var rew = paper.get_meta("reward")
-			var is_risk = paper.get_meta("is_risk")
+	var keep_papers = []
+	
+	for paper in spawned_papers:
+		if not is_instance_valid(paper): continue
+		
+		var center = paper.global_position + (paper.size / 2.0)
+		
+		if trash_rect.get_global_rect().has_point(center):
+			paper.queue_free()
+			continue
 			
-			if stamp == "stamp_approve":
-				new_c_count += 1
-				
-				var new_c = {"company_name": c_data["name"], "type": c_data["type"], "cargo": c_data["cargo"], "route_id": c_data["route_id"], "route_name": c_data["route_name"], "reward": rew, "days_left": randi_range(5, 10), "is_urgent": false}
-				if is_urg:
-					pending_upfront_income += rew
-					new_c["cargo"] = "[URG] " + c_data["cargo"]
-					new_c["reward"] = 0
-					new_c["days_left"] = 1
-					new_c["is_urgent"] = true
-					
-				if c_data.has("max_dist"): 
-					new_c["max_dist"] = c_data["max_dist"]
-					
-				if is_risk:
-					new_c["pending_route_days"] = 3
-					
-				GameManager.active_contracts.append(new_c)
+		if outbox_rect.get_global_rect().has_point(center):
+			var action = paper.get_meta("action", "")
+			
+			if paper.get_meta("is_extension", false) == true:
+				if action == "approve":
+					var sel_idx = paper.get_meta("selected_idx", -1)
+					if sel_idx >= 0 and sel_idx < GameManager.active_contracts.size():
+						var c = GameManager.active_contracts[sel_idx]
+						c["days_left"] += 3
+						c["reward"] = int(c["reward"] * 0.7)
+						ext_c_count += 1
+				paper.queue_free()
+				continue
 			else:
-				if stamp == "stamp_reject":
+				var c_data = paper.get_meta("company_data")
+				var is_urg = paper.get_meta("is_urgent")
+				var rew = paper.get_meta("reward")
+				var is_risk = paper.get_meta("is_risk")
+				
+				if action == "approve":
+					new_c_count += 1
+					var new_c = {"company_name": c_data["name"], "type": c_data["type"], "cargo": c_data["cargo"], "route_id": c_data["route_id"], "route_name": c_data["route_name"], "reward": rew, "days_left": randi_range(5, 10), "is_urgent": false}
+					if is_urg:
+						pending_upfront_income += rew
+						new_c["cargo"] = "[URG] " + c_data["cargo"]
+						new_c["reward"] = 0
+						new_c["days_left"] = 1
+						new_c["is_urgent"] = true
+					if c_data.has("max_dist"): 
+						new_c["max_dist"] = c_data["max_dist"]
+					if is_risk:
+						new_c["pending_route_days"] = 3
+					GameManager.active_contracts.append(new_c)
+					
+				if action == "reject":
 					rej_c_count += 1
 					GameManager.company_cooldowns[c_data["name"]] = 3
+				
+				paper.queue_free()
+				continue
 			
-			paper.queue_free()
+		keep_papers.append(paper)
 			
-	outbox_papers.clear()
+	spawned_papers = keep_papers
 	GameManager.contracts_updated.emit()
 	
-	_start_eod_animation(new_c_count, rej_c_count)
+	_start_eod_animation(new_c_count, rej_c_count, ext_c_count)
 
-func _start_eod_animation(new_c: int, rej_c: int) -> void:
+func _start_eod_animation(new_c: int, rej_c: int, ext_c: int) -> void:
 	skip_eod_anim = false
 	eod_layer.visible = true
 	btn_eod_sleep.visible = false
@@ -1259,6 +1372,7 @@ func _start_eod_animation(new_c: int, rej_c: int) -> void:
 			
 	_add_eod_line("Entregas Operando", str(active_count), c_light, false)
 	_add_eod_line("Contratos Fechados", str(new_c), c_light, false)
+	_add_eod_line("Prazos Estendidos", str(ext_c), c_light, false)
 	_add_eod_line("Propostas Rejeitadas", str(rej_c), c_light, false)
 	_add_eod_line("Contratos Rompidos", str(GameManager.today_broken_contracts), c_light, false)
 	
@@ -1364,18 +1478,7 @@ func _on_day_changed(_v) -> void:
 	_update_active_contracts_text()
 	_load_agenda_contacts() 
 	_update_task_pad()
-	
-	if _v == 1:
-		for p in spawned_papers:
-			if is_instance_valid(p):
-				p.queue_free()
-		spawned_papers.clear()
-		for p in outbox_papers:
-			if is_instance_valid(p):
-				p.queue_free()
-		outbox_papers.clear()
 
-# NOVO: Garante que o rádio vai apitar caso o jogador entre na mesa e a via esteja destruída!
 func _on_visibility_changed() -> void:
 	if ui_layer: 
 		ui_layer.visible = visible
