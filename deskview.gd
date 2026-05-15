@@ -62,7 +62,7 @@ var max_rot: float = 0.0
 var spawned_papers: Array = []
 
 var outbox_rect: ColorRect
-var trash_rect: ColorRect
+var trash_rect: Panel
 
 var tool_pen: ColorRect
 var stamp_reject: ColorRect
@@ -169,8 +169,8 @@ func _setup_ui() -> void:
 
 	outbox_rect = ColorRect.new()
 	outbox_rect.color = Color(0.3, 0.25, 0.2, 0.5) 
-	outbox_rect.size = Vector2(340, 480) 
-	outbox_rect.position = Vector2(1500, 40)
+	outbox_rect.size = Vector2(260, 360) 
+	outbox_rect.position = Vector2(1580, 40)
 	outbox_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui_layer.add_child(outbox_rect)
 	
@@ -186,33 +186,42 @@ func _setup_ui() -> void:
 	outbox_title.position = Vector2(20, 20)
 	outbox_rect.add_child(outbox_title)
 
-	trash_rect = ColorRect.new()
-	trash_rect.color = Color(0.1, 0.1, 0.12)
-	trash_rect.size = Vector2(150, 150)
-	trash_rect.position = Vector2(1700, 880)
+	trash_rect = Panel.new()
+	var trash_style = StyleBoxFlat.new()
+	trash_style.bg_color = Color(0.1, 0.1, 0.12)
+	trash_style.corner_radius_top_left = 110
+	trash_style.corner_radius_top_right = 110
+	trash_style.corner_radius_bottom_left = 110
+	trash_style.corner_radius_bottom_right = 110
+	trash_rect.add_theme_stylebox_override("panel", trash_style)
+	trash_rect.size = Vector2(220, 220)
+	trash_rect.position = Vector2(1650, 830)
 	trash_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui_layer.add_child(trash_rect)
 	
 	var trash_lbl = Label.new()
 	trash_lbl.text = "LIXEIRA"
 	trash_lbl.add_theme_color_override("font_color", Color.DIM_GRAY)
-	trash_lbl.position = Vector2(40, 60)
+	trash_lbl.position = Vector2(0, 100)
+	trash_lbl.size = Vector2(220, 30)
+	trash_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	trash_rect.add_child(trash_lbl)
 
 	var tool_y = 120
 
 	tool_pen = ColorRect.new()
-	tool_pen.color = Color(0.7, 0.7, 0.7) 
-	tool_pen.size = Vector2(15, 100)
+	tool_pen.color = Color(0.8, 0.8, 0.85) 
+	tool_pen.size = Vector2(12, 110)
 	tool_pen.position = Vector2(500, tool_y)
+	tool_pen.rotation_degrees = -35.0
 	ui_layer.add_child(tool_pen)
 	_make_draggable(tool_pen, "tool_pen")
 	
-	var pen_tip = ColorRect.new()
-	pen_tip.color = Color.BLACK
-	pen_tip.size = Vector2(15, 15)
-	pen_tip.position = Vector2(0, 100)
-	pen_tip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var pen_tip = Polygon2D.new()
+	pen_tip.color = Color(0.2, 0.2, 0.2)
+	pen_tip.polygon = PackedVector2Array([
+		Vector2(0, 110), Vector2(12, 110), Vector2(6, 125)
+	])
 	tool_pen.add_child(pen_tip)
 
 	stamp_reject = ColorRect.new()
@@ -241,7 +250,6 @@ func _setup_ui() -> void:
 	lbl_cia.position = Vector2(5, 40)
 	stamp_cia.add_child(lbl_cia)
 
-	# NOVO: Bloco Físico de Extensões na Mesa
 	pad_extension = ColorRect.new()
 	pad_extension.color = Color(0.35, 0.4, 0.45)
 	pad_extension.size = Vector2(140, 180)
@@ -531,7 +539,6 @@ func _setup_eod_ui() -> void:
 	
 	eod_layer.visible = false
 
-# NOVO: Geração do Formulário de Extensão
 func _on_pad_extension_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_LEFT and event.is_pressed():
@@ -541,21 +548,26 @@ func _spawn_extension_form() -> void:
 	var paper = ColorRect.new()
 	paper.color = Color(0.7, 0.75, 0.8) 
 	paper.size = Vector2(300, 420)
+	paper.pivot_offset = paper.size / 2.0 
 	paper.position = Vector2(500 + randf_range(-30, 30), 200 + randf_range(-30, 30))
 	paper.rotation_degrees = randf_range(-4, 4)
 
-	var content = Label.new()
-	content.add_theme_color_override("font_color", Color.BLACK)
-	content.text = "REQUERIMENTO DE EXTENSAO\n\nSolicito +3 dias de prazo.\nCiente da multa de -30% no valor.\n\nContrato Alvo:"
-	content.position = Vector2(20, 20)
+	var content = Control.new()
+	content.name = "content"
+	content.set_anchors_preset(Control.PRESET_FULL_RECT)
+	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	paper.add_child(content)
+
+	var content_lbl = Label.new()
+	content_lbl.add_theme_color_override("font_color", Color.BLACK)
+	content_lbl.text = "REQUERIMENTO DE EXTENSAO\n\nSolicito +3 dias de prazo.\nCiente da multa de -30% no valor.\n\nContrato Alvo:"
+	content_lbl.position = Vector2(20, 20)
+	content.add_child(content_lbl)
 
 	paper.set_meta("is_paper", true)
 	paper.set_meta("is_extension", true)
 	paper.set_meta("selected_idx", -1)
 	paper.set_meta("action", "")
-	paper.set_meta("is_processed", false)
-	paper.set_meta("has_cia_stamp", false)
 
 	_make_draggable(paper, "paper")
 
@@ -564,53 +576,45 @@ func _spawn_extension_form() -> void:
 		lbl_empty.text = "(Nenhum contrato ativo)"
 		lbl_empty.add_theme_color_override("font_color", Color.DIM_GRAY)
 		lbl_empty.position = Vector2(20, 180)
-		paper.add_child(lbl_empty)
+		content.add_child(lbl_empty)
 	else:
 		for i in range(GameManager.active_contracts.size()):
 			var c = GameManager.active_contracts[i]
 			
 			var cb_bg = ColorRect.new()
 			cb_bg.color = Color.BLACK
-			cb_bg.size = Vector2(24, 24)
-			cb_bg.position = Vector2(20, 180 + (i * 40))
+			cb_bg.size = Vector2(32, 32)
+			cb_bg.position = Vector2(20, 180 + (i * 50))
 			cb_bg.set_meta("is_checkbox", true)
+			cb_bg.set_meta("cb_idx", i)
 
 			var cb_fg = ColorRect.new()
 			cb_fg.color = Color.WHITE
-			cb_fg.size = Vector2(20, 20)
+			cb_fg.size = Vector2(28, 28)
 			cb_fg.position = Vector2(2, 2)
 			cb_bg.add_child(cb_fg)
 
 			var cb_mark = Label.new()
 			cb_mark.text = "X"
 			cb_mark.add_theme_color_override("font_color", Color.BLACK)
-			cb_mark.add_theme_font_size_override("font_size", 20)
-			cb_mark.position = Vector2(2, -4)
+			cb_mark.add_theme_font_size_override("font_size", 30)
+			cb_mark.position = Vector2(4, -8)
 			cb_mark.visible = false
 			cb_fg.add_child(cb_mark)
 
 			var lbl = Label.new()
 			lbl.text = "T" + str(i+1) + " - " + c["company_name"]
 			lbl.add_theme_color_override("font_color", Color.BLACK)
-			lbl.position = Vector2(55, 180 + (i * 40))
-			paper.add_child(lbl)
+			lbl.position = Vector2(65, 184 + (i * 50))
+			content.add_child(lbl)
 
-			cb_bg.mouse_filter = Control.MOUSE_FILTER_STOP
-			cb_bg.gui_input.connect(_on_extension_checkbox_input.bind(cb_bg, paper, i, cb_mark))
-			paper.add_child(cb_bg)
+			cb_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			content.add_child(cb_bg)
+
+	_add_ball_visual(paper)
 
 	ui_layer.add_child(paper)
 	spawned_papers.append(paper)
-
-func _on_extension_checkbox_input(event: InputEvent, cb_bg: ColorRect, paper: Control, idx: int, mark: Label) -> void:
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.is_pressed():
-		for child in paper.get_children():
-			if child.has_meta("is_checkbox"):
-				var inner = child.get_child(0)
-				inner.get_child(0).visible = false
-		mark.visible = true
-		paper.set_meta("selected_idx", idx)
-		cb_bg.accept_event()
 
 func _on_dial_draw() -> void:
 	var center = dial_rect.size / 2.0
@@ -735,16 +739,37 @@ func _on_panel_gui_input(event: InputEvent, panel: Control) -> void:
 				dragged_panel = panel
 				drag_offset = panel.get_global_mouse_position() - panel.global_position
 				panel.get_parent().move_child(panel, -1) 
+				
 				if type == "panel" or type == "paper":
 					panel.rotation_degrees = 0 
+				
+				if type == "paper":
+					panel.pivot_offset = panel.size / 2.0
+					var tw = create_tween().set_parallel(true)
+					if panel.get_meta("crumpled", false):
+						# Mantém o tamanho de bolinha ao segurar
+						tw.tween_property(panel, "scale", Vector2(0.6, 0.6), 0.15).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+					else:
+						# Papel liso volta ao tamanho normal
+						tw.tween_property(panel, "scale", Vector2(1.0, 1.0), 0.15).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 			else:
 				if dragged_panel == panel:
 					dragged_panel = null
 					
 					if type.begins_with("tool"):
-						_try_apply_tool(panel.get_global_mouse_position(), type)
+						var action_pos = Vector2.ZERO
+						if type == "tool_pen":
+							action_pos = panel.get_global_transform() * Vector2(6, 125)
+						else:
+							action_pos = panel.get_global_transform() * Vector2(35, 90)
+							
+						_try_apply_tool(action_pos, type)
 						var tw = create_tween()
-						tw.tween_property(panel, "position", original_transforms[panel], 0.2)
+						if type == "tool_pen":
+							tw.tween_property(panel, "position", original_transforms[panel], 0.2)
+							tw.parallel().tween_property(panel, "rotation_degrees", -35.0, 0.2)
+						else:
+							tw.tween_property(panel, "position", original_transforms[panel], 0.2)
 					else:
 						if type == "radio":
 							if GameManager.pending_radio_event:
@@ -754,7 +779,23 @@ func _on_panel_gui_input(event: InputEvent, panel: Control) -> void:
 						else:
 							if type == "paper":
 								panel.rotation_degrees = randf_range(-4.0, 4.0) 
-								_clamp_to_screen(panel)
+								
+								var center = panel.get_global_rect().get_center()
+								var outbox_center = outbox_rect.global_position + outbox_rect.size / 2.0
+								
+								if panel.get_meta("crumpled", false):
+									# SOLTAR BOLINHA: Ela fica onde você soltar!
+									_clamp_scaled_paper(panel)
+									
+								elif outbox_rect.get_global_rect().grow(100).has_point(center):
+									# BANDEJA DE SAÍDA (Esta continua magnética por ser o objetivo)
+									panel.pivot_offset = panel.size / 2.0
+									var tw = create_tween().set_parallel(true)
+									tw.tween_property(panel, "scale", Vector2(0.60, 0.60), 0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+									var target_pos = outbox_center - (panel.size / 2.0) + Vector2(randf_range(-10, 10), randf_range(-10, 10))
+									tw.tween_property(panel, "global_position", target_pos, 0.2)
+								else:
+									_clamp_to_screen(panel)
 							else:
 								if type == "panel":
 									panel.rotation_degrees = randf_range(-3.0, 3.0) 
@@ -763,7 +804,48 @@ func _on_panel_gui_input(event: InputEvent, panel: Control) -> void:
 		if event is InputEventMouseMotion:
 			if dragged_panel == panel:
 				panel.global_position = panel.get_global_mouse_position() - drag_offset
-				_clamp_to_screen(panel)
+				
+				if type == "paper":
+					# Clamp inteligente para papéis e bolinhas
+					_clamp_scaled_paper(panel)
+					
+					# Transforma em bolinha se passar por cima do lixo
+					if not panel.get_meta("crumpled", false):
+						var center = panel.get_global_rect().get_center()
+						var trash_center = trash_rect.global_position + trash_rect.size / 2.0
+						
+						if center.distance_to(trash_center) < 160:
+							panel.set_meta("crumpled", true)
+							panel.pivot_offset = panel.size / 2.0
+							
+							var tw = create_tween().set_parallel(true)
+							tw.tween_property(panel, "scale", Vector2(0.5, 0.5), 0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+							tw.tween_property(panel, "rotation_degrees", randf_range(0, 360), 0.2) 
+							
+							panel.self_modulate.a = 0.0 
+							if panel.has_node("content"):
+								panel.get_node("content").visible = false
+							if panel.has_node("ball_visual"):
+								panel.get_node("ball_visual").visible = true
+				else:
+					_clamp_to_screen(panel)
+
+
+func _clamp_scaled_paper(panel: Control) -> void:
+	var s = get_viewport_rect().size
+	var scale = panel.scale.x
+	var visual_size = panel.size * scale
+	
+	# Calcula o centro visual
+	var center = panel.global_position + (panel.size / 2.0)
+	var half_vis = visual_size / 2.0
+	
+	# O limite agora considera apenas a parte visível (a bolinha)
+	center.x = clamp(center.x, half_vis.x, s.x - half_vis.x)
+	center.y = clamp(center.y, half_vis.y, s.y - half_vis.y)
+	
+	panel.global_position = center - (panel.size / 2.0)
+
 
 func _clamp_to_screen(panel: Control) -> void:
 	var s = get_viewport_rect().size
@@ -776,9 +858,30 @@ func _clamp_to_screen(panel: Control) -> void:
 func _try_apply_tool(pos: Vector2, tool_type: String) -> void:
 	for i in range(spawned_papers.size() - 1, -1, -1):
 		var p = spawned_papers[i]
-		if p.get_global_rect().has_point(pos):
+		if p.get_global_rect().has_point(pos) and p.has_node("content"):
+			var content = p.get_node("content")
 			
 			if tool_type == "tool_pen":
+				var hit_checkbox = false
+				if p.get_meta("is_extension", false):
+					for child in content.get_children():
+						if child.has_meta("is_checkbox"):
+							if child.get_global_rect().has_point(pos):
+								for c2 in content.get_children():
+									if c2.has_meta("is_checkbox"):
+										c2.get_child(0).get_child(0).visible = false
+										
+								var mark = child.get_child(0).get_child(0)
+								mark.visible = true
+								mark.add_theme_color_override("font_color", Color(0.1, 0.1, 0.6))
+								
+								p.set_meta("selected_idx", child.get_meta("cb_idx"))
+								hit_checkbox = true
+								break
+				
+				if hit_checkbox:
+					return 
+				
 				if p.has_meta("node_reject"):
 					var old_mark = p.get_meta("node_reject")
 					if is_instance_valid(old_mark):
@@ -792,7 +895,7 @@ func _try_apply_tool(pos: Vector2, tool_type: String) -> void:
 					mark.add_theme_color_override("font_color", Color(0.1, 0.1, 0.6))
 					mark.rotation_degrees = randf_range(-10.0, 10.0)
 					mark.position = p.get_local_mouse_position() - Vector2(80, 20)
-					p.add_child(mark)
+					content.add_child(mark)
 					p.set_meta("node_approve", mark)
 					
 				p.set_meta("action", "approve")
@@ -811,7 +914,7 @@ func _try_apply_tool(pos: Vector2, tool_type: String) -> void:
 					mark.add_theme_color_override("font_color", Color(0.8, 0.1, 0.1, 0.8))
 					mark.rotation_degrees = randf_range(-15.0, 15.0)
 					mark.position = p.get_local_mouse_position() - Vector2(100, 20)
-					p.add_child(mark)
+					content.add_child(mark)
 					p.set_meta("node_reject", mark)
 					
 				p.set_meta("action", "reject")
@@ -824,7 +927,7 @@ func _try_apply_tool(pos: Vector2, tool_type: String) -> void:
 					seal.add_theme_color_override("font_color", Color(0.2, 0.3, 0.5, 0.7))
 					seal.rotation_degrees = randf_range(-20.0, 20.0)
 					seal.position = p.get_local_mouse_position() - Vector2(80, 15)
-					p.add_child(seal)
+					content.add_child(seal)
 					p.set_meta("node_cia", seal)
 					
 			return 
@@ -835,6 +938,8 @@ func _on_organize_pressed() -> void:
 		if is_instance_valid(panel):
 			tween.tween_property(panel, "position", original_transforms[panel], 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 			tween.tween_property(panel, "rotation_degrees", 0.0, 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+			if panel.get_meta("drag_type") == "tool_pen":
+				tween.tween_property(panel, "rotation_degrees", -35.0, 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 
 func _setup_cutscene() -> void:
 	phone_cutscene = CutsceneDialog.new()
@@ -1037,14 +1142,21 @@ func _spawn_proposal_paper(c_data: Dictionary, is_urg: bool, reward: int) -> voi
 		paper.color = Color(0.95, 0.95, 0.85) 
 		paper.size = Vector2(300, 450)
 
+	paper.pivot_offset = paper.size / 2.0 
 	paper.position = Vector2(800 + randf_range(-30, 30), 200 + randf_range(-30, 30))
 	paper.rotation_degrees = randf_range(-5, 5)
 
-	var content = Label.new()
-	content.add_theme_color_override("font_color", Color.BLACK)
-	content.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	content.size = paper.size - Vector2(40, 40)
-	content.position = Vector2(20, 20)
+	var content = Control.new()
+	content.name = "content"
+	content.set_anchors_preset(Control.PRESET_FULL_RECT)
+	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	paper.add_child(content)
+
+	var text_lbl = Label.new()
+	text_lbl.add_theme_color_override("font_color", Color.BLACK)
+	text_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	text_lbl.size = paper.size - Vector2(40, 40)
+	text_lbl.position = Vector2(20, 20)
 
 	var text = "TERMO DE TRANSPORTE\n\n"
 	text += "Empresa: " + c_data["name"] + "\n"
@@ -1064,8 +1176,8 @@ func _spawn_proposal_paper(c_data: Dictionary, is_urg: bool, reward: int) -> voi
 	else:
 		text += "(Aguarde validacao manual para Enviar)"
 	
-	content.text = text
-	paper.add_child(content)
+	text_lbl.text = text
+	content.add_child(text_lbl)
 
 	paper.set_meta("is_paper", true)
 	paper.set_meta("is_extension", false)
@@ -1076,10 +1188,35 @@ func _spawn_proposal_paper(c_data: Dictionary, is_urg: bool, reward: int) -> voi
 	paper.set_meta("action", "")
 
 	_make_draggable(paper, "paper")
+	_add_ball_visual(paper)
+
 	ui_layer.add_child(paper)
 	spawned_papers.append(paper)
 	
 	_load_agenda_contacts()
+
+func _add_ball_visual(paper: ColorRect) -> void:
+	var ball_visual = Panel.new()
+	var ball_style = StyleBoxFlat.new()
+	ball_style.bg_color = Color.WHITE # Bolinha branca
+	ball_style.corner_radius_top_left = 100
+	ball_style.corner_radius_top_right = 100
+	ball_style.corner_radius_bottom_left = 100
+	ball_style.corner_radius_bottom_right = 100
+	ball_style.shadow_color = Color(0, 0, 0, 0.4)
+	ball_style.shadow_size = 8
+	ball_visual.add_theme_stylebox_override("panel", ball_style)
+	
+	ball_visual.size = Vector2(160, 160)
+	# Centraliza a bolinha perfeitamente no papel
+	ball_visual.position = (paper.size / 2.0) - (ball_visual.size / 2.0)
+	ball_visual.name = "ball_visual"
+	ball_visual.visible = false
+	paper.add_child(ball_visual)
+
+
+
+
 
 func _on_cutscene_rejected() -> void:
 	var is_daily = "(Diario)" in pending_company_data["name"]
@@ -1282,7 +1419,6 @@ func _update_report_text() -> void:
 	btn_next_day.disabled = false
 	btn_next_day.text = "Processar Saidas e Finalizar Dia"
 
-# NOVO: O loop finaliza os novos requerimentos de extensão
 func _on_next_day_pressed() -> void: 
 	var new_c_count = 0
 	var rej_c_count = 0
@@ -1294,13 +1430,15 @@ func _on_next_day_pressed() -> void:
 	for paper in spawned_papers:
 		if not is_instance_valid(paper): continue
 		
-		var center = paper.global_position + (paper.size / 2.0)
+		var center = paper.get_global_rect().get_center()
+		var trash_center = trash_rect.global_position + trash_rect.size / 2.0
+		var outbox_center = outbox_rect.global_position + outbox_rect.size / 2.0
 		
-		if trash_rect.get_global_rect().has_point(center):
+		if center.distance_to(trash_center) < 160:
 			paper.queue_free()
 			continue
 			
-		if outbox_rect.get_global_rect().has_point(center):
+		if center.distance_to(outbox_center) < 180:
 			var action = paper.get_meta("action", "")
 			
 			if paper.get_meta("is_extension", false) == true:
