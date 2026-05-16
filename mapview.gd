@@ -46,6 +46,11 @@ var btn_cancel: Button
 var net_cost: int = 0
 var net_maint: int = 0
 
+var current_env_tax: int = 0
+var current_eng_tax: int = 0
+var current_sec_tax: int = 0
+var current_total_cost: int = 0
+
 var active_trains: Dictionary = {}
 
 var btn_maint: Button
@@ -84,6 +89,16 @@ func _on_visibility_changed() -> void:
 		confirmed_routes = GameManager.saved_routes.duplicate()
 		_check_disasters()
 		_update_network_status()
+		
+		# Bloqueia as obras se já existir uma Planta pendente
+		if not GameManager.pending_blueprint.is_empty():
+			btn_edit_mode.text = "[ PLANTA PENDENTE NA MESA ]"
+			btn_edit_mode.disabled = true
+			btn_edit_mode.add_theme_color_override("font_color", Color.ORANGE)
+		else:
+			btn_edit_mode.text = "[ ENTRAR MODO DE OBRAS ]"
+			btn_edit_mode.disabled = false
+			btn_edit_mode.add_theme_color_override("font_color", Color.YELLOW)
 
 func _check_disasters() -> void:
 	if not GameManager.pending_disaster_check:
@@ -214,8 +229,8 @@ func _setup_ui() -> void:
 
 	edit_panel = ColorRect.new()
 	edit_panel.color = Color(0.1, 0.1, 0.15, 0.95)
-	edit_panel.position = Vector2(1550, 80) 
-	edit_panel.size = Vector2(340, 520) 
+	edit_panel.position = Vector2(1550, 40) 
+	edit_panel.size = Vector2(340, 560) 
 	edit_panel.visible = false
 	ui_layer.add_child(edit_panel)
 	
@@ -227,22 +242,22 @@ func _setup_ui() -> void:
 
 	edit_info = Label.new()
 	edit_info.position = Vector2(20, 20)
-	edit_info.size = Vector2(300, 420) 
+	edit_info.size = Vector2(300, 460) 
 	edit_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	edit_info.add_theme_font_size_override("font_size", 16)
+	edit_info.add_theme_font_size_override("font_size", 15)
 	edit_panel.add_child(edit_info)
 
 	btn_confirm = Button.new()
-	btn_confirm.text = "CONFIRMAR PROJETO"
-	btn_confirm.position = Vector2(20, 450) 
+	btn_confirm.text = "GERAR PLANTA E ENVIAR"
+	btn_confirm.position = Vector2(20, 490) 
 	btn_confirm.size = Vector2(145, 50)
-	btn_confirm.add_theme_color_override("font_color", Color.GREEN_YELLOW)
+	btn_confirm.add_theme_color_override("font_color", Color.SKY_BLUE)
 	btn_confirm.pressed.connect(_on_confirm_edit_pressed)
 	edit_panel.add_child(btn_confirm)
 
 	btn_cancel = Button.new()
 	btn_cancel.text = "DESCARTAR TUDO"
-	btn_cancel.position = Vector2(175, 450) 
+	btn_cancel.position = Vector2(175, 490) 
 	btn_cancel.size = Vector2(145, 50)
 	btn_cancel.add_theme_color_override("font_color", Color.INDIAN_RED)
 	btn_cancel.pressed.connect(_on_cancel_edit_pressed)
@@ -495,6 +510,7 @@ func _get_tile_type(cell: Vector2i) -> String:
 		return "env"
 	return "tracks"
 
+# NOVO: O painel de Engenharia agora expõe a dolorosa burocracia do Governo
 func _update_edit_panel() -> void:
 	var build_cost = 0
 	var repair_cost = 0
@@ -533,6 +549,14 @@ func _update_edit_panel() -> void:
 	net_cost = build_cost + repair_cost - refund_val
 	net_maint = build_maint - refund_maint
 
+	# Taxas Governamentais
+	current_env_tax = forest_count * 50
+	current_eng_tax = (tunnel_count * 200) + (bridge_count * 300)
+	current_sec_tax = 0
+	if has_gangs: current_sec_tax = 200
+	
+	current_total_cost = net_cost + current_env_tax + current_eng_tax + current_sec_tax
+
 	var temp_valid = {}
 	for r in confirmed_routes:
 		if not deleted_paths.has(r):
@@ -552,9 +576,6 @@ func _update_edit_panel() -> void:
 	var is_valid = true
 	var t = "== PROJETO DE ENGENHARIA ==\n\n"
 
-	if has_gangs:
-		t += "[!] AVISO: Rota em territorio de Gangues!\nPedagio e Risco ampliados!\n\n"
-
 	t += "[ DETALHES DA OBRA ]\n"
 	t += "Distancia Construcao: " + str(dist_total) + " km\n"
 	if tunnel_count > 0: t += "- Tuneis: " + str(tunnel_count) + "\n"
@@ -562,12 +583,19 @@ func _update_edit_panel() -> void:
 	if forest_count > 0: t += "- Desmatamento: " + str(forest_count) + "\n"
 	t += "Reparos Solicitados: " + str(repair_tiles.size()) + "\n"
 	
+	t += "\n[ TAXAS GOVERNAMENTAIS ]\n"
+	if current_env_tax > 0: t += "Licenca Ambiental: $" + str(current_env_tax) + "\n"
+	if current_eng_tax > 0: t += "Licenca de Engenharia: $" + str(current_eng_tax) + "\n"
+	if current_sec_tax > 0: t += "Taxa Seg. Armada: $" + str(current_sec_tax) + "\n"
+	if current_env_tax == 0 and current_eng_tax == 0 and current_sec_tax == 0: t += "Isento de taxas especiais.\n"
+
 	t += "\n[ FINANCEIRO ]\n"
 	if build_cost > 0: t += "Novas Obras: $" + str(build_cost) + "\n"
 	if repair_cost > 0: t += "Custos de Reparo: $" + str(repair_cost) + "\n"
 	if refund_val > 0: t += "Reembolso Demolicao: +$" + str(refund_val) + "\n"
+	
 	t += "---------------------------\n"
-	t += "CUSTO LIQUIDO: $" + str(net_cost) + "\n"
+	t += "CUSTO TOTAL DO PROJETO: $" + str(current_total_cost) + "\n"
 	t += "Nova Manutencao Ideal: $" + str(net_maint) + " /dia\n\n"
 	t += "Saldo Atual: $" + str(GameManager.money) + "\n"
 
@@ -577,7 +605,7 @@ func _update_edit_panel() -> void:
 				is_valid = false
 				t += "\n[ ERRO: Malha nao conecta cidades! ]"
 		
-		if net_cost > GameManager.money:
+		if current_total_cost > GameManager.money:
 			is_valid = false
 			t += "\n[ ERRO: Fundos Insuficientes! ]"
 	else:
@@ -587,77 +615,47 @@ func _update_edit_panel() -> void:
 	edit_info.text = t
 	btn_confirm.disabled = not is_valid
 
-# CORREÇÃO: A lógica de Subtração (Isolamento de Obras) foi implementada aqui
+# NOVO: Nenhuma obra acontece magicamente. Elas viram um papel!
 func _on_confirm_edit_pressed() -> void:
-	GameManager.money -= net_cost
-	
 	var affected_tiles = {}
-	
 	for d in deleted_paths:
-		confirmed_routes.erase(d)
-		for cell in d:
-			if cell != city_a and cell != city_b and cell != city_c:
-				affected_tiles[cell] = true
-			if GameManager.broken_tiles.has(cell):
-				GameManager.broken_tiles.erase(cell)
-				
-	for r_cell in repair_tiles:
-		if r_cell != city_a and r_cell != city_b and r_cell != city_c:
-			affected_tiles[r_cell] = true
-		if GameManager.broken_tiles.has(r_cell):
-			GameManager.broken_tiles.erase(r_cell)
-		if not GameManager.tile_data.has(r_cell):
-			GameManager.tile_data[r_cell] = {"h": 1.0, "t": _get_tile_type(r_cell)}
-		else:
-			GameManager.tile_data[r_cell]["h"] = 1.0
-		
+		for cell in d: affected_tiles[cell] = true
+	for r_cell in repair_tiles: affected_tiles[r_cell] = true
 	for p in draft_paths:
-		confirmed_routes.append(p.duplicate())
-		for cell in p:
-			if cell != city_a and cell != city_b and cell != city_c:
-				affected_tiles[cell] = true
-			if not GameManager.tile_data.has(cell):
-				GameManager.tile_data[cell] = {"h": 1.0, "t": _get_tile_type(cell)}
-			else:
-				GameManager.tile_data[cell]["h"] = 1.0
+		for cell in p: affected_tiles[cell] = true
 		
-	GameManager.saved_routes = confirmed_routes.duplicate() 
-	
 	var built = {}
 	for route in confirmed_routes:
-		for cell in route:
-			built[cell] = true
-	if city_a != Vector2i(-1, -1): built[city_a] = true
-	if city_b != Vector2i(-1, -1): built[city_b] = true
-	if city_c != Vector2i(-1, -1): built[city_c] = true
+		for cell in route: built[cell] = true
+	built[city_a] = true
+	built[city_b] = true
+	built[city_c] = true
 	
-	var built_unbroken = built.duplicate()
-	for bt in GameManager.broken_tiles:
-		built_unbroken.erase(bt)
-		
-	# A SUBTRAÇÃO LÓGICA: Mapa imaginário sem os blocos mexidos hoje
-	var untouched_unbroken = built_unbroken.duplicate()
-	for cell in affected_tiles.keys():
-		untouched_unbroken.erase(cell)
-		
-	_update_network_status()
+	var untouched = built.duplicate()
+	for bt in GameManager.broken_tiles: untouched.erase(bt)
+	for cell in affected_tiles.keys(): untouched.erase(cell)
 	
-	# Só congela a via se o caminho não for possível no mapa imaginário (intocado)
-	if GameManager.network_connections.has("Azul-Vermelha"):
-		if _bfs_shortest_dist(city_a, city_b, untouched_unbroken, false, false) == -1:
-			GameManager.routes_under_construction["Azul-Vermelha"] = 2
-			
-	if GameManager.network_connections.has("Azul-Verde"):
-		if _bfs_shortest_dist(city_a, city_c, untouched_unbroken, false, false) == -1:
-			GameManager.routes_under_construction["Azul-Verde"] = 2
-			
-	if GameManager.network_connections.has("Vermelha-Verde"):
-		if _bfs_shortest_dist(city_b, city_c, untouched_unbroken, false, false) == -1:
-			GameManager.routes_under_construction["Vermelha-Verde"] = 2
-		
-	GameManager.contracts_updated.emit()
+	var r_cd = []
+	if _bfs_shortest_dist(city_a, city_b, untouched, false, false) == -1: r_cd.append("Azul-Vermelha")
+	if _bfs_shortest_dist(city_a, city_c, untouched, false, false) == -1: r_cd.append("Azul-Verde")
+	if _bfs_shortest_dist(city_b, city_c, untouched, false, false) == -1: r_cd.append("Vermelha-Verde")
+
+	GameManager.pending_blueprint = {
+		"draft_paths": draft_paths.duplicate(true),
+		"deleted_paths": deleted_paths.duplicate(true),
+		"repair_tiles": repair_tiles.duplicate(true),
+		"net_cost": net_cost,
+		"tax_env": current_env_tax,
+		"tax_eng": current_eng_tax,
+		"tax_sec": current_sec_tax,
+		"total_cost": current_total_cost,
+		"routes_to_cooldown": r_cd
+	}
 	GameManager.save_game()
 	_on_cancel_edit_pressed() 
+	_on_go_desk_pressed()
+
+
 
 func _process(delta: float) -> void:
 	if not visible: return
@@ -832,7 +830,15 @@ func _is_cell_occupied_by_track(cell: Vector2i) -> bool:
 	if cell in tentative_path: return true
 	for draft in draft_paths:
 		if cell in draft: return true
+	
+	# NOVO: A floresta também é cortada visualmente se houver uma planta pendente
+	if not GameManager.pending_blueprint.is_empty():
+		for draft in GameManager.pending_blueprint.get("draft_paths", []):
+			if cell in draft: return true
+			
 	return false
+
+
 
 func _draw() -> void:
 	for x in range(grid_width):
@@ -863,20 +869,33 @@ func _draw() -> void:
 	if city_b != Vector2i(-1, -1): valid_built[city_b] = true
 	if city_c != Vector2i(-1, -1): valid_built[city_c] = true
 	
+	var path_ab = []
+	var path_ac = []
+	var path_bc = []
+	if city_a != Vector2i(-1, -1) and city_b != Vector2i(-1, -1):
+		path_ab = _bfs_get_path_array(city_a, city_b, valid_built)
+	if city_a != Vector2i(-1, -1) and city_c != Vector2i(-1, -1):
+		path_ac = _bfs_get_path_array(city_a, city_c, valid_built)
+	if city_b != Vector2i(-1, -1) and city_c != Vector2i(-1, -1):
+		path_bc = _bfs_get_path_array(city_b, city_c, valid_built)
+
 	var const_cells = {}
 	if GameManager.routes_under_construction.get("Azul-Vermelha", 0) > 0:
-		var p = _bfs_get_path_array(city_a, city_b, valid_built)
-		for c in p: const_cells[c] = GameManager.routes_under_construction["Azul-Vermelha"]
+		for c in path_ab: const_cells[c] = GameManager.routes_under_construction["Azul-Vermelha"]
 	if GameManager.routes_under_construction.get("Azul-Verde", 0) > 0:
-		var p = _bfs_get_path_array(city_a, city_c, valid_built)
-		for c in p: const_cells[c] = GameManager.routes_under_construction["Azul-Verde"]
+		for c in path_ac: const_cells[c] = GameManager.routes_under_construction["Azul-Verde"]
 	if GameManager.routes_under_construction.get("Vermelha-Verde", 0) > 0:
-		var p = _bfs_get_path_array(city_b, city_c, valid_built)
-		for c in p: const_cells[c] = GameManager.routes_under_construction["Vermelha-Verde"]
+		for c in path_bc: const_cells[c] = GameManager.routes_under_construction["Vermelha-Verde"]
 
 	var drawn_texts = {}
 	for route in confirmed_routes: 
 		var is_del = deleted_paths.has(route)
+		
+		# NOVO: Fica vermelho se a rota estiver para ser apagada na planta que está na mesa
+		if not GameManager.pending_blueprint.is_empty():
+			for d in GameManager.pending_blueprint.get("deleted_paths", []):
+				if _are_routes_equal(route, d): is_del = true
+
 		var route_is_const = false
 		var max_d = 0
 		
@@ -889,18 +908,40 @@ func _draw() -> void:
 		if route_is_const and not is_del:
 			if route.size() > 2:
 				var mid = route[route.size() / 2]
-				if const_cells.has(mid):
-					var px = mid.x * TILE_SIZE + 16
-					var py = mid.y * TILE_SIZE + 16
-					var mid_str = str(mid.x) + "_" + str(mid.y)
-					if not drawn_texts.has(mid_str):
-						drawn_texts[mid_str] = true
-						draw_rect(Rect2(px - 50, py - 12, 100, 24), Color(0.1, 0.1, 0.1, 0.9))
-						draw_string(ThemeDB.fallback_font, Vector2(px - 45, py + 4), "[ OBRAS: " + str(max_d) + "d ]", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color.ORANGE)
+				var px = mid.x * TILE_SIZE + 16
+				var py = mid.y * TILE_SIZE + 16
+				
+				var mid_str = str(mid.x) + "_" + str(mid.y)
+				if not drawn_texts.has(mid_str):
+					drawn_texts[mid_str] = true
+					draw_rect(Rect2(px - 50, py - 12, 100, 24), Color(0.1, 0.1, 0.1, 0.9))
+					draw_string(ThemeDB.fallback_font, Vector2(px - 45, py + 4), "[ OBRAS: " + str(max_d) + "d ]", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color.ORANGE)
 	
 	for draft in draft_paths:
 		_draw_custom_track(draft, true, false, false)
 	_draw_custom_track(tentative_path, true, false, false)
+
+	# NOVO: Desenha a rota pendente de aprovação com uma placa Azul clara
+	if not GameManager.pending_blueprint.is_empty():
+		var bp_drafts = GameManager.pending_blueprint.get("draft_paths", [])
+		for draft in bp_drafts:
+			_draw_custom_track(draft, true, false, false)
+			if draft.size() > 2:
+				var mid = draft[draft.size() / 2]
+				var px = mid.x * TILE_SIZE + 16
+				var py = mid.y * TILE_SIZE + 16
+				var mid_str = "plan_" + str(mid.x) + "_" + str(mid.y)
+				if not drawn_texts.has(mid_str):
+					drawn_texts[mid_str] = true
+					draw_rect(Rect2(px - 75, py - 12, 150, 24), Color(0.1, 0.2, 0.4, 0.9))
+					draw_string(ThemeDB.fallback_font, Vector2(px - 70, py + 4), "[ AGUARDANDO APROV. ]", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color.SKY_BLUE)
+					
+		# NOVO: Círculo Azul claro para reparos que estão na planta
+		var bp_repairs = GameManager.pending_blueprint.get("repair_tiles", [])
+		for cell in bp_repairs:
+			var px = cell.x * TILE_SIZE + 16
+			var py = cell.y * TILE_SIZE + 16
+			draw_arc(Vector2(px, py), 18.0, 0, TAU, 16, Color.SKY_BLUE, 3.0)
 
 	if city_a != Vector2i(-1, -1): draw_rect(Rect2(city_a.x * TILE_SIZE, city_a.y * TILE_SIZE, TILE_SIZE, TILE_SIZE), Color.DODGER_BLUE)
 	if city_b != Vector2i(-1, -1): draw_rect(Rect2(city_b.x * TILE_SIZE, city_b.y * TILE_SIZE, TILE_SIZE, TILE_SIZE), Color.CRIMSON)
@@ -920,6 +961,17 @@ func _draw() -> void:
 			
 		if repair_tiles.has(cell):
 			draw_arc(Vector2(px, py), 18.0, 0, TAU, 16, Color.YELLOW, 3.0)
+
+
+
+# Função Auxiliar nova (coloque em qualquer lugar fora de outra função no mapview.gd)
+func _are_routes_equal(r1: Array, r2: Array) -> bool:
+	if r1.size() != r2.size(): return false
+	for i in range(r1.size()):
+		if r1[i] != r2[i]: return false
+	return true
+	
+	
 
 func _get_track_color(b: int, is_preview: bool, is_construction: bool, is_deleted: bool = false) -> Color:
 	if is_deleted: return Color(0.8, 0.2, 0.2, 0.7) 
@@ -1055,6 +1107,33 @@ func _get_orthogonal_path(start: Vector2i, end: Vector2i) -> Array[Vector2i]:
 
 func _update_network_status() -> void:
 	active_trains.clear()
+	
+	# Primeiro, encontramos os trilhos que estão em obras para ISENTÁ-LOS da manutenção
+	var valid_for_path = {}
+	for r in confirmed_routes:
+		for c in r: valid_for_path[c] = true
+	if city_a != Vector2i(-1, -1): valid_for_path[city_a] = true
+	if city_b != Vector2i(-1, -1): valid_for_path[city_b] = true
+	if city_c != Vector2i(-1, -1): valid_for_path[city_c] = true
+	
+	var path_ab = []
+	var path_ac = []
+	var path_bc = []
+	if city_a != Vector2i(-1, -1) and city_b != Vector2i(-1, -1):
+		path_ab = _bfs_get_path_array(city_a, city_b, valid_for_path)
+	if city_a != Vector2i(-1, -1) and city_c != Vector2i(-1, -1):
+		path_ac = _bfs_get_path_array(city_a, city_c, valid_for_path)
+	if city_b != Vector2i(-1, -1) and city_c != Vector2i(-1, -1):
+		path_bc = _bfs_get_path_array(city_b, city_c, valid_for_path)
+
+	var const_cells = {}
+	if GameManager.routes_under_construction.get("Azul-Vermelha", 0) > 0:
+		for c in path_ab: const_cells[c] = true
+	if GameManager.routes_under_construction.get("Azul-Verde", 0) > 0:
+		for c in path_ac: const_cells[c] = true
+	if GameManager.routes_under_construction.get("Vermelha-Verde", 0) > 0:
+		for c in path_bc: const_cells[c] = true
+		
 	var built = {}
 	var toll = 0
 	
@@ -1065,12 +1144,19 @@ func _update_network_status() -> void:
 	
 	for route in confirmed_routes:
 		var has_g = false
+		var is_route_const = false
 		for cell in route:
 			built[cell] = true
 			if gang_map.has(cell): has_g = true
-		if has_g: toll += GANG_TOLL_RATE
+			if const_cells.has(cell): is_route_const = true
+		
+		# Só cobra pedágio das gangues se a rota estiver ativa (fora de obras)
+		if has_g and not is_route_const: toll += GANG_TOLL_RATE
 		
 	for cell in built.keys():
+		# CORREÇÃO: Se a célula está em obras, ela NÃO gera custos de manutenção!
+		if const_cells.has(cell): continue
+		
 		var b = biome_map.get(cell, Biome.PLAIN)
 		if b == Biome.MOUNTAIN or b == Biome.RIVER:
 			i_infra += BIOME_DATA[b]["maint"]
@@ -1143,7 +1229,9 @@ func _update_network_status() -> void:
 			
 	GameManager.network_connections = connections
 	GameManager.network_stats = stats
-	GameManager.contracts_updated.emit() 
+	GameManager.contracts_updated.emit()
+
+
 
 func _get_route_capabilities(start: Vector2i, target: Vector2i, valid: Dictionary) -> Dictionary:
 	var shortest = _bfs_shortest_dist(start, target, valid, false, false)

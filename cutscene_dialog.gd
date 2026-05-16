@@ -7,6 +7,7 @@ signal call_closed()
 signal cancel_confirmed(idx: int)
 signal cancel_aborted()
 signal radio_choice_made(option_index: int)
+signal fiscal_choice_made(is_bribe: bool, cost: int)
 
 var overlay: ColorRect
 var dialog_box: ColorRect 
@@ -335,12 +336,47 @@ func _on_close() -> void:
 
 func _on_opt_1() -> void:
 	visible = false
-	radio_choice_made.emit(0)
+	if current_mode == "FISCAL":
+		var bp = GameManager.pending_fiscal_event
+		if bp["can_bribe"]:
+			fiscal_choice_made.emit(true, bp["bribe_cost"]) # Escolheu Propina
+		else:
+			fiscal_choice_made.emit(false, bp["fine"]) # Aceitou Multa
+	else:
+		radio_choice_made.emit(0)
 
 func _on_opt_2() -> void:
 	visible = false
-	radio_choice_made.emit(1)
+	if current_mode == "FISCAL":
+		var bp = GameManager.pending_fiscal_event
+		fiscal_choice_made.emit(false, bp["fine"]) # Escolheu a Multa Oficial ao invés da propina
+	else:
+		radio_choice_made.emit(1)
+
 
 func _on_opt_3() -> void:
 	visible = false
 	radio_choice_made.emit(2)
+	
+func start_fiscal_audit(data: Dictionary) -> void:
+	_reset_ui()
+	current_mode = "FISCAL"
+	
+	name_label.text = "[ MINISTERIO DOS TRANSPORTES: AUDITORIA ]"
+	name_label.add_theme_color_override("font_color", Color.ORANGE)
+	
+	full_text = "Atencao Diretor. Os nossos agentes pararam o seu comboio que serve a empresa " + data["contract_name"] + ".\n\n"
+	full_text += data["reason"] + "\n\n"
+	
+	if data["can_bribe"]:
+		full_text += "Como a vossa empresa tem 'excelentes relacoes' com o Governo, podemos arquivar este relatorio por uma taxa administrativa de $" + str(data["bribe_cost"]) + ".\nO que me diz?"
+		btn_opt_1.text = "[ Pagar Propina / Caixa 2 (-$" + str(data["bribe_cost"]) + ") ]"
+		btn_opt_2.text = "[ Recusar e Pagar Multa Oficial (-$" + str(data["fine"]) + ") ]"
+		btn_opt_1.visible = true
+		btn_opt_2.visible = true
+	else:
+		full_text += "A sua empresa nao possui aliados em Brasilia. O senhor sera autuado com o rigor maximo da lei.\nA multa de $" + str(data["fine"]) + " foi emitida."
+		btn_opt_1.text = "[ Aceitar Multa (-$" + str(data["fine"]) + ") ]"
+		btn_opt_1.visible = true
+	
+	_type_next_char(false)

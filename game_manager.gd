@@ -6,6 +6,7 @@ signal maintenance_updated(new_maintenance)
 signal contracts_updated() 
 signal game_over(is_victory: bool, message: String)
 
+var pending_fiscal_event: Dictionary = {}
 var current_level: int = 1
 var highest_unlocked_level: int = 1
 var start_in_world_map: bool = true 
@@ -66,12 +67,13 @@ var ideal_maint_sec: int = 0
 var ideal_maint_crew: int = 0
 var ideal_maint_lobby: int = 0
 
-# =======================================
-# NOVO: SAÚDE INDIVIDUAL POR TILE (IDADE)
-# =======================================
 var tile_data: Dictionary = {} 
 var pending_disaster_check: bool = false
 var broken_tiles: Array = []
+
+# NOVO: Memória da Planta de Engenharia
+var pending_blueprint: Dictionary = {}
+
 
 func update_actual_maintenance() -> void:
 	var infra_cost = int(ideal_maint_infra * maint_pct_infra)
@@ -183,6 +185,8 @@ func reset_game() -> void:
 	tile_data.clear()
 	broken_tiles.clear()
 	pending_disaster_check = false
+	pending_blueprint.clear()
+	pending_fiscal_event.clear()
 	
 	_generate_daily_generics()
 	save_game()
@@ -195,6 +199,16 @@ func end_day(upfront_income: int = 0) -> void:
 	money -= daily_gang_toll 
 	money -= daily_crew_cost
 	money -= daily_lobby_cost
+	
+	# CORREÇÃO VITAL: As obras devem avançar 1 dia ANTES de validarmos os contratos,
+	# garantindo que um contrato de Risco seja salvo se a obra terminar na mesma noite.
+	var new_ruc = {}
+	var ruc_keys = routes_under_construction.keys()
+	for i in range(ruc_keys.size()):
+		var k = ruc_keys[i]
+		if routes_under_construction[k] > 1:
+			new_ruc[k] = routes_under_construction[k] - 1
+	routes_under_construction = new_ruc
 	
 	var keep = []
 	for c in active_contracts:
@@ -233,15 +247,6 @@ func end_day(upfront_income: int = 0) -> void:
 			
 	company_cooldowns = new_cd
 	
-	var new_ruc = {}
-	var ruc_keys = routes_under_construction.keys()
-	for i in range(ruc_keys.size()):
-		var k = ruc_keys[i]
-		if routes_under_construction[k] > 1:
-			new_ruc[k] = routes_under_construction[k] - 1
-	routes_under_construction = new_ruc
-	
-	# NOVO: O desgaste diário agora é aplicado bloco a bloco!
 	for key in tile_data.keys():
 		var data = tile_data[key]
 		var h = data["h"]
@@ -272,6 +277,9 @@ func end_day(upfront_income: int = 0) -> void:
 	if has_op_train:
 		if randf() < 0.3:
 			pending_radio_event = true
+			
+	if not pending_radio_event:
+		_roll_fiscal_audit()
 	
 	_generate_daily_generics()
 	contracts_updated.emit()
@@ -284,6 +292,56 @@ func end_day(upfront_income: int = 0) -> void:
 	else:
 		if money >= LevelData.LEVELS[current_level]["goal"]: 
 			trigger_victory()
+
+
+func _roll_fiscal_audit() -> void:
+	# 30% de chance do fiscal agir se houver trens operando
+	if randf() > 0.3: return 
+	
+	var running_contracts = []
+	for c in active_contracts:
+		if is_contract_operating(c):
+			running_contracts.append(c)
+			
+	if running_contracts.is_empty(): return
+	
+	var target = running_contracts.pick_random()
+	var rid = target["route_id"]
+	
+	var has_violation = false
+	var violation_reason = ""
+	var fine = 0
+	
+	# Auditoria 1: Negligência por Baixo Orçamento (Manutenção)
+	if maint_pct_infra < 0.5 or maint_pct_tracks < 0.5 or maint_pct_env < 0.5:
+		has_violation = true
+		violation_reason = "NEGLIGENCIA: O vosso Orcamento de Manutencao esta demasiadamente baixo. Os nossos fiscais relatam carris soltos e infraestrutura perigosa na vossa malha!"
+		fine = 800
+	else:
+		# Auditoria 2: VIP em Área de Gangues
+		if target.get("type", "") == "VIP":
+			var stats = network_stats.get(rid, {})
+			if stats.get("gangs", 0) > 0:
+				has_violation = true
+				violation_reason = "RISCO DE ESTADO: Detetamos um comboio VIP a cruzar territorio dominado por gangues. Isto e um absurdo de seguranca!"
+				fine = 1500
+
+	# Aqui o sistema está pronto para a sua futura implementação de Auditoria 3: Cargas/Contrabando
+
+	if has_violation:
+		var can_bribe = (maint_pct_lobby >= 0.7)
+		var bribe_cost = int(fine * 0.15) 
+		
+		pending_fiscal_event = {
+			"reason": violation_reason,
+			"fine": fine,
+			"can_bribe": can_bribe,
+			"bribe_cost": bribe_cost,
+			"contract_name": target["company_name"]
+		}
+
+
+
 
 func _generate_daily_generics() -> void:
 	daily_generic_companies.clear()
@@ -362,6 +420,7 @@ func save_game() -> void:
 		"company_cooldowns": company_cooldowns,
 		"intro_played": intro_played,
 		"pending_radio_event": pending_radio_event,
+		"pending_fiscal_event": pending_fiscal_event,
 		"routes_under_construction": routes_under_construction,
 		"saved_routes": _routes_to_array(saved_routes),
 		"current_level": current_level,
@@ -373,7 +432,8 @@ func save_game() -> void:
 		"maint_pct_crew": maint_pct_crew,
 		"maint_pct_lobby": maint_pct_lobby,
 		"tile_data": tile_data,
-		"broken_tiles": _vec_array_to_dict_array(broken_tiles)
+		"broken_tiles": _vec_array_to_dict_array(broken_tiles),
+		"pending_blueprint": _serialize_blueprint(pending_blueprint)
 	}
 	var file = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	file.store_string(JSON.stringify(data))
@@ -398,6 +458,7 @@ func load_game() -> bool:
 		company_cooldowns = data.get("company_cooldowns", {})
 		intro_played = data.get("intro_played", false)
 		pending_radio_event = data.get("pending_radio_event", false)
+		pending_fiscal_event = data.get("pending_fiscal_event", {})
 		routes_under_construction = data.get("routes_under_construction", {})
 		saved_routes = _array_to_routes(data.get("saved_routes", []))
 		current_level = data.get("current_level", 1)
@@ -412,6 +473,7 @@ func load_game() -> bool:
 		
 		tile_data = data.get("tile_data", {})
 		broken_tiles = _dict_array_to_vec_array(data.get("broken_tiles", []))
+		pending_blueprint = _deserialize_blueprint(data.get("pending_blueprint", {}))
 		
 		today_broken_contracts = 0
 		today_penalties = 0
@@ -426,6 +488,7 @@ func load_game() -> bool:
 		return true
 	
 	return false
+
 
 func _routes_to_array(routes: Array) -> Array:
 	var arr = []
@@ -456,3 +519,31 @@ func _dict_array_to_vec_array(arr: Array) -> Array:
 	for d in arr:
 		res.append(Vector2i(d["x"], d["y"]))
 	return res
+
+func _serialize_blueprint(bp: Dictionary) -> Dictionary:
+	if bp.is_empty(): return {}
+	return {
+		"draft_paths": _routes_to_array(bp["draft_paths"]),
+		"deleted_paths": _routes_to_array(bp["deleted_paths"]),
+		"repair_tiles": _vec_array_to_dict_array(bp["repair_tiles"]),
+		"net_cost": bp["net_cost"],
+		"tax_env": bp["tax_env"],
+		"tax_eng": bp["tax_eng"],
+		"tax_sec": bp["tax_sec"],
+		"total_cost": bp["total_cost"],
+		"routes_to_cooldown": bp.get("routes_to_cooldown", [])
+	}
+
+func _deserialize_blueprint(data: Dictionary) -> Dictionary:
+	if data.is_empty(): return {}
+	return {
+		"draft_paths": _array_to_routes(data["draft_paths"]),
+		"deleted_paths": _array_to_routes(data["deleted_paths"]),
+		"repair_tiles": _dict_array_to_vec_array(data["repair_tiles"]),
+		"net_cost": data["net_cost"],
+		"tax_env": data["tax_env"],
+		"tax_eng": data["tax_eng"],
+		"tax_sec": data["tax_sec"],
+		"total_cost": data["total_cost"],
+		"routes_to_cooldown": data.get("routes_to_cooldown", [])
+	}

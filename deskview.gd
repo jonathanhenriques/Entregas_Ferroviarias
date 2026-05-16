@@ -616,6 +616,70 @@ func _spawn_extension_form() -> void:
 	ui_layer.add_child(paper)
 	spawned_papers.append(paper)
 
+func _add_ball_visual(paper: ColorRect) -> void:
+	var ball_visual = Panel.new()
+	var ball_style = StyleBoxFlat.new()
+	ball_style.bg_color = Color.WHITE
+	ball_style.corner_radius_top_left = 100
+	ball_style.corner_radius_top_right = 100
+	ball_style.corner_radius_bottom_left = 100
+	ball_style.corner_radius_bottom_right = 100
+	ball_style.shadow_color = Color(0, 0, 0, 0.4)
+	ball_style.shadow_size = 8
+	ball_visual.add_theme_stylebox_override("panel", ball_style)
+	
+	ball_visual.size = Vector2(160, 160)
+	ball_visual.position = (paper.size / 2.0) - (ball_visual.size / 2.0)
+	ball_visual.name = "ball_visual"
+	ball_visual.visible = false
+	paper.add_child(ball_visual)
+
+# NOVO: Função para renderizar a Planta de Engenharia no momento em que ela for gerada no mapa
+func _spawn_blueprint_form() -> void:
+	var paper = ColorRect.new()
+	paper.color = Color(0.65, 0.75, 0.85) 
+	paper.size = Vector2(300, 450)
+	paper.pivot_offset = paper.size / 2.0 
+	paper.position = Vector2(400 + randf_range(-30, 30), 200 + randf_range(-30, 30))
+	paper.rotation_degrees = randf_range(-4, 4)
+
+	var content = Control.new()
+	content.name = "content"
+	content.set_anchors_preset(Control.PRESET_FULL_RECT)
+	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	paper.add_child(content)
+
+	var content_lbl = Label.new()
+	content_lbl.add_theme_color_override("font_color", Color.BLACK)
+	
+	var bp = GameManager.pending_blueprint
+	var t = "PROJETO DE ENGENHARIA\n"
+	t += "=====================\n\n"
+	t += "Custos Base: $" + str(bp.get("net_cost", 0)) + "\n"
+	if bp.get("tax_env", 0) > 0:
+		t += "Licenca Ambiental: $" + str(bp["tax_env"]) + "\n"
+	if bp.get("tax_eng", 0) > 0:
+		t += "Licenca Engenharia: $" + str(bp["tax_eng"]) + "\n"
+	if bp.get("tax_sec", 0) > 0:
+		t += "Taxa Seg. Armada: $" + str(bp["tax_sec"]) + "\n"
+	t += "---------------------\n"
+	t += "TOTAL A PAGAR: $" + str(bp.get("total_cost", 0)) + "\n\n"
+	t += "Assine e coloque na Bandeja de Saida para aprovar e iniciar obras."
+	
+	content_lbl.text = t
+	content_lbl.position = Vector2(20, 20)
+	content.add_child(content_lbl)
+
+	paper.set_meta("is_paper", true)
+	paper.set_meta("is_blueprint", true)
+	paper.set_meta("action", "")
+
+	_make_draggable(paper, "paper")
+	_add_ball_visual(paper)
+
+	ui_layer.add_child(paper)
+	spawned_papers.append(paper)
+
 func _on_dial_draw() -> void:
 	var center = dial_rect.size / 2.0
 	var radius = 100.0
@@ -747,10 +811,8 @@ func _on_panel_gui_input(event: InputEvent, panel: Control) -> void:
 					panel.pivot_offset = panel.size / 2.0
 					var tw = create_tween().set_parallel(true)
 					if panel.get_meta("crumpled", false):
-						# Mantém o tamanho de bolinha ao segurar
 						tw.tween_property(panel, "scale", Vector2(0.6, 0.6), 0.15).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 					else:
-						# Papel liso volta ao tamanho normal
 						tw.tween_property(panel, "scale", Vector2(1.0, 1.0), 0.15).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 			else:
 				if dragged_panel == panel:
@@ -782,13 +844,34 @@ func _on_panel_gui_input(event: InputEvent, panel: Control) -> void:
 								
 								var center = panel.get_global_rect().get_center()
 								var outbox_center = outbox_rect.global_position + outbox_rect.size / 2.0
+								var trash_center = trash_rect.global_position + trash_rect.size / 2.0
 								
 								if panel.get_meta("crumpled", false):
-									# SOLTAR BOLINHA: Ela fica onde você soltar!
 									_clamp_scaled_paper(panel)
 									
+								elif center.distance_to(trash_center) < 160:
+									panel.pivot_offset = panel.size / 2.0
+									var tw = create_tween().set_parallel(true)
+									tw.tween_property(panel, "scale", Vector2(0.5, 0.5), 0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+									tw.tween_property(panel, "rotation_degrees", 0.0, 0.2) 
+									tw.tween_property(panel, "global_position", trash_center - (panel.size / 2.0), 0.2)
+									
+									if not panel.get_meta("crumpled", false):
+										panel.set_meta("crumpled", true)
+										
+										# CORREÇÃO: Remove a identidade de Planta ao amassar
+										if panel.get_meta("is_blueprint", false):
+											panel.set_meta("is_blueprint", false)
+											GameManager.pending_blueprint.clear()
+											GameManager.save_game()
+												
+									panel.self_modulate.a = 0.0 
+									if panel.has_node("content"):
+										panel.get_node("content").visible = false
+									if panel.has_node("ball_visual"):
+										panel.get_node("ball_visual").visible = true
+										
 								elif outbox_rect.get_global_rect().grow(100).has_point(center):
-									# BANDEJA DE SAÍDA (Esta continua magnética por ser o objetivo)
 									panel.pivot_offset = panel.size / 2.0
 									var tw = create_tween().set_parallel(true)
 									tw.tween_property(panel, "scale", Vector2(0.60, 0.60), 0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
@@ -806,10 +889,8 @@ func _on_panel_gui_input(event: InputEvent, panel: Control) -> void:
 				panel.global_position = panel.get_global_mouse_position() - drag_offset
 				
 				if type == "paper":
-					# Clamp inteligente para papéis e bolinhas
 					_clamp_scaled_paper(panel)
 					
-					# Transforma em bolinha se passar por cima do lixo
 					if not panel.get_meta("crumpled", false):
 						var center = panel.get_global_rect().get_center()
 						var trash_center = trash_rect.global_position + trash_rect.size / 2.0
@@ -817,6 +898,12 @@ func _on_panel_gui_input(event: InputEvent, panel: Control) -> void:
 						if center.distance_to(trash_center) < 160:
 							panel.set_meta("crumpled", true)
 							panel.pivot_offset = panel.size / 2.0
+							
+							# CORREÇÃO: Também remove identidade no movimento (Drag over trash)
+							if panel.get_meta("is_blueprint", false):
+								panel.set_meta("is_blueprint", false)
+								GameManager.pending_blueprint.clear()
+								GameManager.save_game()
 							
 							var tw = create_tween().set_parallel(true)
 							tw.tween_property(panel, "scale", Vector2(0.5, 0.5), 0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
@@ -831,21 +918,6 @@ func _on_panel_gui_input(event: InputEvent, panel: Control) -> void:
 					_clamp_to_screen(panel)
 
 
-func _clamp_scaled_paper(panel: Control) -> void:
-	var s = get_viewport_rect().size
-	var scale = panel.scale.x
-	var visual_size = panel.size * scale
-	
-	# Calcula o centro visual
-	var center = panel.global_position + (panel.size / 2.0)
-	var half_vis = visual_size / 2.0
-	
-	# O limite agora considera apenas a parte visível (a bolinha)
-	center.x = clamp(center.x, half_vis.x, s.x - half_vis.x)
-	center.y = clamp(center.y, half_vis.y, s.y - half_vis.y)
-	
-	panel.global_position = center - (panel.size / 2.0)
-
 
 func _clamp_to_screen(panel: Control) -> void:
 	var s = get_viewport_rect().size
@@ -855,10 +927,24 @@ func _clamp_to_screen(panel: Control) -> void:
 	p.y = clamp(p.y, 0, s.y - sz.y)
 	panel.global_position = p
 
+func _clamp_scaled_paper(panel: Control) -> void:
+	var s = get_viewport_rect().size
+	var scale = panel.scale.x
+	var visual_size = panel.size * scale
+	
+	var center = panel.global_position + (panel.size / 2.0)
+	var half_vis = visual_size / 2.0
+	
+	center.x = clamp(center.x, half_vis.x, s.x - half_vis.x)
+	center.y = clamp(center.y, half_vis.y, s.y - half_vis.y)
+	
+	panel.global_position = center - (panel.size / 2.0)
+
 func _try_apply_tool(pos: Vector2, tool_type: String) -> void:
 	for i in range(spawned_papers.size() - 1, -1, -1):
 		var p = spawned_papers[i]
-		if p.get_global_rect().has_point(pos) and p.has_node("content"):
+		# CORREÇÃO: Impede que o jogador assine bolinhas de papel amassado!
+		if p.get_global_rect().has_point(pos) and p.has_node("content") and not p.get_meta("crumpled", false):
 			var content = p.get_node("content")
 			
 			if tool_type == "tool_pen":
@@ -930,7 +1016,12 @@ func _try_apply_tool(pos: Vector2, tool_type: String) -> void:
 					content.add_child(seal)
 					p.set_meta("node_cia", seal)
 					
-			return 
+			return
+
+
+
+
+
 
 func _on_organize_pressed() -> void:
 	var tween = create_tween().set_parallel(true)
@@ -949,6 +1040,7 @@ func _setup_cutscene() -> void:
 	phone_cutscene.call_closed.connect(_on_cutscene_closed)
 	phone_cutscene.cancel_confirmed.connect(_on_cancel_confirmed)
 	phone_cutscene.radio_choice_made.connect(_on_radio_choice)
+	phone_cutscene.fiscal_choice_made.connect(_on_fiscal_choice)
 
 func _update_diretrizes() -> void:
 	var lvl = LevelData.LEVELS[GameManager.current_level]
@@ -992,7 +1084,7 @@ func _load_agenda_contacts() -> void:
 					
 			var has_pending = false
 			for p in spawned_papers:
-				if is_instance_valid(p) and p.get_meta("is_extension", false) == false and p.has_meta("company_data") and p.get_meta("company_data")["name"] == c_name:
+				if is_instance_valid(p) and p.get_meta("is_extension", false) == false and p.get_meta("is_blueprint", false) == false and p.has_meta("company_data") and p.get_meta("company_data")["name"] == c_name:
 					has_pending = true
 					
 			if has_active: 
@@ -1077,17 +1169,23 @@ func _process_call() -> void:
 	if has_route:
 		if not is_constructing:
 			var stats = GameManager.network_stats.get(rid, {})
-			var is_long = (ctype == "Expresso" and stats.get("dist", 999) > pending_company_data.get("max_dist", 999))
+			
+			var max_d = pending_company_data.get("max_dist", 999)
+			var curr_d = stats.get("dist", 999)
+			var is_long = (ctype == "Expresso" and curr_d > max_d)
+			
 			if is_long:
-				reason = "Rota longa!"
+				# CORREÇÃO: O cliente agora diz os tamanhos exatos!
+				reason = "A nossa carga EXPRESSA tem limite rigoroso de tempo!\nA sua via tem " + str(curr_d) + " km, mas exigimos um trajeto maximo de " + str(max_d) + " km!\nRefaca a rota de forma mais direta!"
+			
 			if not is_long:
 				var is_vip_bad = (ctype == "VIP" and (stats.get("gangs", 0) > 0 or GameManager.active_contracts.size() > 0))
 				if is_vip_bad:
-					reason = "VIP exige seguranca/exclusividade!"
+					reason = "VIP exige seguranca absoluta e exclusividade na malha!"
 				if not is_vip_bad:
 					var is_eco_bad = (ctype == "Ecologico" and stats.get("forests", 0) > 0)
 					if is_eco_bad:
-						reason = "Crime ambiental!"
+						reason = "Os seus trilhos desmataram a floresta! Nao financiamos crimes ambientais!"
 					if not is_eco_bad:
 						route_valid = true
 
@@ -1119,6 +1217,8 @@ func _process_call() -> void:
 				rew = GameManager.daily_urgencies.get(pending_company_data["name"], rew)
 			phone_cutscene.start_call(pending_company_data["name"], pending_company_data["type"], pending_company_data["cargo"], rew, pending_is_urgent)
 
+
+
 func _on_cutscene_accepted(final_reward: int) -> void:
 	var is_urg = pending_is_urgent
 	var c_data = pending_company_data
@@ -1131,7 +1231,8 @@ func _on_cutscene_accepted(final_reward: int) -> void:
 	folder_rect.visible = false
 	selected_company_data = {}
 	pending_company_data = {}
-
+	
+	
 func _spawn_proposal_paper(c_data: Dictionary, is_urg: bool, reward: int) -> void:
 	var paper = ColorRect.new()
 	
@@ -1194,29 +1295,8 @@ func _spawn_proposal_paper(c_data: Dictionary, is_urg: bool, reward: int) -> voi
 	spawned_papers.append(paper)
 	
 	_load_agenda_contacts()
-
-func _add_ball_visual(paper: ColorRect) -> void:
-	var ball_visual = Panel.new()
-	var ball_style = StyleBoxFlat.new()
-	ball_style.bg_color = Color.WHITE # Bolinha branca
-	ball_style.corner_radius_top_left = 100
-	ball_style.corner_radius_top_right = 100
-	ball_style.corner_radius_bottom_left = 100
-	ball_style.corner_radius_bottom_right = 100
-	ball_style.shadow_color = Color(0, 0, 0, 0.4)
-	ball_style.shadow_size = 8
-	ball_visual.add_theme_stylebox_override("panel", ball_style)
 	
-	ball_visual.size = Vector2(160, 160)
-	# Centraliza a bolinha perfeitamente no papel
-	ball_visual.position = (paper.size / 2.0) - (ball_visual.size / 2.0)
-	ball_visual.name = "ball_visual"
-	ball_visual.visible = false
-	paper.add_child(ball_visual)
-
-
-
-
+	
 
 func _on_cutscene_rejected() -> void:
 	var is_daily = "(Diario)" in pending_company_data["name"]
@@ -1419,10 +1499,12 @@ func _update_report_text() -> void:
 	btn_next_day.disabled = false
 	btn_next_day.text = "Processar Saidas e Finalizar Dia"
 
+# NOVO: A Lógica Completa de Aprovação da Planta (Sem Fundos e Aprovação Oficial)
 func _on_next_day_pressed() -> void: 
 	var new_c_count = 0
 	var rej_c_count = 0
 	var ext_c_count = 0
+	var blueprint_cost = 0
 	pending_upfront_income = 0
 	
 	var keep_papers = []
@@ -1435,13 +1517,85 @@ func _on_next_day_pressed() -> void:
 		var outbox_center = outbox_rect.global_position + outbox_rect.size / 2.0
 		
 		if center.distance_to(trash_center) < 160:
+			if paper.get_meta("is_blueprint", false) == true:
+				GameManager.pending_blueprint.clear()
 			paper.queue_free()
 			continue
 			
-		if center.distance_to(outbox_center) < 180:
+		if outbox_rect.get_global_rect().grow(100).has_point(center):
 			var action = paper.get_meta("action", "")
 			
-			if paper.get_meta("is_extension", false) == true:
+			if paper.get_meta("is_blueprint", false) == true:
+				var bp = GameManager.pending_blueprint
+				if action == "approve":
+					var t_cost = bp.get("total_cost", 0)
+					if GameManager.money >= t_cost:
+						blueprint_cost += t_cost
+						GameManager.money -= t_cost
+						
+						for d in bp.get("deleted_paths", []):
+							for idx in range(GameManager.saved_routes.size() - 1, -1, -1):
+								if _are_routes_equal(GameManager.saved_routes[idx], d):
+									GameManager.saved_routes.remove_at(idx)
+							for cell in d:
+								if GameManager.broken_tiles.has(cell):
+									GameManager.broken_tiles.erase(cell)
+									
+						for r_cell in bp.get("repair_tiles", []):
+							if GameManager.broken_tiles.has(r_cell):
+								GameManager.broken_tiles.erase(r_cell)
+							if not GameManager.tile_data.has(r_cell):
+								GameManager.tile_data[r_cell] = {"h": 1.0, "t": "tracks"}
+							else:
+								GameManager.tile_data[r_cell]["h"] = 1.0
+								
+						for p_arr in bp.get("draft_paths", []):
+							GameManager.saved_routes.append(p_arr.duplicate())
+							for cell in p_arr:
+								if not GameManager.tile_data.has(cell):
+									GameManager.tile_data[cell] = {"h": 1.0, "t": "tracks"}
+								else:
+									GameManager.tile_data[cell]["h"] = 1.0
+									
+						for rid in bp.get("routes_to_cooldown", []):
+							GameManager.routes_under_construction[rid] = 3
+							
+						GameManager.pending_blueprint.clear()
+						paper.queue_free()
+						
+						# CORREÇÃO VITAL: Avisar o mapa invisível para atualizar as conexões imediatamente!
+						var main_node = get_parent()
+						if main_node.has_node("MapView"):
+							main_node.get_node("MapView")._update_network_status()
+							
+						continue
+					else:
+						paper.set_meta("action", "")
+						if paper.has_meta("node_approve"):
+							var old = paper.get_meta("node_approve")
+							if is_instance_valid(old): old.queue_free()
+							paper.remove_meta("node_approve")
+							
+						var mark = Label.new()
+						mark.text = "SEM FUNDOS"
+						mark.add_theme_font_size_override("font_size", 36)
+						mark.add_theme_color_override("font_color", Color(0.8, 0.1, 0.1, 0.8))
+						mark.rotation_degrees = randf_range(-15.0, 15.0)
+						mark.position = Vector2(40, 200)
+						paper.get_node("content").add_child(mark)
+						
+						var tw = create_tween().set_parallel(true)
+						tw.tween_property(paper, "global_position", Vector2(700, 300), 0.3)
+						tw.tween_property(paper, "scale", Vector2(1,1), 0.3)
+						
+						keep_papers.append(paper)
+						continue
+				elif action == "reject":
+					GameManager.pending_blueprint.clear()
+					paper.queue_free()
+					continue
+			
+			elif paper.get_meta("is_extension", false) == true:
 				if action == "approve":
 					var sel_idx = paper.get_meta("selected_idx", -1)
 					if sel_idx >= 0 and sel_idx < GameManager.active_contracts.size():
@@ -1484,9 +1638,18 @@ func _on_next_day_pressed() -> void:
 	spawned_papers = keep_papers
 	GameManager.contracts_updated.emit()
 	
-	_start_eod_animation(new_c_count, rej_c_count, ext_c_count)
+	_start_eod_animation(new_c_count, rej_c_count, ext_c_count, blueprint_cost)
 
-func _start_eod_animation(new_c: int, rej_c: int, ext_c: int) -> void:
+
+
+
+func _are_routes_equal(r1: Array, r2: Array) -> bool:
+	if r1.size() != r2.size(): return false
+	for i in range(r1.size()):
+		if r1[i] != r2[i]: return false
+	return true
+
+func _start_eod_animation(new_c: int, rej_c: int, ext_c: int, bp_cost: int) -> void:
 	skip_eod_anim = false
 	eod_layer.visible = true
 	btn_eod_sleep.visible = false
@@ -1519,7 +1682,7 @@ func _start_eod_animation(new_c: int, rej_c: int, ext_c: int) -> void:
 		
 	_add_eod_line("", "", c_light, false)
 	_add_eod_line("[ FINANCAS ]", "", c_gray, false)
-	_add_eod_line("Saldo Inicial", "$" + str(GameManager.money), c_light, false)
+	_add_eod_line("Saldo Inicial", "$" + str(GameManager.money + bp_cost), c_light, false)
 	
 	if pending_upfront_income > 0:
 		_add_eod_line("Receitas a Vista", "+$" + str(pending_upfront_income), c_green, false)
@@ -1527,6 +1690,9 @@ func _start_eod_animation(new_c: int, rej_c: int, ext_c: int) -> void:
 	var inc = GameManager.get_daily_income()
 	if inc > 0:
 		_add_eod_line("Receita de Fretes", "+$" + str(inc), c_green, false)
+		
+	if bp_cost > 0:
+		_add_eod_line("Obras e Licenciamentos", "-$" + str(bp_cost), c_red, false)
 		
 	if GameManager.daily_maintenance > 0:
 		_add_eod_line("Manutencao da Via", "-$" + str(GameManager.daily_maintenance), c_red, false)
@@ -1621,6 +1787,13 @@ func _on_visibility_changed() -> void:
 	if ui_layer: 
 		ui_layer.visible = visible
 	if visible:
+		# Limpeza de papéis deletados
+		var active_papers = []
+		for p in spawned_papers:
+			if is_instance_valid(p):
+				active_papers.append(p)
+		spawned_papers = active_papers
+
 		_load_agenda_contacts()
 		_update_report_text()
 		_update_diretrizes()
@@ -1629,16 +1802,49 @@ func _on_visibility_changed() -> void:
 		
 		_on_organize_pressed()
 		
+		# Verifica se a planta precisa ser gerada
+		var has_bp = false
+		for p in spawned_papers:
+			if p.get_meta("is_blueprint", false):
+				has_bp = true
+				break
+				
+		if not GameManager.pending_blueprint.is_empty() and not has_bp:
+			_spawn_blueprint_form()
+		
 		if GameManager.broken_tiles.size() > 0:
 			GameManager.pending_radio_event = true
 		
+		# HIERARQUIA DE TELEFONEMAS
 		if GameManager.pendent_angry_call: 
 			GameManager.pendent_angry_call = false
 			phone_cutscene.start_angry_call()
+		elif not GameManager.pending_fiscal_event.is_empty():
+			# LIGAÇÃO DO FISCAL!
+			phone_cutscene.start_fiscal_audit(GameManager.pending_fiscal_event)
 		else:
 			if not GameManager.intro_played:
 				GameManager.intro_played = true
 				phone_cutscene.start_boss_intro()
 
+
 func _on_back_map_pressed() -> void: 
 	get_parent().go_to_map()
+
+
+func _on_fiscal_choice(is_bribe: bool, cost: int) -> void:
+	GameManager.money -= cost
+	GameManager.today_penalties += cost # Para aparecer no relatório do dia
+	
+	# Se for multa oficial, pune também a moral dos clientes
+	if not is_bribe:
+		var c_name = GameManager.pending_fiscal_event["contract_name"]
+		GameManager.company_cooldowns[c_name] = 3
+	
+	GameManager.pending_fiscal_event.clear()
+	GameManager.save_game()
+	
+	_update_report_text()
+	_update_diretrizes()
+	_update_active_contracts_text()
+	_update_task_pad()
