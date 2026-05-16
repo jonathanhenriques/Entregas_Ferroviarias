@@ -2,10 +2,12 @@ extends Node2D
 
 var ui_layer: CanvasLayer
 
+# REESTRUTURAÇÃO NATIVA: Voltamos ao TILE_SIZE original de 32px
 const TILE_SIZE: int = 32
 
-var grid_width: int = 60
-var grid_height: int = 34 
+# REESTRUTURAÇÃO NATIVA: Nova grelha ocupando exatamente 2/3 da largura (1280px) e altura total
+var grid_width: int = 40  # 40 * 32 = 1280px
+var grid_height: int = 34 # 34 * 32 = 1088px
 
 enum Biome { PLAIN, FOREST, MOUNTAIN, RIVER }
 
@@ -35,6 +37,10 @@ var draft_paths: Array = []
 var deleted_paths: Array = []
 var repair_tiles: Array = [] 
 
+# Fundo da nova Estação de Triagem (A variável que estava a faltar!)
+var inspection_bg: ColorRect
+
+# UI Elements
 var btn_edit_mode: Button
 var btn_go_desk: Button
 
@@ -72,7 +78,13 @@ var lbl_lobby_val: Label
 
 var btn_close_maint: Button
 
+
+
+
 func _ready() -> void:
+	# Importante: Limpar rotas antigas que não cabem na nova grelha antes de gerar
+	_validate_saved_routes()
+	
 	_generate_biomes()
 	_setup_ui()
 	
@@ -82,6 +94,19 @@ func _ready() -> void:
 	_update_network_status()
 	visibility_changed.connect(_on_visibility_changed)
 
+func _validate_saved_routes() -> void:
+	# Remove rotas que tenham pontos fora da nova grelha 40x34
+	var valid_routes = []
+	for route in GameManager.saved_routes:
+		var route_valid = true
+		for cell in route:
+			if cell.x >= grid_width or cell.y >= grid_height:
+				route_valid = false
+				break
+		if route_valid:
+			valid_routes.append(route)
+	GameManager.saved_routes = valid_routes
+
 func _on_visibility_changed() -> void:
 	if ui_layer:
 		ui_layer.visible = visible
@@ -90,13 +115,12 @@ func _on_visibility_changed() -> void:
 		_check_disasters()
 		_update_network_status()
 		
-		# Bloqueia as obras se já existir uma Planta pendente
 		if not GameManager.pending_blueprint.is_empty():
-			btn_edit_mode.text = "[ PLANTA PENDENTE NA MESA ]"
+			btn_edit_mode.text = "[ PLANTA PENDENTE ]"
 			btn_edit_mode.disabled = true
 			btn_edit_mode.add_theme_color_override("font_color", Color.ORANGE)
 		else:
-			btn_edit_mode.text = "[ ENTRAR MODO DE OBRAS ]"
+			btn_edit_mode.text = "[ MODO OBRAS ]"
 			btn_edit_mode.disabled = false
 			btn_edit_mode.add_theme_color_override("font_color", Color.YELLOW)
 
@@ -159,6 +183,7 @@ func _generate_biomes() -> void:
 	var layout_h = layout.size()
 	var layout_w = layout[0].length() if layout_h > 0 else 0
 	
+	# REESTRUTURAÇÃO NATIVA: O offset agora centraliza na nova grelha 40x34
 	var offset_x = (grid_width - layout_w) / 2
 	var offset_y = (grid_height - layout_h) / 2
 	
@@ -168,6 +193,9 @@ func _generate_biomes() -> void:
 			var char = row[x]
 			var cell = Vector2i(x + offset_x, y + offset_y)
 			
+			# Segurança: não desenhar fora da grelha se o layout for maior
+			if cell.x >= grid_width or cell.y >= grid_height or cell.x < 0 or cell.y < 0: continue
+
 			if char == ".": 
 				biome_map[cell] = Biome.PLAIN
 			else:
@@ -197,39 +225,74 @@ func _generate_biomes() -> void:
 		for y in range(g_layout.size()):
 			var row = g_layout[y]
 			for x in range(row.length()):
+				var cell = Vector2i(x + offset_x, y + offset_y)
+				if cell.x >= grid_width or cell.y >= grid_height or cell.x < 0 or cell.y < 0: continue
 				if row[x] == "G":
-					gang_map[Vector2i(x + offset_x, y + offset_y)] = true
+					gang_map[cell] = true
 
 func _setup_ui() -> void:
 	ui_layer = CanvasLayer.new()
 	add_child(ui_layer)
 
+	# Painel Lateral 1/3 da tela
+	var map_limit_x = grid_width * TILE_SIZE # 1280px
+	var panel_width = 1920 - map_limit_x # Aprox. 640px
+	
+	inspection_bg = ColorRect.new()
+	inspection_bg.color = Color(0.12, 0.14, 0.16)
+	inspection_bg.size = Vector2(panel_width, 1080)
+	inspection_bg.position = Vector2(map_limit_x, 0)
+	ui_layer.add_child(inspection_bg)
+	
+	var insp_border = ReferenceRect.new()
+	insp_border.set_anchors_preset(Control.PRESET_FULL_RECT)
+	insp_border.border_color = Color(0.3, 0.3, 0.35)
+	insp_border.border_width = 4
+	inspection_bg.add_child(insp_border)
+	
+	var insp_title = Label.new()
+	insp_title.text = "ESTACAO DE TRIAGEM E PESAGEM\n[ DESATIVADA ]"
+	insp_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	insp_title.add_theme_font_size_override("font_size", 18)
+	insp_title.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
+	insp_title.position = Vector2(0, 40)
+	insp_title.size = Vector2(panel_width, 60)
+	inspection_bg.add_child(insp_title)
+
+	# Os botões de navegação no canto inferior direito DO MAPA
+	var ui_area_width = 250
+	var btn_x = map_limit_x - ui_area_width - 20 
+	var start_y = (grid_height * TILE_SIZE) - 200 
+	
 	btn_go_desk = Button.new()
-	btn_go_desk.text = "<- Ir para a Mesa"
-	btn_go_desk.position = Vector2(40, 40)
-	btn_go_desk.size = Vector2(180, 40)
+	btn_go_desk.text = "<- Mesa"
+	btn_go_desk.position = Vector2(btn_x, start_y)
+	btn_go_desk.size = Vector2(ui_area_width, 40)
 	btn_go_desk.pressed.connect(_on_go_desk_pressed)
 	ui_layer.add_child(btn_go_desk)
 	
 	btn_edit_mode = Button.new()
-	btn_edit_mode.text = "[ ENTRAR MODO DE OBRAS ]"
-	btn_edit_mode.position = Vector2(240, 40)
-	btn_edit_mode.size = Vector2(250, 40)
+	btn_edit_mode.text = "[ MODO OBRAS ]"
+	btn_edit_mode.position = Vector2(btn_x, start_y + 50)
+	btn_edit_mode.size = Vector2(ui_area_width, 40)
 	btn_edit_mode.add_theme_color_override("font_color", Color.YELLOW)
 	btn_edit_mode.pressed.connect(_on_edit_mode_pressed)
 	ui_layer.add_child(btn_edit_mode)
 
 	btn_maint = Button.new()
-	btn_maint.text = "[/!\\] ORCAMENTO"
-	btn_maint.position = Vector2(1650, 40)
-	btn_maint.size = Vector2(200, 40)
+	btn_maint.text = "[/!\\] Orcamento"
+	btn_maint.position = Vector2(btn_x, start_y + 100)
+	btn_maint.size = Vector2(ui_area_width, 40)
 	btn_maint.add_theme_color_override("font_color", Color.ORANGE)
 	btn_maint.pressed.connect(_on_btn_maint_pressed)
 	ui_layer.add_child(btn_maint)
 
+	# SOLUÇÃO: Painéis de Obras e Manutenção movidos para o centro do 1/3 da direita!
+	var right_center_x = map_limit_x + (panel_width / 2.0)
+
 	edit_panel = ColorRect.new()
 	edit_panel.color = Color(0.1, 0.1, 0.15, 0.95)
-	edit_panel.position = Vector2(1550, 40) 
+	edit_panel.position = Vector2(right_center_x - 170, 200) 
 	edit_panel.size = Vector2(340, 560) 
 	edit_panel.visible = false
 	ui_layer.add_child(edit_panel)
@@ -248,7 +311,7 @@ func _setup_ui() -> void:
 	edit_panel.add_child(edit_info)
 
 	btn_confirm = Button.new()
-	btn_confirm.text = "GERAR PLANTA E ENVIAR"
+	btn_confirm.text = "GERAR PLANTA\nE ENVIAR"
 	btn_confirm.position = Vector2(20, 490) 
 	btn_confirm.size = Vector2(145, 50)
 	btn_confirm.add_theme_color_override("font_color", Color.SKY_BLUE)
@@ -256,7 +319,7 @@ func _setup_ui() -> void:
 	edit_panel.add_child(btn_confirm)
 
 	btn_cancel = Button.new()
-	btn_cancel.text = "DESCARTAR TUDO"
+	btn_cancel.text = "DESCARTAR\nTUDO"
 	btn_cancel.position = Vector2(175, 490) 
 	btn_cancel.size = Vector2(145, 50)
 	btn_cancel.add_theme_color_override("font_color", Color.INDIAN_RED)
@@ -266,7 +329,7 @@ func _setup_ui() -> void:
 	maint_panel = ColorRect.new()
 	maint_panel.color = Color(0.15, 0.15, 0.15, 0.95)
 	maint_panel.size = Vector2(400, 460)
-	maint_panel.position = Vector2(1450, 90)
+	maint_panel.position = Vector2(right_center_x - 200, 250)
 	maint_panel.visible = false
 	ui_layer.add_child(maint_panel)
 
@@ -397,6 +460,8 @@ func _setup_ui() -> void:
 	btn_close_maint.pressed.connect(_on_btn_close_maint_pressed)
 	maint_panel.add_child(btn_close_maint)
 
+
+
 func _on_btn_maint_pressed() -> void:
 	if is_edit_mode: return 
 	maint_panel.visible = true
@@ -510,7 +575,6 @@ func _get_tile_type(cell: Vector2i) -> String:
 		return "env"
 	return "tracks"
 
-# NOVO: O painel de Engenharia agora expõe a dolorosa burocracia do Governo
 func _update_edit_panel() -> void:
 	var build_cost = 0
 	var repair_cost = 0
@@ -549,7 +613,6 @@ func _update_edit_panel() -> void:
 	net_cost = build_cost + repair_cost - refund_val
 	net_maint = build_maint - refund_maint
 
-	# Taxas Governamentais
 	current_env_tax = forest_count * 50
 	current_eng_tax = (tunnel_count * 200) + (bridge_count * 300)
 	current_sec_tax = 0
@@ -615,7 +678,6 @@ func _update_edit_panel() -> void:
 	edit_info.text = t
 	btn_confirm.disabled = not is_valid
 
-# NOVO: Nenhuma obra acontece magicamente. Elas viram um papel!
 func _on_confirm_edit_pressed() -> void:
 	var affected_tiles = {}
 	for d in deleted_paths:
@@ -653,9 +715,7 @@ func _on_confirm_edit_pressed() -> void:
 	}
 	GameManager.save_game()
 	_on_cancel_edit_pressed() 
-	_on_go_desk_pressed()
-
-
+	_on_go_desk_pressed() 
 
 func _process(delta: float) -> void:
 	if not visible: return
@@ -725,7 +785,7 @@ func _spawn_train(contract_index: int, contract: Dictionary) -> void:
 		"path": path_points,
 		"progress": 0.0,
 		"direction": 1,
-		"speed": 60.0, 
+		"speed": 100.0, # Aumentado velocidade para compensar o tamanho maior nativo
 		"color": v_color,
 		"delay": contract_index * 1.5
 	}
@@ -792,7 +852,7 @@ func _draw_trains() -> void:
 		var current_dist = train["progress"]
 		if train.has("delay") and train["delay"] > 0: current_dist = 0.0 
 		var loco_dist = current_dist
-		var wagon_dist = current_dist - (14.0 * train["direction"])
+		var wagon_dist = current_dist - (20.0 * train["direction"]) # Aumentado dist wagon
 		var loco_info = _get_path_info(path, loco_dist)
 		var wagon_info = _get_path_info(path, wagon_dist)
 		var loco_dir = loco_info["dir"]
@@ -800,11 +860,12 @@ func _draw_trains() -> void:
 		if train["direction"] == -1:
 			loco_dir = -loco_dir
 			wagon_dir = -wagon_dir
+			
 		draw_set_transform(wagon_info["pos"], wagon_dir.angle(), Vector2.ONE)
-		draw_rect(Rect2(-8, -5, 16, 10), train["color"])
+		draw_rect(Rect2(-10, -6, 20, 12), train["color"]) # Wagon maior nativo
 		draw_set_transform(loco_info["pos"], loco_dir.angle(), Vector2.ONE)
-		draw_rect(Rect2(-10, -6, 20, 12), Color(0.15, 0.15, 0.15)) 
-		draw_rect(Rect2(2, -4, 6, 8), Color(0.7, 0.7, 0.7)) 
+		draw_rect(Rect2(-12, -8, 24, 16), Color(0.15, 0.15, 0.15)) # Loco maior native
+		draw_rect(Rect2(2, -4, 8, 10), Color(0.7, 0.7, 0.7)) # Janela maior native
 		draw_set_transform(Vector2.ZERO, 0, Vector2.ONE)
 
 func _bfs_get_path_array(start_node: Vector2i, target_node: Vector2i, valid_tiles: Dictionary) -> Array[Vector2i]:
@@ -830,17 +891,16 @@ func _is_cell_occupied_by_track(cell: Vector2i) -> bool:
 	if cell in tentative_path: return true
 	for draft in draft_paths:
 		if cell in draft: return true
-	
-	# NOVO: A floresta também é cortada visualmente se houver uma planta pendente
+		
 	if not GameManager.pending_blueprint.is_empty():
 		for draft in GameManager.pending_blueprint.get("draft_paths", []):
 			if cell in draft: return true
 			
 	return false
 
-
-
 func _draw() -> void:
+	# Limitar o desenho APENAS aos 2/3 esquerdos da tela (40 colunas)
+	# REESTRUTURAÇÃO NATIVA: Não usamos mais scale, desenhamos tudo com TILE_SIZE=32 direto
 	for x in range(grid_width):
 		for y in range(grid_height):
 			var cell = Vector2i(x, y)
@@ -857,11 +917,13 @@ func _draw() -> void:
 	for cell in gang_map.keys():
 		draw_rect(Rect2(cell.x * TILE_SIZE, cell.y * TILE_SIZE, TILE_SIZE, TILE_SIZE), Color(0.8, 0.1, 0.1, 0.4))
 
+	# Linhas de grelha limitadas
 	for x in range(grid_width + 1):
 		draw_line(Vector2(x * TILE_SIZE, 0), Vector2(x * TILE_SIZE, grid_height * TILE_SIZE), Color(0, 0, 0, 0.1), 1.0)
 	for y in range(grid_height + 1):
 		draw_line(Vector2(0, y * TILE_SIZE), Vector2(grid_width * TILE_SIZE, y * TILE_SIZE), Color(0, 0, 0, 0.1), 1.0)
 
+	# Lógica de rotas e obras (sem alteração, pois as variáveis já estão corretas na BFS)
 	var valid_built = {}
 	for r in confirmed_routes:
 		for c in r: valid_built[c] = true
@@ -891,7 +953,6 @@ func _draw() -> void:
 	for route in confirmed_routes: 
 		var is_del = deleted_paths.has(route)
 		
-		# NOVO: Fica vermelho se a rota estiver para ser apagada na planta que está na mesa
 		if not GameManager.pending_blueprint.is_empty():
 			for d in GameManager.pending_blueprint.get("deleted_paths", []):
 				if _are_routes_equal(route, d): is_del = true
@@ -921,7 +982,6 @@ func _draw() -> void:
 		_draw_custom_track(draft, true, false, false)
 	_draw_custom_track(tentative_path, true, false, false)
 
-	# NOVO: Desenha a rota pendente de aprovação com uma placa Azul clara
 	if not GameManager.pending_blueprint.is_empty():
 		var bp_drafts = GameManager.pending_blueprint.get("draft_paths", [])
 		for draft in bp_drafts:
@@ -936,7 +996,6 @@ func _draw() -> void:
 					draw_rect(Rect2(px - 75, py - 12, 150, 24), Color(0.1, 0.2, 0.4, 0.9))
 					draw_string(ThemeDB.fallback_font, Vector2(px - 70, py + 4), "[ AGUARDANDO APROV. ]", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color.SKY_BLUE)
 					
-		# NOVO: Círculo Azul claro para reparos que estão na planta
 		var bp_repairs = GameManager.pending_blueprint.get("repair_tiles", [])
 		for cell in bp_repairs:
 			var px = cell.x * TILE_SIZE + 16
@@ -962,16 +1021,9 @@ func _draw() -> void:
 		if repair_tiles.has(cell):
 			draw_arc(Vector2(px, py), 18.0, 0, TAU, 16, Color.YELLOW, 3.0)
 
-
-
-# Função Auxiliar nova (coloque em qualquer lugar fora de outra função no mapview.gd)
-func _are_routes_equal(r1: Array, r2: Array) -> bool:
-	if r1.size() != r2.size(): return false
-	for i in range(r1.size()):
-		if r1[i] != r2[i]: return false
-	return true
-	
-	
+	# REESTRUTURAÇÃO NATIVA: Pintar o 1/3 da direita de preto sólido para garantir que o mapa não "vaza"
+	var panel_x = grid_width * TILE_SIZE
+	draw_rect(Rect2(panel_x, 0, 1920 - panel_x, 1088), Color.BLACK)
 
 func _get_track_color(b: int, is_preview: bool, is_construction: bool, is_deleted: bool = false) -> Color:
 	if is_deleted: return Color(0.8, 0.2, 0.2, 0.7) 
@@ -985,12 +1037,12 @@ func _draw_custom_track(path: Array, is_preview: bool, is_const: bool, is_delete
 	if path.size() == 0: return
 	if path.size() == 1:
 		var b = biome_map.get(path[0], Biome.PLAIN)
-		draw_circle(Vector2(path[0].x * TILE_SIZE + 16, path[0].y * TILE_SIZE + 16), 4.0, _get_track_color(b, is_preview, is_const, is_deleted))
+		draw_circle(Vector2(path[0].x * 32 + 16, path[0].y * 32 + 16), 5.0, _get_track_color(b, is_preview, is_const, is_deleted))
 		return
 	for cell in path:
 		if biome_map.get(cell, Biome.PLAIN) == Biome.FOREST:
-			draw_circle(Vector2(cell.x * TILE_SIZE + 6, cell.y * TILE_SIZE + 6), 4.0, Color(0.85, 0.75, 0.55))
-			draw_circle(Vector2(cell.x * TILE_SIZE + 6, cell.y * TILE_SIZE + 6), 2.0, Color(0.7, 0.6, 0.4))
+			draw_circle(Vector2(cell.x * 32 + 10, cell.y * 32 + 10), 5.0, Color(0.85, 0.75, 0.55))
+			draw_circle(Vector2(cell.x * 32 + 10, cell.y * 32 + 10), 2.0, Color(0.7, 0.6, 0.4))
 	for i in range(path.size() - 1):
 		var p1_cell = path[i]
 		var p2_cell = path[i+1]
@@ -1003,10 +1055,10 @@ func _draw_custom_track(path: Array, is_preview: bool, is_const: bool, is_delete
 			else:
 				if b1 == Biome.FOREST or b2 == Biome.FOREST: segment_biome = Biome.FOREST
 		var line_color = _get_track_color(segment_biome, is_preview, is_const, is_deleted)
-		var line_width = 5.0
-		if segment_biome != Biome.MOUNTAIN: line_width = 2.0
-		var p1 = Vector2(p1_cell.x * TILE_SIZE + 16, p1_cell.y * TILE_SIZE + 16)
-		var p2 = Vector2(p2_cell.x * TILE_SIZE + 16, p2_cell.y * TILE_SIZE + 16)
+		var line_width = 3.0
+		if segment_biome == Biome.MOUNTAIN: line_width = 7.0
+		var p1 = Vector2(p1_cell.x * 32 + 16, p1_cell.y * 32 + 16)
+		var p2 = Vector2(p2_cell.x * 32 + 16, p2_cell.y * 32 + 16)
 		draw_line(p1, p2, line_color, line_width)
 		if segment_biome != Biome.MOUNTAIN:
 			var dir = (p2 - p1).normalized()
@@ -1020,79 +1072,83 @@ func _draw_custom_track(path: Array, is_preview: bool, is_const: bool, is_delete
 			if is_const and not is_deleted: tie_color = Color.BLACK
 			for j in range(1, num_ties + 1):
 				var tie_center = p1 + dir * (j * spacing)
-				draw_line(tie_center - normal * 4, tie_center + normal * 4, tie_color, 2.0)
+				draw_line(tie_center - normal * 5.0, tie_center + normal * 5.0, tie_color, 2.0)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not visible: return
-	if edit_panel.visible == false and not is_edit_mode: return 
-	
-	if event is InputEventMouseButton:
-		if event.button_index == MOUSE_BUTTON_LEFT:
-			if event.is_pressed():
-				var cell = _get_cell_under_mouse(event.position)
-				if cell.x >= 0 and cell.x < grid_width and cell.y >= 0 and cell.y < grid_height:
-					is_dragging = true
-					tentative_path = [cell]
-					queue_redraw()
+	if is_edit_mode:
+		# REESTRUTURAÇÃO NATIVA: Impedir que cliques na área de 1/3 da direita afetem o mapa
+		if event is InputEventMouseButton or event is InputEventMouseMotion:
+			if event.position.x > grid_width * TILE_SIZE: return
+
+		if event is InputEventMouseButton:
+			if event.button_index == MOUSE_BUTTON_LEFT:
+				if event.is_pressed():
+					var cell = _get_cell_under_mouse(event.position)
+					if cell.x >= 0 and cell.x < grid_width and cell.y >= 0 and cell.y < grid_height:
+						is_dragging = true
+						tentative_path = [cell]
+						queue_redraw()
+				else:
+					if is_dragging: 
+						is_dragging = false
+						if tentative_path.size() > 0:
+							draft_paths.append(tentative_path.duplicate())
+							tentative_path.clear()
+							_update_edit_panel()
+						queue_redraw()
 			else:
-				if is_dragging: 
-					is_dragging = false
-					if tentative_path.size() > 0:
-						draft_paths.append(tentative_path.duplicate())
-						tentative_path.clear()
-						_update_edit_panel()
+				if event.button_index == MOUSE_BUTTON_RIGHT and event.is_pressed():
+					var cell = _get_cell_under_mouse(event.position)
+					var handled = false
+					
+					for i in range(draft_paths.size() - 1, -1, -1):
+						if draft_paths[i].has(cell):
+							draft_paths.remove_at(i)
+							handled = true
+							break
+							
+					if not handled:
+						if GameManager.broken_tiles.has(cell):
+							var route_is_deleted = false
+							for r in deleted_paths:
+								if r.has(cell): route_is_deleted = true
+							
+							if not route_is_deleted: 
+								if repair_tiles.has(cell):
+									repair_tiles.erase(cell)
+								else:
+									repair_tiles.append(cell)
+								handled = true
+								
+					if not handled:
+						for r in confirmed_routes:
+							if r.has(cell):
+								if deleted_paths.has(r): 
+									deleted_paths.erase(r) 
+								else: 
+									deleted_paths.append(r)
+									for c in r:
+										if repair_tiles.has(c):
+											repair_tiles.erase(c)
+								break
+					_update_edit_panel()
 					queue_redraw()
 		else:
-			if event.button_index == MOUSE_BUTTON_RIGHT and event.is_pressed():
+			if event is InputEventMouseMotion and is_dragging:
 				var cell = _get_cell_under_mouse(event.position)
-				var handled = false
-				
-				for i in range(draft_paths.size() - 1, -1, -1):
-					if draft_paths[i].has(cell):
-						draft_paths.remove_at(i)
-						handled = true
-						break
-						
-				if not handled:
-					if GameManager.broken_tiles.has(cell):
-						var route_is_deleted = false
-						for r in deleted_paths:
-							if r.has(cell): route_is_deleted = true
-						
-						if not route_is_deleted: 
-							if repair_tiles.has(cell):
-								repair_tiles.erase(cell)
-							else:
-								repair_tiles.append(cell)
-							handled = true
-							
-				if not handled:
-					for r in confirmed_routes:
-						if r.has(cell):
-							if deleted_paths.has(r): 
-								deleted_paths.erase(r) 
-							else: 
-								deleted_paths.append(r)
-								for c in r:
-									if repair_tiles.has(c):
-										repair_tiles.erase(c)
-							break
-				_update_edit_panel()
-				queue_redraw()
-	else:
-		if event is InputEventMouseMotion and is_dragging:
-			var cell = _get_cell_under_mouse(event.position)
-			cell.x = clamp(cell.x, 0, grid_width - 1)
-			cell.y = clamp(cell.y, 0, grid_height - 1)
-			if tentative_path.size() > 0:
-				var last = tentative_path.back()
-				if cell != last:
-					var segment = _get_orthogonal_path(last, cell)
-					for p in segment:
-						var idx = tentative_path.find(p)
-						if idx != -1: tentative_path.resize(idx + 1)
-						else: tentative_path.append(p)
-					queue_redraw()
+				# Limitar ortogonal à grelha nativa
+				cell.x = clamp(cell.x, 0, grid_width - 1)
+				cell.y = clamp(cell.y, 0, grid_height - 1)
+				if tentative_path.size() > 0:
+					var last = tentative_path.back()
+					if cell != last:
+						var segment = _get_orthogonal_path(last, cell)
+						for p in segment:
+							var idx = tentative_path.find(p)
+							if idx != -1: tentative_path.resize(idx + 1)
+							else: tentative_path.append(p)
+						queue_redraw()
 
 func _get_orthogonal_path(start: Vector2i, end: Vector2i) -> Array[Vector2i]:
 	var path: Array[Vector2i] = []
@@ -1106,9 +1162,9 @@ func _get_orthogonal_path(start: Vector2i, end: Vector2i) -> Array[Vector2i]:
 	return path
 
 func _update_network_status() -> void:
+	# Lógica idêntica, as referências de rede estão no GameManager que é global
 	active_trains.clear()
 	
-	# Primeiro, encontramos os trilhos que estão em obras para ISENTÁ-LOS da manutenção
 	var valid_for_path = {}
 	for r in confirmed_routes:
 		for c in r: valid_for_path[c] = true
@@ -1150,11 +1206,9 @@ func _update_network_status() -> void:
 			if gang_map.has(cell): has_g = true
 			if const_cells.has(cell): is_route_const = true
 		
-		# Só cobra pedágio das gangues se a rota estiver ativa (fora de obras)
 		if has_g and not is_route_const: toll += GANG_TOLL_RATE
 		
 	for cell in built.keys():
-		# CORREÇÃO: Se a célula está em obras, ela NÃO gera custos de manutenção!
 		if const_cells.has(cell): continue
 		
 		var b = biome_map.get(cell, Biome.PLAIN)
@@ -1229,9 +1283,7 @@ func _update_network_status() -> void:
 			
 	GameManager.network_connections = connections
 	GameManager.network_stats = stats
-	GameManager.contracts_updated.emit()
-
-
+	GameManager.contracts_updated.emit() 
 
 func _get_route_capabilities(start: Vector2i, target: Vector2i, valid: Dictionary) -> Dictionary:
 	var shortest = _bfs_shortest_dist(start, target, valid, false, false)
@@ -1259,3 +1311,9 @@ func _bfs_shortest_dist(start: Vector2i, target: Vector2i, valid: Dictionary, av
 	
 func _get_cell_under_mouse(p: Vector2) -> Vector2i: 
 	return Vector2i(p.x / TILE_SIZE, p.y / TILE_SIZE)
+
+func _are_routes_equal(r1: Array, r2: Array) -> bool:
+	if r1.size() != r2.size(): return false
+	for i in range(r1.size()):
+		if r1[i] != r2[i]: return false
+	return true
