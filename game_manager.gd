@@ -6,6 +6,10 @@ signal maintenance_updated(new_maintenance)
 signal contracts_updated() 
 signal game_over(is_victory: bool, message: String)
 
+# SINAIS DA TRIAGEM
+signal package_queue_updated(count: int)
+signal strike_received(total_strikes: int, reason: String)
+
 var pending_fiscal_event: Dictionary = {}
 var current_level: int = 1
 var highest_unlocked_level: int = 1
@@ -27,7 +31,6 @@ var daily_maintenance: int = 0 :
 		maintenance_updated.emit(daily_maintenance)
 
 var daily_gang_toll: int = 0
-
 var daily_crew_cost: int = 0
 var daily_lobby_cost: int = 0
 
@@ -70,10 +73,22 @@ var ideal_maint_lobby: int = 0
 var tile_data: Dictionary = {} 
 var pending_disaster_check: bool = false
 var broken_tiles: Array = []
-
-# NOVO: Memória da Planta de Engenharia
 var pending_blueprint: Dictionary = {}
 
+# VARIÁVEIS DA TRIAGEM E PESAGEM
+var package_queue: Array = []
+var strikes: int = 0
+var pendent_strike_warning: String = ""
+var package_timer: float = 0.0
+const PACKAGE_INTERVAL: float = 20.0 # Um pacote chega a cada 20 segundos reais
+
+# MOTOR DE TEMPO CONTÍNUO (Gera encomendas durante o dia)
+func _process(delta: float) -> void:
+	if current_day > 0 and money > -9999: # Só rola se o jogo estiver ativo
+		package_timer += delta
+		if package_timer >= PACKAGE_INTERVAL:
+			package_timer = 0.0
+			_generate_package()
 
 func update_actual_maintenance() -> void:
 	var infra_cost = int(ideal_maint_infra * maint_pct_infra)
@@ -86,65 +101,29 @@ func update_actual_maintenance() -> void:
 	daily_lobby_cost = int(ideal_maint_lobby * maint_pct_lobby)
 
 func is_contract_operating(c: Dictionary) -> bool:
-	if c.has("pending_route_days"):
-		return false
-		
+	if c.has("pending_route_days"): return false
 	var rid = c["route_id"]
-	if not (rid in network_connections): 
-		return false
-		
-	if routes_under_construction.get(rid, 0) > 0:
-		return false
-	
+	if not (rid in network_connections): return false
+	if routes_under_construction.get(rid, 0) > 0: return false
 	var st = network_stats.get(rid, {})
-	if st.is_empty(): 
-		return false
-		
-	if st.get("is_broken", false):
-		return false
-	
+	if st.is_empty(): return false
+	if st.get("is_broken", false): return false
 	var tp = c.get("type", "")
-	
-	if tp == "Expresso" and st["dist"] > c.get("max_dist", 999): 
-		return false
-	
-	if tp == "VIP" and (st["gangs"] > 0 or active_contracts.size() > 1): 
-		return false 
-		
-	if tp == "Ecologico" and st["forests"] > 0: 
-		return false
-		
+	if tp == "Expresso" and st["dist"] > c.get("max_dist", 999): return false
+	if tp == "VIP" and (st["gangs"] > 0 or active_contracts.size() > 1): return false 
+	if tp == "Ecologico" and st["forests"] > 0: return false
 	return true
 
 func is_contract_route_ready(c: Dictionary) -> bool:
 	var rid = c["route_id"]
-	var has_route = rid in network_connections
-	if not has_route:
-		return false
-
-	if routes_under_construction.get(rid, 0) > 0:
-		return false
-
+	if not (rid in network_connections): return false
+	if routes_under_construction.get(rid, 0) > 0: return false
 	var st = network_stats.get(rid, {})
-	if st.is_empty():
-		return false
-		
-	if st.get("is_broken", false):
-		return false
-
+	if st.is_empty() or st.get("is_broken", false): return false
 	var tp = c.get("type", "")
-	if tp == "Expresso":
-		if st.get("dist", 999) > c.get("max_dist", 999):
-			return false
-	if tp == "VIP":
-		if st.get("gangs", 0) > 0:
-			return false
-		if active_contracts.size() > 1:
-			return false
-	if tp == "Ecologico":
-		if st.get("forests", 0) > 0:
-			return false
-
+	if tp == "Expresso" and st.get("dist", 999) > c.get("max_dist", 999): return false
+	if tp == "VIP" and (st.get("gangs", 0) > 0 or active_contracts.size() > 1): return false
+	if tp == "Ecologico" and st.get("forests", 0) > 0: return false
 	return true
 
 func get_daily_income() -> int:
@@ -188,6 +167,11 @@ func reset_game() -> void:
 	pending_blueprint.clear()
 	pending_fiscal_event.clear()
 	
+	package_queue.clear()
+	strikes = 0
+	pendent_strike_warning = ""
+	package_timer = 0.0
+	
 	_generate_daily_generics()
 	save_game()
 
@@ -200,8 +184,6 @@ func end_day(upfront_income: int = 0) -> void:
 	money -= daily_crew_cost
 	money -= daily_lobby_cost
 	
-	# CORREÇÃO VITAL: As obras devem avançar 1 dia ANTES de validarmos os contratos,
-	# garantindo que um contrato de Risco seja salvo se a obra terminar na mesma noite.
 	var new_ruc = {}
 	var ruc_keys = routes_under_construction.keys()
 	for i in range(ruc_keys.size()):
@@ -213,7 +195,6 @@ func end_day(upfront_income: int = 0) -> void:
 	var keep = []
 	for c in active_contracts:
 		var contract_failed = false
-		
 		if c.has("pending_route_days"):
 			var is_ready = is_contract_route_ready(c)
 			if is_ready:
@@ -224,8 +205,7 @@ func end_day(upfront_income: int = 0) -> void:
 					contract_failed = true
 					today_broken_contracts += 1
 					var pen = int(c["reward"] * 5)
-					if c.get("is_urgent", false):
-						pen = 500
+					if c.get("is_urgent", false): pen = 500
 					today_penalties += pen
 					money -= pen
 					pendent_angry_call = true
@@ -233,18 +213,14 @@ func end_day(upfront_income: int = 0) -> void:
 		if not contract_failed:
 			if not c.has("pending_route_days"):
 				c["days_left"] -= 1
-				if c["days_left"] > 0:
-					keep.append(c)
-			if c.has("pending_route_days"):
-				keep.append(c)
+				if c["days_left"] > 0: keep.append(c)
+			if c.has("pending_route_days"): keep.append(c)
 			
 	active_contracts = keep
 	
 	var new_cd = {}
 	for k in company_cooldowns.keys():
-		if company_cooldowns[k] > 1: 
-			new_cd[k] = company_cooldowns[k] - 1
-			
+		if company_cooldowns[k] > 1: new_cd[k] = company_cooldowns[k] - 1
 	company_cooldowns = new_cd
 	
 	for key in tile_data.keys():
@@ -252,73 +228,133 @@ func end_day(upfront_income: int = 0) -> void:
 		var h = data["h"]
 		var t = data["t"]
 		var change = 0.0
-		
-		if t == "infra":
-			change = (maint_pct_infra - 0.7) * 0.2
-		if t == "tracks":
-			change = (maint_pct_tracks - 0.7) * 0.2
-		if t == "env":
-			change = (maint_pct_env - 0.7) * 0.2
-			
+		if t == "infra": change = (maint_pct_infra - 0.7) * 0.2
+		if t == "tracks": change = (maint_pct_tracks - 0.7) * 0.2
+		if t == "env": change = (maint_pct_env - 0.7) * 0.2
 		h = clamp(h + change, 0.05, 1.0)
 		tile_data[key]["h"] = h
 		
 	pending_disaster_check = true
-	
 	today_broken_contracts = 0
 	today_penalties = 0
-	
 	pending_radio_event = false
 	var has_op_train = false
 	for c in active_contracts:
-		if is_contract_operating(c):
-			has_op_train = true
+		if is_contract_operating(c): has_op_train = true
 			
-	if has_op_train:
-		if randf() < 0.3:
-			pending_radio_event = true
+	if has_op_train and randf() < 0.3:
+		pending_radio_event = true
 			
 	if not pending_radio_event:
 		_roll_fiscal_audit()
 	
 	_generate_daily_generics()
+	
+	# SISTEMA DE TRIAGEM: Envelhecimento dos Pacotes
+	var keep_queue = []
+	for p in package_queue:
+		p["days_in_queue"] += 1
+		if p["true_category"] == "Perecivel" and p["days_in_queue"] >= 2:
+			# Apodreceu na fila!
+			add_strike("O cliente denunciou a empresa porque a carga de " + p["declared_item"] + " estragou na esteira!")
+		else:
+			keep_queue.append(p)
+	package_queue = keep_queue
+	package_queue_updated.emit(package_queue.size())
+	
 	contracts_updated.emit()
 	current_day += 1
 	
 	save_game() 
 	
-	if money < 0: 
-		trigger_bankruptcy()
+	if money < 0: trigger_bankruptcy()
 	else:
-		if money >= LevelData.LEVELS[current_level]["goal"]: 
-			trigger_victory()
+		if money >= LevelData.LEVELS[current_level]["goal"]: trigger_victory()
 
+# FUNÇÕES DA ESTAÇÃO DE TRIAGEM
+func _generate_package() -> void:
+	if package_queue.size() >= 10: return # Limite da fila (Pátio lotado)
+	
+	var categories = ["Cartas", "Perecivel", "Valioso"]
+	var cat = categories.pick_random()
+	var item = ""
+	var base_weight = 0.0
+	var true_stamp = ""
+
+	if cat == "Cartas":
+		item = "Malote de Cartas"
+		base_weight = randf_range(0.1, 1.5)
+		true_stamp = "Selo Branco"
+	elif cat == "Perecivel":
+		item = ["Carne Fresca", "Leite Pasteurizado"].pick_random()
+		base_weight = randf_range(10.0, 30.0)
+		true_stamp = "Selo Verde"
+	elif cat == "Valioso":
+		item = "Caixa de Joias"
+		base_weight = randf_range(2.0, 8.0)
+		true_stamp = "Selo Azul"
+
+	base_weight = snapped(base_weight, 0.1)
+
+	var pkg = {
+		"id": randi(),
+		"true_category": cat,
+		"true_item": item,
+		"true_weight": base_weight,
+		"true_stamp": true_stamp,
+		"is_contraband": false,
+		"declared_category": cat,
+		"declared_item": item,
+		"declared_weight": base_weight,
+		"stamp_used": true_stamp,
+		"days_in_queue": 0,
+		"reward": randi_range(20, 60)
+	}
+
+	# SORTEIO DE FRAUDE
+	var fraud_chance = 0.35
+	if cat == "Cartas": fraud_chance = 0.10
+
+	if randf() < fraud_chance:
+		var f_type = randi() % 3
+		if f_type == 0:
+			pkg["true_weight"] = snapped(base_weight + randf_range(10.0, 40.0), 0.1) # Mentiu o peso
+		elif f_type == 1:
+			pkg["stamp_used"] = "Selo Branco" # Usou o selo mais barato
+		elif f_type == 2:
+			pkg["is_contraband"] = true # Ilegal
+			pkg["true_weight"] = snapped(base_weight + randf_range(15.0, 25.0), 0.1)
+
+	package_queue.append(pkg)
+	package_queue_updated.emit(package_queue.size())
+
+func add_strike(reason: String) -> void:
+	strikes += 1
+	strike_received.emit(strikes, reason)
+	if strikes >= 3:
+		money -= 500
+		today_penalties += 500
+		strikes = 0
+		pendent_strike_warning = "O Ministério dos Transportes aplicou uma multa de $500 devido a repetidas ocorrencias no seu posto de triagem!"
 
 func _roll_fiscal_audit() -> void:
-	# 30% de chance do fiscal agir se houver trens operando
 	if randf() > 0.3: return 
-	
 	var running_contracts = []
 	for c in active_contracts:
-		if is_contract_operating(c):
-			running_contracts.append(c)
-			
+		if is_contract_operating(c): running_contracts.append(c)
 	if running_contracts.is_empty(): return
 	
 	var target = running_contracts.pick_random()
 	var rid = target["route_id"]
-	
 	var has_violation = false
 	var violation_reason = ""
 	var fine = 0
 	
-	# Auditoria 1: Negligência por Baixo Orçamento (Manutenção)
 	if maint_pct_infra < 0.5 or maint_pct_tracks < 0.5 or maint_pct_env < 0.5:
 		has_violation = true
 		violation_reason = "NEGLIGENCIA: O vosso Orcamento de Manutencao esta demasiadamente baixo. Os nossos fiscais relatam carris soltos e infraestrutura perigosa na vossa malha!"
 		fine = 800
 	else:
-		# Auditoria 2: VIP em Área de Gangues
 		if target.get("type", "") == "VIP":
 			var stats = network_stats.get(rid, {})
 			if stats.get("gangs", 0) > 0:
@@ -326,29 +362,20 @@ func _roll_fiscal_audit() -> void:
 				violation_reason = "RISCO DE ESTADO: Detetamos um comboio VIP a cruzar territorio dominado por gangues. Isto e um absurdo de seguranca!"
 				fine = 1500
 
-	# Aqui o sistema está pronto para a sua futura implementação de Auditoria 3: Cargas/Contrabando
-
 	if has_violation:
 		var can_bribe = (maint_pct_lobby >= 0.7)
 		var bribe_cost = int(fine * 0.15) 
-		
 		pending_fiscal_event = {
-			"reason": violation_reason,
-			"fine": fine,
-			"can_bribe": can_bribe,
-			"bribe_cost": bribe_cost,
+			"reason": violation_reason, "fine": fine,
+			"can_bribe": can_bribe, "bribe_cost": bribe_cost,
 			"contract_name": target["company_name"]
 		}
-
-
-
 
 func _generate_daily_generics() -> void:
 	daily_generic_companies.clear()
 	var n = ["Comerciante Local", "Fazendeiro Independente", "Cooperativa Agricola"]
 	var t = ["Ganha-Pao", "Expresso"]
 	var cg = ["Suprimentos", "Materiais", "Maquinario", "Gado"]
-	
 	var possible_routes = [
 		{"id": "Azul-Vermelha", "n": "Azul <-> Vermelha"}, 
 		{"id": "Azul-Verde", "n": "Azul <-> Verde"}, 
@@ -356,20 +383,12 @@ func _generate_daily_generics() -> void:
 	]
 	var r = possible_routes.pick_random()
 	var tp = t.pick_random()
-	
 	var comp = {
-		"name": n.pick_random() + " (Diario)", 
-		"type": tp, 
-		"base_reward": randi_range(80, 160), 
-		"phone": "555-" + str(randi_range(1000, 9999)), 
-		"cargo": cg.pick_random(), 
-		"route_id": r["id"], 
-		"route_name": r["n"]
+		"name": n.pick_random() + " (Diario)", "type": tp, 
+		"base_reward": randi_range(80, 160), "phone": "555-" + str(randi_range(1000, 9999)), 
+		"cargo": cg.pick_random(), "route_id": r["id"], "route_name": r["n"]
 	}
-	
-	if tp == "Expresso": 
-		comp["max_dist"] = 35 
-		
+	if tp == "Expresso": comp["max_dist"] = 35 
 	daily_generic_companies.append(comp)
 	_roll_daily_urgencies()
 
@@ -377,72 +396,52 @@ func _roll_daily_urgencies() -> void:
 	daily_urgencies.clear()
 	var comps = LevelData.LEVELS[current_level]["companies"].duplicate(true)
 	comps.append_array(daily_generic_companies)
-	
 	for c in comps:
-		if randf() < 0.35: 
-			daily_urgencies[c["name"]] = int(c["base_reward"] * randf_range(3.0, 5.0))
+		if randf() < 0.35: daily_urgencies[c["name"]] = int(c["base_reward"] * randf_range(3.0, 5.0))
 
 func cancel_contract(idx: int) -> void:
 	if idx >= 0 and idx < active_contracts.size():
 		var c = active_contracts[idx]
 		var p = 0
-		if not c.get("is_urgent", false): 
-			p = int((c["reward"] * c["days_left"]) * 0.20)
+		if not c.get("is_urgent", false): p = int((c["reward"] * c["days_left"]) * 0.20)
 		money -= p
-		
 		today_penalties += p
 		today_broken_contracts += 1
-		
 		active_contracts.remove_at(idx)
 		contracts_updated.emit()
 		save_game()
 
-func trigger_bankruptcy() -> void: 
-	game_over.emit(false, "FALENCIA!\nSaldo negativo.")
-
+func trigger_bankruptcy() -> void: game_over.emit(false, "FALENCIA!\nSaldo negativo.")
 func trigger_victory() -> void:
-	if current_level == highest_unlocked_level and LevelData.LEVELS.has(current_level + 1): 
-		highest_unlocked_level += 1
+	if current_level == highest_unlocked_level and LevelData.LEVELS.has(current_level + 1): highest_unlocked_level += 1
 	game_over.emit(true, "VITORIA!\nMeta atingida.")
 
-func has_save() -> bool:
-	return FileAccess.file_exists(SAVE_PATH)
+func has_save() -> bool: return FileAccess.file_exists(SAVE_PATH)
 
 func save_game() -> void:
 	var data = {
-		"money": money,
-		"current_day": current_day,
-		"daily_maintenance": daily_maintenance,
-		"daily_gang_toll": daily_gang_toll,
-		"daily_crew_cost": daily_crew_cost,
-		"daily_lobby_cost": daily_lobby_cost,
-		"active_contracts": active_contracts,
-		"company_cooldowns": company_cooldowns,
-		"intro_played": intro_played,
-		"pending_radio_event": pending_radio_event,
-		"pending_fiscal_event": pending_fiscal_event,
-		"routes_under_construction": routes_under_construction,
-		"saved_routes": _routes_to_array(saved_routes),
-		"current_level": current_level,
-		"highest_unlocked_level": highest_unlocked_level,
-		"maint_pct_infra": maint_pct_infra,
-		"maint_pct_tracks": maint_pct_tracks,
-		"maint_pct_env": maint_pct_env,
-		"maint_pct_sec": maint_pct_sec,
-		"maint_pct_crew": maint_pct_crew,
-		"maint_pct_lobby": maint_pct_lobby,
-		"tile_data": tile_data,
+		"money": money, "current_day": current_day,
+		"daily_maintenance": daily_maintenance, "daily_gang_toll": daily_gang_toll,
+		"daily_crew_cost": daily_crew_cost, "daily_lobby_cost": daily_lobby_cost,
+		"active_contracts": active_contracts, "company_cooldowns": company_cooldowns,
+		"intro_played": intro_played, "pending_radio_event": pending_radio_event,
+		"pending_fiscal_event": pending_fiscal_event, "routes_under_construction": routes_under_construction,
+		"saved_routes": _routes_to_array(saved_routes), "current_level": current_level,
+		"highest_unlocked_level": highest_unlocked_level, "maint_pct_infra": maint_pct_infra,
+		"maint_pct_tracks": maint_pct_tracks, "maint_pct_env": maint_pct_env,
+		"maint_pct_sec": maint_pct_sec, "maint_pct_crew": maint_pct_crew,
+		"maint_pct_lobby": maint_pct_lobby, "tile_data": tile_data,
 		"broken_tiles": _vec_array_to_dict_array(broken_tiles),
-		"pending_blueprint": _serialize_blueprint(pending_blueprint)
+		"pending_blueprint": _serialize_blueprint(pending_blueprint),
+		"package_queue": package_queue, "strikes": strikes,
+		"pendent_strike_warning": pendent_strike_warning
 	}
 	var file = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	file.store_string(JSON.stringify(data))
 	file.close()
 
 func load_game() -> bool:
-	if not has_save():
-		return false
-		
+	if not has_save(): return false
 	var file = FileAccess.open(SAVE_PATH, FileAccess.READ)
 	var data = JSON.parse_string(file.get_as_text())
 	file.close()
@@ -463,39 +462,35 @@ func load_game() -> bool:
 		saved_routes = _array_to_routes(data.get("saved_routes", []))
 		current_level = data.get("current_level", 1)
 		highest_unlocked_level = data.get("highest_unlocked_level", 1)
-		
 		maint_pct_infra = data.get("maint_pct_infra", 1.0)
 		maint_pct_tracks = data.get("maint_pct_tracks", 1.0)
 		maint_pct_env = data.get("maint_pct_env", 1.0)
 		maint_pct_sec = data.get("maint_pct_sec", 1.0)
 		maint_pct_crew = data.get("maint_pct_crew", 1.0)
 		maint_pct_lobby = data.get("maint_pct_lobby", 1.0)
-		
 		tile_data = data.get("tile_data", {})
 		broken_tiles = _dict_array_to_vec_array(data.get("broken_tiles", []))
 		pending_blueprint = _deserialize_blueprint(data.get("pending_blueprint", {}))
+		package_queue = data.get("package_queue", [])
+		strikes = data.get("strikes", 0)
+		pendent_strike_warning = data.get("pendent_strike_warning", "")
 		
 		today_broken_contracts = 0
 		today_penalties = 0
-		
 		_generate_daily_generics()
 		
 		money_changed.emit(money)
 		day_changed.emit(current_day)
 		maintenance_updated.emit(daily_maintenance)
 		contracts_updated.emit()
-		
 		return true
-	
 	return false
-
 
 func _routes_to_array(routes: Array) -> Array:
 	var arr = []
 	for route in routes:
 		var r_arr = []
-		for cell in route:
-			r_arr.append({"x": cell.x, "y": cell.y})
+		for cell in route: r_arr.append({"x": cell.x, "y": cell.y})
 		arr.append(r_arr)
 	return arr
 
@@ -503,47 +498,34 @@ func _array_to_routes(arr: Array) -> Array:
 	var routes = []
 	for r_arr in arr:
 		var route = []
-		for cell_dict in r_arr:
-			route.append(Vector2i(cell_dict["x"], cell_dict["y"]))
+		for cell_dict in r_arr: route.append(Vector2i(cell_dict["x"], cell_dict["y"]))
 		routes.append(route)
 	return routes
 
 func _vec_array_to_dict_array(arr: Array) -> Array:
 	var res = []
-	for v in arr:
-		res.append({"x": v.x, "y": v.y})
+	for v in arr: res.append({"x": v.x, "y": v.y})
 	return res
 
 func _dict_array_to_vec_array(arr: Array) -> Array:
 	var res = []
-	for d in arr:
-		res.append(Vector2i(d["x"], d["y"]))
+	for d in arr: res.append(Vector2i(d["x"], d["y"]))
 	return res
 
 func _serialize_blueprint(bp: Dictionary) -> Dictionary:
 	if bp.is_empty(): return {}
 	return {
-		"draft_paths": _routes_to_array(bp["draft_paths"]),
-		"deleted_paths": _routes_to_array(bp["deleted_paths"]),
-		"repair_tiles": _vec_array_to_dict_array(bp["repair_tiles"]),
-		"net_cost": bp["net_cost"],
-		"tax_env": bp["tax_env"],
-		"tax_eng": bp["tax_eng"],
-		"tax_sec": bp["tax_sec"],
-		"total_cost": bp["total_cost"],
-		"routes_to_cooldown": bp.get("routes_to_cooldown", [])
+		"draft_paths": _routes_to_array(bp["draft_paths"]), "deleted_paths": _routes_to_array(bp["deleted_paths"]),
+		"repair_tiles": _vec_array_to_dict_array(bp["repair_tiles"]), "net_cost": bp["net_cost"],
+		"tax_env": bp["tax_env"], "tax_eng": bp["tax_eng"], "tax_sec": bp["tax_sec"],
+		"total_cost": bp["total_cost"], "routes_to_cooldown": bp.get("routes_to_cooldown", [])
 	}
 
 func _deserialize_blueprint(data: Dictionary) -> Dictionary:
 	if data.is_empty(): return {}
 	return {
-		"draft_paths": _array_to_routes(data["draft_paths"]),
-		"deleted_paths": _array_to_routes(data["deleted_paths"]),
-		"repair_tiles": _dict_array_to_vec_array(data["repair_tiles"]),
-		"net_cost": data["net_cost"],
-		"tax_env": data["tax_env"],
-		"tax_eng": data["tax_eng"],
-		"tax_sec": data["tax_sec"],
-		"total_cost": data["total_cost"],
-		"routes_to_cooldown": data.get("routes_to_cooldown", [])
+		"draft_paths": _array_to_routes(data["draft_paths"]), "deleted_paths": _array_to_routes(data["deleted_paths"]),
+		"repair_tiles": _dict_array_to_vec_array(data["repair_tiles"]), "net_cost": data["net_cost"],
+		"tax_env": data["tax_env"], "tax_eng": data["tax_eng"], "tax_sec": data["tax_sec"],
+		"total_cost": data["total_cost"], "routes_to_cooldown": data.get("routes_to_cooldown", [])
 	}
