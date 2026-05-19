@@ -272,6 +272,21 @@ func _setup_ui() -> void:
 	pad_extension.mouse_filter = Control.MOUSE_FILTER_STOP
 	pad_extension.gui_input.connect(_on_pad_extension_input)
 
+	# NOVO: DICA DO CHEFE SOBRE CARIMBOS
+	var hint_note = ColorRect.new()
+	hint_note.color = Color(0.95, 0.95, 0.6)
+	hint_note.size = Vector2(220, 100)
+	hint_note.position = Vector2(250, 40)
+	ui_layer.add_child(hint_note)
+	
+	var hint_lbl = Label.new()
+	hint_lbl.text = "DICA: Arraste o Carimbo e a Caneta para cima dos documentos para assinar e validar!"
+	hint_lbl.add_theme_color_override("font_color", Color.BLACK)
+	hint_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint_lbl.size = Vector2(200, 80)
+	hint_lbl.position = Vector2(10, 10)
+	hint_note.add_child(hint_lbl)
+
 	agenda_rect = ColorRect.new()
 	agenda_rect.color = Color(0.85, 0.8, 0.6) 
 	agenda_rect.size = Vector2(300, 400)
@@ -501,6 +516,9 @@ func _setup_ui() -> void:
 	task_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	task_pad_rect.add_child(task_vbox)
 
+
+
+
 func _setup_eod_ui() -> void:
 	eod_layer = CanvasLayer.new()
 	eod_layer.layer = 280
@@ -638,7 +656,7 @@ func _add_ball_visual(paper: ColorRect) -> void:
 func _spawn_blueprint_form() -> void:
 	var paper = ColorRect.new()
 	paper.color = Color(0.65, 0.75, 0.85) 
-	paper.size = Vector2(300, 450)
+	paper.size = Vector2(300, 520) 
 	paper.pivot_offset = paper.size / 2.0 
 	paper.position = Vector2(400 + randf_range(-30, 30), 200 + randf_range(-30, 30))
 	paper.rotation_degrees = randf_range(-4, 4)
@@ -670,6 +688,14 @@ func _spawn_blueprint_form() -> void:
 	content_lbl.position = Vector2(20, 20)
 	content.add_child(content_lbl)
 
+	var btn_trash = Button.new()
+	btn_trash.text = "[ DESCARTAR PROJETO ]"
+	btn_trash.size = Vector2(260, 40)
+	btn_trash.position = Vector2(20, 460)
+	btn_trash.add_theme_color_override("font_color", Color.INDIAN_RED)
+	btn_trash.pressed.connect(_on_trash_blueprint_pressed.bind(paper))
+	content.add_child(btn_trash)
+
 	paper.set_meta("is_paper", true)
 	paper.set_meta("is_blueprint", true)
 	paper.set_meta("action", "")
@@ -679,6 +705,17 @@ func _spawn_blueprint_form() -> void:
 
 	ui_layer.add_child(paper)
 	spawned_papers.append(paper)
+
+func _on_trash_blueprint_pressed(paper: ColorRect) -> void:
+	GameManager.pending_blueprint.clear()
+	GameManager.save_game()
+	if is_instance_valid(paper):
+		var idx = spawned_papers.find(paper)
+		if idx != -1:
+			spawned_papers.remove_at(idx)
+		paper.queue_free()
+
+
 
 func _on_dial_draw() -> void:
 	var center = dial_rect.size / 2.0
@@ -1787,7 +1824,6 @@ func _on_visibility_changed() -> void:
 	if ui_layer: 
 		ui_layer.visible = visible
 	if visible:
-		# Limpeza de papéis deletados
 		var active_papers = []
 		for p in spawned_papers:
 			if is_instance_valid(p):
@@ -1802,7 +1838,6 @@ func _on_visibility_changed() -> void:
 		
 		_on_organize_pressed()
 		
-		# Verifica se a planta precisa ser gerada
 		var has_bp = false
 		for p in spawned_papers:
 			if p.get_meta("is_blueprint", false):
@@ -1820,12 +1855,14 @@ func _on_visibility_changed() -> void:
 			GameManager.pendent_angry_call = false
 			phone_cutscene.start_angry_call()
 		elif not GameManager.pending_fiscal_event.is_empty():
-			# LIGAÇÃO DO FISCAL!
 			phone_cutscene.start_fiscal_audit(GameManager.pending_fiscal_event)
-		else:
-			if not GameManager.intro_played:
-				GameManager.intro_played = true
-				phone_cutscene.start_boss_intro()
+		elif GameManager.pending_boss_package_call and not GameManager.boss_package_intro_done:
+			GameManager.pending_boss_package_call = false
+			GameManager.boss_package_intro_done = true
+			phone_cutscene.start_boss_package_call()
+		elif not GameManager.intro_played:
+			GameManager.intro_played = true
+			phone_cutscene.start_boss_intro()
 
 
 func _on_back_map_pressed() -> void: 

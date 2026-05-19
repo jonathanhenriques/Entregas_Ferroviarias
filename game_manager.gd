@@ -29,6 +29,20 @@ var daily_maintenance: int = 0 :
 	set(value):
 		daily_maintenance = value
 		maintenance_updated.emit(daily_maintenance)
+		
+		
+		
+# VARIÁVEIS DA TRIAGEM E PESAGEM
+var package_queue: Array = []
+var strikes: int = 0
+var pendent_strike_warning: String = ""
+var package_timer: float = 0.0
+const PACKAGE_INTERVAL: float = 20.0 
+
+# NOVAS VARIÁVEIS PARA O EVENTO DO CHEFE
+var boss_package_intro_done: bool = false
+var pending_boss_package_call: bool = false		
+
 
 var daily_gang_toll: int = 0
 var daily_crew_cost: int = 0
@@ -75,20 +89,32 @@ var pending_disaster_check: bool = false
 var broken_tiles: Array = []
 var pending_blueprint: Dictionary = {}
 
-# VARIÁVEIS DA TRIAGEM E PESAGEM
-var package_queue: Array = []
-var strikes: int = 0
-var pendent_strike_warning: String = ""
-var package_timer: float = 0.0
-const PACKAGE_INTERVAL: float = 20.0 # Um pacote chega a cada 20 segundos reais
 
-# MOTOR DE TEMPO CONTÍNUO (Gera encomendas durante o dia)
 func _process(delta: float) -> void:
-	if current_day > 0 and money > -9999: # Só rola se o jogo estiver ativo
-		package_timer += delta
-		if package_timer >= PACKAGE_INTERVAL:
-			package_timer = 0.0
-			_generate_package()
+	if current_day > 0 and money > -9999: 
+		# Bloqueia a chegada de encomendas se não houver rota pronta
+		if not has_ready_route(): return
+		
+		# Aciona a ligação do chefe assim que a primeira rota ficar pronta
+		if not boss_package_intro_done and not pending_boss_package_call:
+			pending_boss_package_call = true
+			
+		# O tempo só corre se o chefe já tiver avisado
+		if boss_package_intro_done:
+			package_timer += delta
+			if package_timer >= PACKAGE_INTERVAL:
+				package_timer = 0.0
+				_generate_package()
+
+# NOVA FUNÇÃO DE VALIDAÇÃO GERAL
+func has_ready_route() -> bool:
+	for rid in network_connections:
+		if routes_under_construction.get(rid, 0) <= 0:
+			var st = network_stats.get(rid, {})
+			if not st.get("is_broken", false):
+				return true
+	return false
+
 
 func update_actual_maintenance() -> void:
 	var infra_cost = int(ideal_maint_infra * maint_pct_infra)
@@ -184,6 +210,7 @@ func end_day(upfront_income: int = 0) -> void:
 	money -= daily_crew_cost
 	money -= daily_lobby_cost
 	
+	# Progresso das Obras
 	var new_ruc = {}
 	var ruc_keys = routes_under_construction.keys()
 	for i in range(ruc_keys.size()):
@@ -195,26 +222,34 @@ func end_day(upfront_income: int = 0) -> void:
 	var keep = []
 	for c in active_contracts:
 		var contract_failed = false
+		
+		# Verificação de rotas pendentes para o contrato
 		if c.has("pending_route_days"):
 			var is_ready = is_contract_route_ready(c)
 			if is_ready:
 				c.erase("pending_route_days")
-			if not is_ready:
-				c["pending_route_days"] -= 1
-				if c["pending_route_days"] <= 0:
-					contract_failed = true
-					today_broken_contracts += 1
-					var pen = int(c["reward"] * 5)
-					if c.get("is_urgent", false): pen = 500
-					today_penalties += pen
-					money -= pen
-					pendent_angry_call = true
+			else:
+				# CORREÇÃO LÓGICA: Se a rota já estiver sendo construída, o prazo do contrato CONGELA
+				var rid = c["route_id"]
+				var is_building = (routes_under_construction.get(rid, 0) > 0)
+				
+				if not is_building:
+					c["pending_route_days"] -= 1
+					if c["pending_route_days"] <= 0:
+						contract_failed = true
+						today_broken_contracts += 1
+						var pen = int(c["reward"] * 5)
+						if c.get("is_urgent", false): pen = 500
+						today_penalties += pen
+						money -= pen
+						pendent_angry_call = true
 
 		if not contract_failed:
 			if not c.has("pending_route_days"):
 				c["days_left"] -= 1
 				if c["days_left"] > 0: keep.append(c)
-			if c.has("pending_route_days"): keep.append(c)
+			else:
+				keep.append(c) # Mantém na lista se estiver pendente/em obras
 			
 	active_contracts = keep
 	
@@ -250,12 +285,10 @@ func end_day(upfront_income: int = 0) -> void:
 	
 	_generate_daily_generics()
 	
-	# SISTEMA DE TRIAGEM: Envelhecimento dos Pacotes
 	var keep_queue = []
 	for p in package_queue:
 		p["days_in_queue"] += 1
 		if p["true_category"] == "Perecivel" and p["days_in_queue"] >= 2:
-			# Apodreceu na fila!
 			add_strike("O cliente denunciou a empresa porque a carga de " + p["declared_item"] + " estragou na esteira!")
 		else:
 			keep_queue.append(p)
@@ -264,12 +297,12 @@ func end_day(upfront_income: int = 0) -> void:
 	
 	contracts_updated.emit()
 	current_day += 1
-	
 	save_game() 
 	
 	if money < 0: trigger_bankruptcy()
-	else:
-		if money >= LevelData.LEVELS[current_level]["goal"]: trigger_victory()
+	elif money >= LevelData.LEVELS[current_level]["goal"]: trigger_victory()
+
+
 
 # FUNÇÕES DA ESTAÇÃO DE TRIAGEM
 func _generate_package() -> void:
@@ -420,6 +453,7 @@ func has_save() -> bool: return FileAccess.file_exists(SAVE_PATH)
 
 func save_game() -> void:
 	var data = {
+		"boss_package_intro_done": boss_package_intro_done,
 		"money": money, "current_day": current_day,
 		"daily_maintenance": daily_maintenance, "daily_gang_toll": daily_gang_toll,
 		"daily_crew_cost": daily_crew_cost, "daily_lobby_cost": daily_lobby_cost,
@@ -447,6 +481,7 @@ func load_game() -> bool:
 	file.close()
 	
 	if data:
+		boss_package_intro_done = data.get("boss_package_intro_done", false)
 		money = data.get("money", 1500)
 		current_day = data.get("current_day", 1)
 		daily_maintenance = data.get("daily_maintenance", 0)
@@ -485,6 +520,8 @@ func load_game() -> bool:
 		contracts_updated.emit()
 		return true
 	return false
+
+
 
 func _routes_to_array(routes: Array) -> Array:
 	var arr = []

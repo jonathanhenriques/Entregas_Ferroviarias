@@ -380,3 +380,17 @@ func start_fiscal_audit(data: Dictionary) -> void:
 		btn_opt_1.visible = true
 	
 	_type_next_char(false)
+
+
+func start_boss_package_call() -> void:
+	_reset_ui()
+	current_mode = "INTRO" 
+	
+	name_label.text = "[ TRANSMISSAO: BEAR (DIRETORIA) ]"
+	name_label.add_theme_color_override("font_color", Color.LIGHT_GRAY)
+	
+	full_text = "Diretor! Vi que a nossa primeira rota esta finalmente operando!\n\n"
+	full_text += "A partir de agora, os clientes comecarao a deixar encomendas avulsas na Estacao de Triagem.\n"
+	full_text += "Va ate la de vez em quando e valide os pacotes. Nao deixe a esteira acumular!"
+	
+	_type_next_char(false)

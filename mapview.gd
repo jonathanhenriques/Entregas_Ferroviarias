@@ -2,12 +2,10 @@ extends Node2D
 
 var ui_layer: CanvasLayer
 
-# REESTRUTURAÇÃO NATIVA: Voltamos ao TILE_SIZE original de 32px
 const TILE_SIZE: int = 32
-
-# REESTRUTURAÇÃO NATIVA: Nova grelha ocupando exatamente 2/3 da largura (1280px) e altura total
-var grid_width: int = 40  # 40 * 32 = 1280px
-var grid_height: int = 34 # 34 * 32 = 1088px
+# Grelha restaurada para 2/3 da tela (40 colunas * 32px = 1280px)
+var grid_width: int = 40  
+var grid_height: int = 34 
 
 enum Biome { PLAIN, FOREST, MOUNTAIN, RIVER }
 
@@ -28,63 +26,68 @@ var city_b: Vector2i = Vector2i(-1, -1)
 var city_c: Vector2i = Vector2i(-1, -1) 
 
 var confirmed_routes: Array = [] 
-
 var is_edit_mode: bool = false
 var is_dragging: bool = false
 var tentative_path: Array[Vector2i] = []
-
 var draft_paths: Array = []
 var deleted_paths: Array = []
 var repair_tiles: Array = [] 
 
-# Fundo da nova Estação de Triagem (A variável que estava a faltar!)
+# === VARIÁVEIS DA ESTAÇÃO DE TRIAGEM ===
 var inspection_bg: ColorRect
+var desk_bg: ColorRect 
+var lbl_queue_count: Label
+var btn_lever: Button
+var btn_xray: Button
+var scale_needle: ColorRect
+var lbl_scale_digital: Label
+var box_visual: ColorRect
+var box_stamp: ColorRect
+var box_xray_poly: Polygon2D
+var clip_content: Label
+var clip_weight: Label
+var clip_stamp: Label
+var btn_approve_pkg: Button
+var btn_reject_pkg: Button
+var lbl_strike_warning: Label
 
-# UI Elements
+var current_package: Dictionary = {}
+var is_xray_on: bool = false
+
+var panel_overlay: ColorRect
+
+# === UI DO MAPA E MESA ===
 var btn_edit_mode: Button
 var btn_go_desk: Button
-
 var edit_panel: ColorRect
 var edit_info: Label
 var btn_confirm: Button
 var btn_cancel: Button
-
 var net_cost: int = 0
 var net_maint: int = 0
-
 var current_env_tax: int = 0
 var current_eng_tax: int = 0
 var current_sec_tax: int = 0
 var current_total_cost: int = 0
-
 var active_trains: Dictionary = {}
-
 var btn_maint: Button
 var maint_panel: ColorRect
-
 var sld_infra: HSlider
 var sld_tracks: HSlider
 var sld_env: HSlider
 var sld_sec: HSlider
 var sld_crew: HSlider
 var sld_lobby: HSlider
-
 var lbl_infra_val: Label
 var lbl_tracks_val: Label
 var lbl_env_val: Label
 var lbl_sec_val: Label
 var lbl_crew_val: Label
 var lbl_lobby_val: Label
-
 var btn_close_maint: Button
 
-
-
-
 func _ready() -> void:
-	# Importante: Limpar rotas antigas que não cabem na nova grelha antes de gerar
 	_validate_saved_routes()
-	
 	_generate_biomes()
 	_setup_ui()
 	
@@ -92,10 +95,14 @@ func _ready() -> void:
 	
 	_check_disasters()
 	_update_network_status()
+	
 	visibility_changed.connect(_on_visibility_changed)
+	GameManager.package_queue_updated.connect(_on_queue_updated)
+	GameManager.strike_received.connect(_on_strike_received)
+	
+	_on_queue_updated(GameManager.package_queue.size())
 
 func _validate_saved_routes() -> void:
-	# Remove rotas que tenham pontos fora da nova grelha 40x34
 	var valid_routes = []
 	for route in GameManager.saved_routes:
 		var route_valid = true
@@ -123,14 +130,15 @@ func _on_visibility_changed() -> void:
 			btn_edit_mode.text = "[ MODO OBRAS ]"
 			btn_edit_mode.disabled = false
 			btn_edit_mode.add_theme_color_override("font_color", Color.YELLOW)
+			
+		if GameManager.pendent_strike_warning != "":
+			_show_strike_warning(GameManager.pendent_strike_warning)
+			GameManager.pendent_strike_warning = ""
 
 func _check_disasters() -> void:
-	if not GameManager.pending_disaster_check:
-		return
-		
+	if not GameManager.pending_disaster_check: return
 	GameManager.pending_disaster_check = false
 	var needs_save = false
-	
 	var valid_built = {}
 	for r in confirmed_routes:
 		for c in r: valid_built[c] = true
@@ -151,39 +159,24 @@ func _check_disasters() -> void:
 	
 	for route in confirmed_routes:
 		for cell in route:
-			if immune_tiles.has(cell):
-				continue
-				
-			if GameManager.broken_tiles.has(cell):
-				continue
-				
-			var tile_health = 1.0
-			if GameManager.tile_data.has(cell):
-				tile_health = GameManager.tile_data[cell].get("h", 1.0)
-				
-			if tile_health <= 0.25:
-				if randf() < 0.15:
-					GameManager.broken_tiles.append(cell)
-					needs_save = true
-	
-	if needs_save:
-		GameManager.save_game()
+			if immune_tiles.has(cell) or GameManager.broken_tiles.has(cell): continue
+			var tile_health = GameManager.tile_data.get(cell, {}).get("h", 1.0)
+			if tile_health <= 0.25 and randf() < 0.15:
+				GameManager.broken_tiles.append(cell)
+				needs_save = true
+	if needs_save: GameManager.save_game()
 
 func _generate_biomes() -> void:
 	biome_map.clear()
 	gang_map.clear()
-	
 	for y in range(grid_height):
 		for x in range(grid_width):
 			biome_map[Vector2i(x, y)] = Biome.PLAIN
 			
 	var level_info = LevelData.LEVELS[GameManager.current_level]
 	var layout = level_info["map_layout"]
-	
 	var layout_h = layout.size()
 	var layout_w = layout[0].length() if layout_h > 0 else 0
-	
-	# REESTRUTURAÇÃO NATIVA: O offset agora centraliza na nova grelha 40x34
 	var offset_x = (grid_width - layout_w) / 2
 	var offset_y = (grid_height - layout_h) / 2
 	
@@ -192,33 +185,25 @@ func _generate_biomes() -> void:
 		for x in range(layout_w):
 			var char = row[x]
 			var cell = Vector2i(x + offset_x, y + offset_y)
-			
-			# Segurança: não desenhar fora da grelha se o layout for maior
 			if cell.x >= grid_width or cell.y >= grid_height or cell.x < 0 or cell.y < 0: continue
 
-			if char == ".": 
-				biome_map[cell] = Biome.PLAIN
+			if char == "F": 
+				biome_map[cell] = Biome.FOREST
 			else:
-				if char == "F": 
-					biome_map[cell] = Biome.FOREST
+				if char == "M": 
+					biome_map[cell] = Biome.MOUNTAIN
 				else:
-					if char == "M": 
-						biome_map[cell] = Biome.MOUNTAIN
+					if char == "R": 
+						biome_map[cell] = Biome.RIVER
 					else:
-						if char == "R": 
-							biome_map[cell] = Biome.RIVER
+						if char == "A": 
+							city_a = cell
 						else:
-							if char == "A":
-								biome_map[cell] = Biome.PLAIN 
-								city_a = cell
+							if char == "B": 
+								city_b = cell
 							else:
-								if char == "B":
-									biome_map[cell] = Biome.PLAIN
-									city_b = cell
-								else:
-									if char == "C":
-										biome_map[cell] = Biome.PLAIN
-										city_c = cell
+								if char == "C": 
+									city_c = cell
 
 	if level_info.has("gang_layout"):
 		var g_layout = level_info["gang_layout"]
@@ -227,20 +212,21 @@ func _generate_biomes() -> void:
 			for x in range(row.length()):
 				var cell = Vector2i(x + offset_x, y + offset_y)
 				if cell.x >= grid_width or cell.y >= grid_height or cell.x < 0 or cell.y < 0: continue
-				if row[x] == "G":
-					gang_map[cell] = true
+				if row[x] == "G": gang_map[cell] = true
 
 func _setup_ui() -> void:
 	ui_layer = CanvasLayer.new()
 	add_child(ui_layer)
 
-	# Painel Lateral 1/3 da tela
 	var map_limit_x = grid_width * TILE_SIZE # 1280px
-	var panel_width = 1920 - map_limit_x # Aprox. 640px
+	var right_panel_width = 1920 - map_limit_x # 640px
 	
+	# ==========================================================
+	# 1. ESTAÇÃO DE TRIAGEM (Quadrante Topo-Direito, Parede/Fundo)
+	# ==========================================================
 	inspection_bg = ColorRect.new()
 	inspection_bg.color = Color(0.12, 0.14, 0.16)
-	inspection_bg.size = Vector2(panel_width, 1080)
+	inspection_bg.size = Vector2(right_panel_width, 1080)
 	inspection_bg.position = Vector2(map_limit_x, 0)
 	ui_layer.add_child(inspection_bg)
 	
@@ -249,23 +235,222 @@ func _setup_ui() -> void:
 	insp_border.border_color = Color(0.3, 0.3, 0.35)
 	insp_border.border_width = 4
 	inspection_bg.add_child(insp_border)
-	
-	var insp_title = Label.new()
-	insp_title.text = "ESTACAO DE TRIAGEM E PESAGEM\n[ DESATIVADA ]"
-	insp_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	insp_title.add_theme_font_size_override("font_size", 18)
-	insp_title.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
-	insp_title.position = Vector2(0, 40)
-	insp_title.size = Vector2(panel_width, 60)
-	inspection_bg.add_child(insp_title)
 
-	# Os botões de navegação no canto inferior direito DO MAPA
+	lbl_queue_count = Label.new()
+	lbl_queue_count.text = "FILA: 0 ENCOMENDAS"
+	lbl_queue_count.add_theme_font_size_override("font_size", 18)
+	lbl_queue_count.add_theme_color_override("font_color", Color(0.8, 0.8, 0.3))
+	lbl_queue_count.position = Vector2(400, 20)
+	inspection_bg.add_child(lbl_queue_count)
+
+	# Balança Analógica (Montada na parede acima da esteira)
+	var scale_base = ColorRect.new()
+	scale_base.color = Color(0.7, 0.75, 0.7)
+	scale_base.size = Vector2(160, 130)
+	scale_base.position = Vector2(240, 10)
+	inspection_bg.add_child(scale_base)
+	
+	var scale_circle = ColorRect.new() 
+	scale_circle.color = Color(0.9, 0.9, 0.9)
+	scale_circle.size = Vector2(140, 110)
+	scale_circle.position = Vector2(10, 10)
+	scale_base.add_child(scale_circle)
+	
+	var scale_center = Vector2(70, 70)
+	for i in range(11):
+		var angle = lerp(-PI * 0.8, PI * 0.8, i / 10.0)
+		var tick = ColorRect.new()
+		tick.color = Color.BLACK
+		tick.size = Vector2(4, 10)
+		tick.pivot_offset = Vector2(2, 5)
+		tick.position = (scale_center + Vector2(sin(angle), -cos(angle)) * 50) - tick.pivot_offset
+		tick.rotation = angle
+		scale_circle.add_child(tick)
+
+	scale_needle = ColorRect.new()
+	scale_needle.color = Color(0.8, 0.1, 0.1)
+	scale_needle.size = Vector2(4, 60)
+	scale_needle.pivot_offset = Vector2(2, 50)
+	scale_needle.position = scale_center - Vector2(2, 50)
+	scale_needle.rotation = -PI * 0.8
+	scale_circle.add_child(scale_needle)
+	
+	lbl_scale_digital = Label.new()
+	lbl_scale_digital.text = "0.0 kg"
+	lbl_scale_digital.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl_scale_digital.add_theme_color_override("font_color", Color.BLACK)
+	lbl_scale_digital.position = Vector2(0, 80)
+	lbl_scale_digital.size = Vector2(140, 30)
+	scale_circle.add_child(lbl_scale_digital)
+
+	# Esteira HORIZONTAL
+	var conveyor = ColorRect.new()
+	conveyor.color = Color(0.10, 0.11, 0.12)
+	conveyor.size = Vector2(640, 160)
+	conveyor.position = Vector2(0, 150)
+	inspection_bg.add_child(conveyor)
+	
+	for i in range(15):
+		var roller = ColorRect.new()
+		roller.color = Color(0.2, 0.22, 0.25)
+		roller.size = Vector2(10, 160)
+		roller.position = Vector2(i * 45, 0)
+		conveyor.add_child(roller)
+
+	# A Caixa (Move-se da esquerda para a direita na esteira)
+	box_visual = ColorRect.new()
+	box_visual.size = Vector2(140, 120)
+	box_visual.position = Vector2(-200, 170) 
+	box_visual.visible = false
+	inspection_bg.add_child(box_visual)
+	
+	box_stamp = ColorRect.new()
+	box_stamp.size = Vector2(30, 30)
+	box_stamp.position = Vector2(90, 20)
+	box_visual.add_child(box_stamp)
+	
+	box_xray_poly = Polygon2D.new()
+	box_xray_poly.color = Color(0.05, 0.2, 0.05, 0.9)
+	box_xray_poly.visible = false
+	box_visual.add_child(box_xray_poly)
+
+	# Cabine do Raio-X (Túnel no meio da esteira horizontal)
+	var scanner_arch = ColorRect.new()
+	scanner_arch.color = Color(0.12, 0.12, 0.15, 0.85)
+	scanner_arch.size = Vector2(180, 200)
+	scanner_arch.position = Vector2(230, 130)
+	inspection_bg.add_child(scanner_arch)
+
+	lbl_strike_warning = Label.new()
+	lbl_strike_warning.add_theme_color_override("font_color", Color.RED)
+	lbl_strike_warning.add_theme_font_size_override("font_size", 18)
+	lbl_strike_warning.size = Vector2(600, 40)
+	lbl_strike_warning.position = Vector2(20, 320)
+	lbl_strike_warning.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl_strike_warning.visible = false
+	inspection_bg.add_child(lbl_strike_warning)
+
+	# ==========================================================
+	# 2. A MESA DO DIRETOR (Base do Painel 1/3)
+	# ==========================================================
+	desk_bg = ColorRect.new()
+	desk_bg.color = Color(0.4, 0.28, 0.2) 
+	desk_bg.size = Vector2(right_panel_width, 730)
+	desk_bg.position = Vector2(0, 350)
+	inspection_bg.add_child(desk_bg)
+	
+	var desk_border = ReferenceRect.new()
+	desk_border.set_anchors_preset(Control.PRESET_FULL_RECT)
+	desk_border.border_color = Color(0.2, 0.1, 0.05)
+	desk_border.border_width = 8
+	desk_bg.add_child(desk_border)
+
+	# Botões Físicos de Despacho e Mecânica (Na mesa)
+	btn_lever = Button.new()
+	btn_lever.text = "[ CHUTA ALAVANCA ]\nChamar Encomenda"
+	btn_lever.size = Vector2(160, 60)
+	btn_lever.position = Vector2(40, 40)
+	btn_lever.pressed.connect(_on_btn_lever_pressed)
+	desk_bg.add_child(btn_lever)
+
+	btn_xray = Button.new()
+	btn_xray.text = "[ LIGAR RAIO-X ]\nCusto: $15"
+	btn_xray.size = Vector2(160, 60)
+	btn_xray.position = Vector2(240, 40)
+	btn_xray.add_theme_color_override("font_color", Color(0.3, 0.9, 0.3))
+	btn_xray.pressed.connect(_on_btn_xray_pressed)
+	desk_bg.add_child(btn_xray)
+
+	btn_approve_pkg = Button.new()
+	btn_approve_pkg.text = "[ CARREGAR NO TREM ]\n(Validado)"
+	btn_approve_pkg.size = Vector2(200, 60)
+	btn_approve_pkg.position = Vector2(40, 120) 
+	btn_approve_pkg.add_theme_color_override("font_color", Color(0.2, 0.7, 0.2))
+	btn_approve_pkg.pressed.connect(_on_approve_pkg_pressed)
+	desk_bg.add_child(btn_approve_pkg)
+	
+	btn_reject_pkg = Button.new()
+	btn_reject_pkg.text = "[ DEVOLVER REMETENTE ]\n(Fraude)"
+	btn_reject_pkg.size = Vector2(200, 60)
+	btn_reject_pkg.position = Vector2(260, 120) 
+	btn_reject_pkg.add_theme_color_override("font_color", Color(0.8, 0.2, 0.2))
+	btn_reject_pkg.pressed.connect(_on_reject_pkg_pressed)
+	desk_bg.add_child(btn_reject_pkg)
+
+	# A Prancheta da Triagem (Esquerda da Mesa)
+	var clipboard_bg = ColorRect.new()
+	clipboard_bg.color = Color(0.85, 0.8, 0.65)
+	clipboard_bg.size = Vector2(280, 400)
+	clipboard_bg.position = Vector2(40, 220) 
+	desk_bg.add_child(clipboard_bg)
+	
+	var clip_metal = ColorRect.new()
+	clip_metal.color = Color(0.4, 0.4, 0.45)
+	clip_metal.size = Vector2(100, 20)
+	clip_metal.position = Vector2(90, 5)
+	clipboard_bg.add_child(clip_metal)
+	
+	var clip_title = Label.new()
+	clip_title.text = "MANIFESTO DE CARGA"
+	clip_title.add_theme_color_override("font_color", Color.BLACK)
+	clip_title.add_theme_font_size_override("font_size", 16)
+	clip_title.position = Vector2(20, 40)
+	clipboard_bg.add_child(clip_title)
+
+	clip_content = Label.new()
+	clip_content.add_theme_color_override("font_color", Color.BLACK)
+	clip_content.position = Vector2(20, 80)
+	clipboard_bg.add_child(clip_content)
+	
+	clip_weight = Label.new()
+	clip_weight.add_theme_color_override("font_color", Color.BLACK)
+	clip_weight.position = Vector2(20, 120)
+	clipboard_bg.add_child(clip_weight)
+	
+	clip_stamp = Label.new()
+	clip_stamp.add_theme_color_override("font_color", Color.BLACK)
+	clip_stamp.position = Vector2(20, 160)
+	clipboard_bg.add_child(clip_stamp)
+
+	# Manual de Regras (Direita da Mesa)
+	var manual_bg = ColorRect.new()
+	manual_bg.color = Color(0.7, 0.7, 0.8)
+	manual_bg.size = Vector2(260, 400)
+	manual_bg.position = Vector2(340, 220)
+	desk_bg.add_child(manual_bg)
+
+	var man_title = Label.new()
+	man_title.text = "MANUAL DE FISCALIZACAO"
+	man_title.add_theme_color_override("font_color", Color.BLACK)
+	man_title.position = Vector2(10, 20)
+	manual_bg.add_child(man_title)
+
+	var man_text = Label.new()
+	man_text.text = "- CARTAS: Selo Branco.\n\n- PERECIVEIS: Selo Verde.\n\n- VALIOSOS: Selo Azul.\n\n* Atencao ao Peso Real!\n* Use Raio-X em Valiosos para\nevitar contrabando d'armas."
+	man_text.add_theme_color_override("font_color", Color.DARK_SLATE_GRAY)
+	man_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	man_text.size = Vector2(240, 300)
+	man_text.position = Vector2(10, 60)
+	manual_bg.add_child(man_text)
+
+# ==========================================================
+	# 3. HUD DO MAPA E ESCURECIMENTO
+	# ==========================================================
+	# NOVO: Fundo escuro para a tela de triagem
+	panel_overlay = ColorRect.new()
+	panel_overlay.color = Color(0, 0, 0, 0.8) # Preto com 80% de opacidade
+	panel_overlay.size = Vector2(1920 - map_limit_x, 1080)
+	panel_overlay.position = Vector2(map_limit_x, 0)
+	panel_overlay.visible = false
+	ui_layer.add_child(panel_overlay)
+
 	var ui_area_width = 250
+	# ... continuação normal do seu código (_setup_ui)
 	var btn_x = map_limit_x - ui_area_width - 20 
 	var start_y = (grid_height * TILE_SIZE) - 200 
 	
 	btn_go_desk = Button.new()
-	btn_go_desk.text = "<- Mesa"
+	btn_go_desk.text = "<- Ir para Escritorio"
 	btn_go_desk.position = Vector2(btn_x, start_y)
 	btn_go_desk.size = Vector2(ui_area_width, 40)
 	btn_go_desk.pressed.connect(_on_go_desk_pressed)
@@ -287,8 +472,8 @@ func _setup_ui() -> void:
 	btn_maint.pressed.connect(_on_btn_maint_pressed)
 	ui_layer.add_child(btn_maint)
 
-	# SOLUÇÃO: Painéis de Obras e Manutenção movidos para o centro do 1/3 da direita!
-	var right_center_x = map_limit_x + (panel_width / 2.0)
+	# CORREÇÃO DO HUD: Centralizando os painéis na DIREITA (Em cima da triagem)
+	var right_center_x = map_limit_x + (right_panel_width / 2.0)
 
 	edit_panel = ColorRect.new()
 	edit_panel.color = Color(0.1, 0.1, 0.15, 0.95)
@@ -311,7 +496,7 @@ func _setup_ui() -> void:
 	edit_panel.add_child(edit_info)
 
 	btn_confirm = Button.new()
-	btn_confirm.text = "GERAR PLANTA\nE ENVIAR"
+	btn_confirm.text = "GERAR PLANTA"
 	btn_confirm.position = Vector2(20, 490) 
 	btn_confirm.size = Vector2(145, 50)
 	btn_confirm.add_theme_color_override("font_color", Color.SKY_BLUE)
@@ -319,7 +504,7 @@ func _setup_ui() -> void:
 	edit_panel.add_child(btn_confirm)
 
 	btn_cancel = Button.new()
-	btn_cancel.text = "DESCARTAR\nTUDO"
+	btn_cancel.text = "DESCARTAR TUDO"
 	btn_cancel.position = Vector2(175, 490) 
 	btn_cancel.size = Vector2(145, 50)
 	btn_cancel.add_theme_color_override("font_color", Color.INDIAN_RED)
@@ -349,7 +534,6 @@ func _setup_ui() -> void:
 	lbl_i.text = "Infra Pesada (Pontes/Tuneis)"
 	lbl_i.position = Vector2(20, 60)
 	maint_panel.add_child(lbl_i)
-
 	sld_infra = HSlider.new()
 	sld_infra.position = Vector2(20, 85)
 	sld_infra.size = Vector2(180, 20)
@@ -358,7 +542,6 @@ func _setup_ui() -> void:
 	sld_infra.step = 5
 	sld_infra.value_changed.connect(_on_sld_infra_changed)
 	maint_panel.add_child(sld_infra)
-
 	lbl_infra_val = Label.new()
 	lbl_infra_val.position = Vector2(210, 82)
 	maint_panel.add_child(lbl_infra_val)
@@ -367,7 +550,6 @@ func _setup_ui() -> void:
 	lbl_t.text = "Carris (Velocidade/Quebra)"
 	lbl_t.position = Vector2(20, 115)
 	maint_panel.add_child(lbl_t)
-
 	sld_tracks = HSlider.new()
 	sld_tracks.position = Vector2(20, 140)
 	sld_tracks.size = Vector2(180, 20)
@@ -376,7 +558,6 @@ func _setup_ui() -> void:
 	sld_tracks.step = 5
 	sld_tracks.value_changed.connect(_on_sld_tracks_changed)
 	maint_panel.add_child(sld_tracks)
-
 	lbl_tracks_val = Label.new()
 	lbl_tracks_val.position = Vector2(210, 137)
 	maint_panel.add_child(lbl_tracks_val)
@@ -385,7 +566,6 @@ func _setup_ui() -> void:
 	lbl_e.text = "Controlo Ambiental (Incendios)"
 	lbl_e.position = Vector2(20, 170)
 	maint_panel.add_child(lbl_e)
-
 	sld_env = HSlider.new()
 	sld_env.position = Vector2(20, 195)
 	sld_env.size = Vector2(180, 20)
@@ -394,7 +574,6 @@ func _setup_ui() -> void:
 	sld_env.step = 5
 	sld_env.value_changed.connect(_on_sld_env_changed)
 	maint_panel.add_child(sld_env)
-
 	lbl_env_val = Label.new()
 	lbl_env_val.position = Vector2(210, 192)
 	maint_panel.add_child(lbl_env_val)
@@ -403,7 +582,6 @@ func _setup_ui() -> void:
 	lbl_s.text = "Seguranca (Patrulha de Gangues)"
 	lbl_s.position = Vector2(20, 225)
 	maint_panel.add_child(lbl_s)
-
 	sld_sec = HSlider.new()
 	sld_sec.position = Vector2(20, 250)
 	sld_sec.size = Vector2(180, 20)
@@ -412,7 +590,6 @@ func _setup_ui() -> void:
 	sld_sec.step = 5
 	sld_sec.value_changed.connect(_on_sld_sec_changed)
 	maint_panel.add_child(sld_sec)
-
 	lbl_sec_val = Label.new()
 	lbl_sec_val.position = Vector2(210, 247)
 	maint_panel.add_child(lbl_sec_val)
@@ -421,7 +598,6 @@ func _setup_ui() -> void:
 	lbl_c.text = "Salarios da Equipa"
 	lbl_c.position = Vector2(20, 280)
 	maint_panel.add_child(lbl_c)
-
 	sld_crew = HSlider.new()
 	sld_crew.position = Vector2(20, 305)
 	sld_crew.size = Vector2(180, 20)
@@ -430,7 +606,6 @@ func _setup_ui() -> void:
 	sld_crew.step = 5
 	sld_crew.value_changed.connect(_on_sld_crew_changed)
 	maint_panel.add_child(sld_crew)
-
 	lbl_crew_val = Label.new()
 	lbl_crew_val.position = Vector2(210, 302)
 	maint_panel.add_child(lbl_crew_val)
@@ -439,7 +614,6 @@ func _setup_ui() -> void:
 	lbl_l.text = "Relacoes Governamentais (Lobby)"
 	lbl_l.position = Vector2(20, 335)
 	maint_panel.add_child(lbl_l)
-
 	sld_lobby = HSlider.new()
 	sld_lobby.position = Vector2(20, 360)
 	sld_lobby.size = Vector2(180, 20)
@@ -448,7 +622,6 @@ func _setup_ui() -> void:
 	sld_lobby.step = 5
 	sld_lobby.value_changed.connect(_on_sld_lobby_changed)
 	maint_panel.add_child(sld_lobby)
-
 	lbl_lobby_val = Label.new()
 	lbl_lobby_val.position = Vector2(210, 357)
 	maint_panel.add_child(lbl_lobby_val)
@@ -460,15 +633,157 @@ func _setup_ui() -> void:
 	btn_close_maint.pressed.connect(_on_btn_close_maint_pressed)
 	maint_panel.add_child(btn_close_maint)
 
+	_clear_inspection_desk()
 
+# === LÓGICA DA TRIAGEM ===
 
-func _on_btn_maint_pressed() -> void:
-	if is_edit_mode: return 
-	maint_panel.visible = true
-	_sync_maint_ui()
+func _clear_inspection_desk() -> void:
+	box_visual.visible = false
+	is_xray_on = false
+	scale_needle.rotation = -PI * 0.8
+	lbl_scale_digital.text = "0.0 kg"
+	clip_content.text = "Aguardando carga..."
+	clip_weight.text = ""
+	clip_stamp.text = ""
+	btn_approve_pkg.disabled = true
+	btn_reject_pkg.disabled = true
+	btn_xray.disabled = true
 
-func _on_btn_close_maint_pressed() -> void:
-	maint_panel.visible = false
+func _on_queue_updated(count: int) -> void:
+	lbl_queue_count.text = "FILA: " + str(count) + " ENCOMENDAS"
+	if count > 0 and current_package.is_empty():
+		btn_lever.disabled = false
+	else:
+		btn_lever.disabled = true
+
+func _on_btn_lever_pressed() -> void:
+	if not current_package.is_empty() or GameManager.package_queue.size() == 0: return
+	
+	btn_lever.disabled = true
+	current_package = GameManager.package_queue.pop_front()
+	GameManager.package_queue_updated.emit(GameManager.package_queue.size())
+	
+	is_xray_on = false
+	box_visual.color = Color(0.7, 0.55, 0.4) 
+	box_xray_poly.visible = false
+	btn_xray.disabled = false
+	
+	clip_content.text = "Declarado: " + current_package["declared_item"]
+	clip_weight.text = "Peso Decl.: " + str(current_package["declared_weight"]) + " kg"
+	clip_stamp.text = "Selo: " + current_package["stamp_used"]
+	
+	if current_package["stamp_used"] == "Selo Branco": 
+		box_stamp.color = Color.WHITE
+	else:
+		if current_package["stamp_used"] == "Selo Verde": 
+			box_stamp.color = Color(0.2, 0.8, 0.2)
+		else:
+			if current_package["stamp_used"] == "Selo Azul": 
+				box_stamp.color = Color(0.2, 0.2, 0.8)
+	
+	# Animação HORIZONTAL: Surge da esquerda (-200, 170) para o meio (250, 170)
+	box_visual.position = Vector2(-200, 170)
+	box_visual.visible = true
+	var tw = create_tween()
+	tw.tween_property(box_visual, "position", Vector2(250, 170), 0.5).set_ease(Tween.EASE_OUT)
+	
+	var target_w = current_package["true_weight"]
+	var angle = lerp(-PI * 0.8, PI * 0.8, clamp(target_w / 50.0, 0.0, 1.0))
+	tw.parallel().tween_property(scale_needle, "rotation", angle, 0.5).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
+	
+	await tw.finished
+	lbl_scale_digital.text = str(target_w) + " kg"
+	btn_approve_pkg.disabled = false
+	btn_reject_pkg.disabled = false
+
+func _on_btn_xray_pressed() -> void:
+	if current_package.is_empty() or is_xray_on or GameManager.money < 15: return
+	
+	GameManager.money -= 15
+	is_xray_on = true
+	btn_xray.disabled = true
+	
+	box_visual.color = Color(0.1, 0.8, 0.2, 0.85) 
+	box_stamp.color = Color.TRANSPARENT 
+	
+	var points = PackedVector2Array()
+	if current_package.get("is_contraband", false):
+		# Silhueta de armas
+		points = PackedVector2Array([Vector2(20, 60), Vector2(80, 60), Vector2(80, 50), Vector2(120, 50), Vector2(120, 60), Vector2(140, 60), Vector2(140, 70), Vector2(60, 70), Vector2(40, 90), Vector2(20, 90)])
+	else:
+		if current_package.get("true_category", "") == "Cartas":
+			# Silhueta de envelopes
+			points = PackedVector2Array([Vector2(30, 50), Vector2(110, 50), Vector2(110, 90), Vector2(30, 90)])
+		else:
+			if current_package.get("true_category", "") == "Perecivel": 
+				# Silhueta de garrafas/carne
+				points = PackedVector2Array([Vector2(60, 30), Vector2(80, 30), Vector2(80, 60), Vector2(100, 80), Vector2(100, 110), Vector2(40, 110), Vector2(40, 80), Vector2(60, 60)])
+			else:
+				if current_package.get("true_category", "") == "Valioso": 
+					# Silhueta joias
+					points = PackedVector2Array([Vector2(70, 40), Vector2(100, 70), Vector2(70, 100), Vector2(40, 70)])
+		
+	box_xray_poly.polygon = points
+	box_xray_poly.visible = true
+
+func _on_approve_pkg_pressed() -> void:
+	_process_decision(true)
+
+func _on_reject_pkg_pressed() -> void:
+	_process_decision(false)
+
+func _process_decision(approved: bool) -> void:
+	btn_approve_pkg.disabled = true
+	btn_reject_pkg.disabled = true
+	btn_xray.disabled = true
+	
+	var is_fraud = current_package.get("is_contraband", false) or current_package["true_weight"] != current_package["declared_weight"] or current_package["stamp_used"] != current_package["true_stamp"]
+
+	if approved:
+		if current_package.get("is_contraband", false):
+			var fine = 1500
+			GameManager.pending_fiscal_event = {
+				"reason": "CONTRABANDO: O seu posto aprovou carga ilegal oculta! O Raio-X deveria ter sido usado!",
+				"fine": fine,
+				"can_bribe": (GameManager.maint_pct_lobby >= 0.7),
+				"bribe_cost": int(fine * 0.15),
+				"contract_name": "Remetente Avulso"
+			}
+		else:
+			if is_fraud:
+				if GameManager.has_method("add_strike"): GameManager.add_strike("Voce enviou uma carga com peso ou selo fraudado!")
+			else:
+				GameManager.money += current_package.get("reward", 0)
+	else:
+		if not is_fraud:
+			if GameManager.has_method("add_strike"): GameManager.add_strike("Voce bloqueou uma carga valida. O cliente abriu uma queixa!")
+	
+	var tw = create_tween()
+	if approved:
+		# Animação HORIZONTAL: Vai embora pela direita
+		tw.tween_property(box_visual, "position", Vector2(700, 170), 0.5) 
+	else:
+		# Animação HORIZONTAL: Devolvido pela esquerda
+		tw.tween_property(box_visual, "position", Vector2(-200, 170), 0.5) 
+
+	await tw.finished
+	current_package = {}
+	_clear_inspection_desk()
+	_on_queue_updated(GameManager.package_queue.size())
+
+func _show_strike_warning(msg: String) -> void:
+	lbl_strike_warning.text = "[!] " + msg
+	lbl_strike_warning.visible = true
+	var tw = create_tween()
+	tw.tween_property(lbl_strike_warning, "modulate:a", 0.0, 0.5).set_delay(4.0)
+	await tw.finished
+	lbl_strike_warning.visible = false
+	lbl_strike_warning.modulate.a = 1.0
+
+func _on_strike_received(total: int, reason: String) -> void:
+	_show_strike_warning(reason + " (" + str(total) + "/3 Ocorrencias)")
+
+# === LÓGICA DO MAPA (Sem alterações) ===
 
 func _sync_maint_ui() -> void:
 	sld_infra.value = GameManager.maint_pct_infra * 100
@@ -485,23 +800,12 @@ func _sync_maint_ui() -> void:
 	var c_id = GameManager.ideal_maint_crew
 	var l_id = GameManager.ideal_maint_lobby
 
-	var p_i = int(i_id * GameManager.maint_pct_infra)
-	lbl_infra_val.text = "$" + str(p_i) + " / $" + str(i_id) + " (" + str(int(GameManager.maint_pct_infra * 100)) + "%)"
-
-	var p_t = int(t_id * GameManager.maint_pct_tracks)
-	lbl_tracks_val.text = "$" + str(p_t) + " / $" + str(t_id) + " (" + str(int(GameManager.maint_pct_tracks * 100)) + "%)"
-
-	var p_e = int(e_id * GameManager.maint_pct_env)
-	lbl_env_val.text = "$" + str(p_e) + " / $" + str(e_id) + " (" + str(int(GameManager.maint_pct_env * 100)) + "%)"
-
-	var p_s = int(s_id * GameManager.maint_pct_sec)
-	lbl_sec_val.text = "$" + str(p_s) + " / $" + str(s_id) + " (" + str(int(GameManager.maint_pct_sec * 100)) + "%)"
-
-	var p_c = int(c_id * GameManager.maint_pct_crew)
-	lbl_crew_val.text = "$" + str(p_c) + " / $" + str(c_id) + " (" + str(int(GameManager.maint_pct_crew * 100)) + "%)"
-
-	var p_l = int(l_id * GameManager.maint_pct_lobby)
-	lbl_lobby_val.text = "$" + str(p_l) + " / $" + str(l_id) + " (" + str(int(GameManager.maint_pct_lobby * 100)) + "%)"
+	lbl_infra_val.text = "$" + str(int(i_id * GameManager.maint_pct_infra)) + " / $" + str(i_id) + " (" + str(int(GameManager.maint_pct_infra * 100)) + "%)"
+	lbl_tracks_val.text = "$" + str(int(t_id * GameManager.maint_pct_tracks)) + " / $" + str(t_id) + " (" + str(int(GameManager.maint_pct_tracks * 100)) + "%)"
+	lbl_env_val.text = "$" + str(int(e_id * GameManager.maint_pct_env)) + " / $" + str(e_id) + " (" + str(int(GameManager.maint_pct_env * 100)) + "%)"
+	lbl_sec_val.text = "$" + str(int(s_id * GameManager.maint_pct_sec)) + " / $" + str(s_id) + " (" + str(int(GameManager.maint_pct_sec * 100)) + "%)"
+	lbl_crew_val.text = "$" + str(int(c_id * GameManager.maint_pct_crew)) + " / $" + str(c_id) + " (" + str(int(GameManager.maint_pct_crew * 100)) + "%)"
+	lbl_lobby_val.text = "$" + str(int(l_id * GameManager.maint_pct_lobby)) + " / $" + str(l_id) + " (" + str(int(GameManager.maint_pct_lobby * 100)) + "%)"
 
 func _on_sld_infra_changed(val: float) -> void:
 	GameManager.maint_pct_infra = val / 100.0
@@ -550,6 +854,7 @@ func _on_edit_mode_pressed() -> void:
 	tentative_path.clear()
 	repair_tiles.clear()
 	
+	panel_overlay.visible = true # ESCURECE A TELA
 	edit_panel.visible = true
 	_update_edit_panel()
 	queue_redraw()
@@ -557,6 +862,7 @@ func _on_edit_mode_pressed() -> void:
 func _on_cancel_edit_pressed() -> void:
 	is_edit_mode = false
 	edit_panel.visible = false
+	panel_overlay.visible = false 
 	btn_edit_mode.visible = true
 	btn_go_desk.visible = true
 	btn_maint.visible = true
@@ -567,116 +873,7 @@ func _on_cancel_edit_pressed() -> void:
 	repair_tiles.clear()
 	queue_redraw()
 
-func _get_tile_type(cell: Vector2i) -> String:
-	var b = biome_map.get(cell, Biome.PLAIN)
-	if b == Biome.MOUNTAIN or b == Biome.RIVER:
-		return "infra"
-	if b == Biome.FOREST:
-		return "env"
-	return "tracks"
 
-func _update_edit_panel() -> void:
-	var build_cost = 0
-	var repair_cost = 0
-	var build_maint = 0
-	var tunnel_count = 0
-	var bridge_count = 0
-	var forest_count = 0
-	var dist_total = 0
-	var has_gangs = false
-	
-	for path in draft_paths:
-		for cell in path:
-			dist_total += 1
-			var b = biome_map.get(cell, Biome.PLAIN)
-			build_cost += BIOME_DATA[b]["build"]
-			build_maint += BIOME_DATA[b]["maint"]
-			
-			if b == Biome.MOUNTAIN: tunnel_count += 1
-			if b == Biome.RIVER: bridge_count += 1
-			if b == Biome.FOREST: forest_count += 1
-			if gang_map.has(cell): has_gangs = true
-
-	for cell in repair_tiles:
-		var b = biome_map.get(cell, Biome.PLAIN)
-		repair_cost += BIOME_DATA[b]["build"]
-
-	var refund_val = 0
-	var refund_maint = 0
-	for path in deleted_paths:
-		for cell in path:
-			if not GameManager.broken_tiles.has(cell):
-				var b = biome_map.get(cell, Biome.PLAIN)
-				refund_val += BIOME_DATA[b]["build"]
-				refund_maint += BIOME_DATA[b]["maint"]
-
-	net_cost = build_cost + repair_cost - refund_val
-	net_maint = build_maint - refund_maint
-
-	current_env_tax = forest_count * 50
-	current_eng_tax = (tunnel_count * 200) + (bridge_count * 300)
-	current_sec_tax = 0
-	if has_gangs: current_sec_tax = 200
-	
-	current_total_cost = net_cost + current_env_tax + current_eng_tax + current_sec_tax
-
-	var temp_valid = {}
-	for r in confirmed_routes:
-		if not deleted_paths.has(r):
-			for cell in r: temp_valid[cell] = true
-	for r in draft_paths:
-		for cell in r: temp_valid[cell] = true
-
-	temp_valid[city_a] = true
-	temp_valid[city_b] = true
-	temp_valid[city_c] = true
-
-	var has_conn = false
-	if _bfs_shortest_dist(city_a, city_b, temp_valid, false, false) != -1: has_conn = true
-	if _bfs_shortest_dist(city_a, city_c, temp_valid, false, false) != -1: has_conn = true
-	if _bfs_shortest_dist(city_b, city_c, temp_valid, false, false) != -1: has_conn = true
-
-	var is_valid = true
-	var t = "== PROJETO DE ENGENHARIA ==\n\n"
-
-	t += "[ DETALHES DA OBRA ]\n"
-	t += "Distancia Construcao: " + str(dist_total) + " km\n"
-	if tunnel_count > 0: t += "- Tuneis: " + str(tunnel_count) + "\n"
-	if bridge_count > 0: t += "- Pontes: " + str(bridge_count) + "\n"
-	if forest_count > 0: t += "- Desmatamento: " + str(forest_count) + "\n"
-	t += "Reparos Solicitados: " + str(repair_tiles.size()) + "\n"
-	
-	t += "\n[ TAXAS GOVERNAMENTAIS ]\n"
-	if current_env_tax > 0: t += "Licenca Ambiental: $" + str(current_env_tax) + "\n"
-	if current_eng_tax > 0: t += "Licenca de Engenharia: $" + str(current_eng_tax) + "\n"
-	if current_sec_tax > 0: t += "Taxa Seg. Armada: $" + str(current_sec_tax) + "\n"
-	if current_env_tax == 0 and current_eng_tax == 0 and current_sec_tax == 0: t += "Isento de taxas especiais.\n"
-
-	t += "\n[ FINANCEIRO ]\n"
-	if build_cost > 0: t += "Novas Obras: $" + str(build_cost) + "\n"
-	if repair_cost > 0: t += "Custos de Reparo: $" + str(repair_cost) + "\n"
-	if refund_val > 0: t += "Reembolso Demolicao: +$" + str(refund_val) + "\n"
-	
-	t += "---------------------------\n"
-	t += "CUSTO TOTAL DO PROJETO: $" + str(current_total_cost) + "\n"
-	t += "Nova Manutencao Ideal: $" + str(net_maint) + " /dia\n\n"
-	t += "Saldo Atual: $" + str(GameManager.money) + "\n"
-
-	if draft_paths.size() > 0 or deleted_paths.size() > 0 or repair_tiles.size() > 0:
-		if not has_conn:
-			if temp_valid.size() > 3: 
-				is_valid = false
-				t += "\n[ ERRO: Malha nao conecta cidades! ]"
-		
-		if current_total_cost > GameManager.money:
-			is_valid = false
-			t += "\n[ ERRO: Fundos Insuficientes! ]"
-	else:
-		is_valid = false
-		t += "\nNenhuma alteracao projetada."
-
-	edit_info.text = t
-	btn_confirm.disabled = not is_valid
 
 func _on_confirm_edit_pressed() -> void:
 	var affected_tiles = {}
@@ -698,9 +895,19 @@ func _on_confirm_edit_pressed() -> void:
 	for cell in affected_tiles.keys(): untouched.erase(cell)
 	
 	var r_cd = []
-	if _bfs_shortest_dist(city_a, city_b, untouched, false, false) == -1: r_cd.append("Azul-Vermelha")
-	if _bfs_shortest_dist(city_a, city_c, untouched, false, false) == -1: r_cd.append("Azul-Verde")
-	if _bfs_shortest_dist(city_b, city_c, untouched, false, false) == -1: r_cd.append("Vermelha-Verde")
+	var route_desc_string = ""
+	
+	if _bfs_shortest_dist(city_a, city_b, untouched, false, false) == -1: 
+		r_cd.append("Azul-Vermelha")
+		route_desc_string += "Ligacao: Estacao Azul para Vermelha\n"
+	if _bfs_shortest_dist(city_a, city_c, untouched, false, false) == -1: 
+		r_cd.append("Azul-Verde")
+		route_desc_string += "Ligacao: Estacao Azul para Verde\n"
+	if _bfs_shortest_dist(city_b, city_c, untouched, false, false) == -1: 
+		r_cd.append("Vermelha-Verde")
+		route_desc_string += "Ligacao: Estacao Vermelha para Verde\n"
+		
+	if route_desc_string == "": route_desc_string = "Manutencao ou Demolicao da Malha"
 
 	GameManager.pending_blueprint = {
 		"draft_paths": draft_paths.duplicate(true),
@@ -711,15 +918,159 @@ func _on_confirm_edit_pressed() -> void:
 		"tax_eng": current_eng_tax,
 		"tax_sec": current_sec_tax,
 		"total_cost": current_total_cost,
-		"routes_to_cooldown": r_cd
+		"routes_to_cooldown": r_cd,
+		"route_description": route_desc_string
 	}
+	
 	GameManager.save_game()
+	
+	# === CORREÇÃO DO BUG ===
+	# 1. Limpa o modo de edição visualmente
 	_on_cancel_edit_pressed() 
-	_on_go_desk_pressed() 
+	
+	# 2. Atualiza as rotas confirmadas a partir do estado atualizado do GameManager
+	confirmed_routes = GameManager.saved_routes.duplicate()
+	
+	# 3. Força um redesenho imediato para garantir que a planta gerada apareça
+	queue_redraw()
+
+
+
+func _on_btn_maint_pressed() -> void:
+	if is_edit_mode: return 
+	panel_overlay.visible = true # ESCURECE A TELA
+	maint_panel.visible = true
+	_sync_maint_ui()
+
+func _on_btn_close_maint_pressed() -> void:
+	maint_panel.visible = false
+	panel_overlay.visible = false # CLAREIA A TELA
+
+
+func _get_tile_type(cell: Vector2i) -> String:
+	var b = biome_map.get(cell, Biome.PLAIN)
+	if b == Biome.MOUNTAIN or b == Biome.RIVER: return "infra"
+	if b == Biome.FOREST: return "env"
+	return "tracks"
+
+
+
+func _update_edit_panel() -> void:
+	var build_cost = 0
+	var repair_cost = 0
+	var build_maint = 0
+	var tunnel_count = 0
+	var bridge_count = 0
+	var forest_count = 0
+	var dist_total = 0
+	var has_gangs = false
+	
+	for path in draft_paths:
+		for cell in path:
+			dist_total += 1
+			var b = biome_map.get(cell, Biome.PLAIN)
+			build_cost += BIOME_DATA[b]["build"]
+			build_maint += BIOME_DATA[b]["maint"]
+			if b == Biome.MOUNTAIN: tunnel_count += 1
+			if b == Biome.RIVER: bridge_count += 1
+			if b == Biome.FOREST: forest_count += 1
+			if gang_map.has(cell): has_gangs = true
+
+	for cell in repair_tiles:
+		var b = biome_map.get(cell, Biome.PLAIN)
+		repair_cost += BIOME_DATA[b]["build"]
+
+	var refund_val = 0
+	var refund_maint = 0
+	for path in deleted_paths:
+		for cell in path:
+			if not GameManager.broken_tiles.has(cell):
+				var b = biome_map.get(cell, Biome.PLAIN)
+				refund_val += BIOME_DATA[b]["build"]
+				refund_maint += BIOME_DATA[b]["maint"]
+
+	net_cost = build_cost + repair_cost - refund_val
+	net_maint = build_maint - refund_maint
+	current_env_tax = forest_count * 50
+	current_eng_tax = (tunnel_count * 200) + (bridge_count * 300)
+	current_sec_tax = 0
+	if has_gangs: current_sec_tax = 200
+	current_total_cost = net_cost + current_env_tax + current_eng_tax + current_sec_tax
+
+	# CORREÇÃO DE CONEXÃO: Analisa os rascunhos E as rotas já existentes validando o tile da cidade
+	var temp_valid = {}
+	for r in confirmed_routes:
+		if not deleted_paths.has(r):
+			for cell in r: temp_valid[cell] = true
+	for r in draft_paths:
+		for cell in r: temp_valid[cell] = true
+		
+	# Adiciona as cidades para o BFS conseguir encontra-las
+	if city_a != Vector2i(-1, -1): temp_valid[city_a] = true
+	if city_b != Vector2i(-1, -1): temp_valid[city_b] = true
+	if city_c != Vector2i(-1, -1): temp_valid[city_c] = true
+
+	var has_conn = false
+	var routes_created_msg = ""
+	
+	if city_a != Vector2i(-1, -1) and city_b != Vector2i(-1, -1):
+		if _bfs_shortest_dist(city_a, city_b, temp_valid, false, false) != -1: 
+			has_conn = true
+			routes_created_msg += "\n* Rota: Azul <-> Vermelha"
+			
+	if city_a != Vector2i(-1, -1) and city_c != Vector2i(-1, -1):
+		if _bfs_shortest_dist(city_a, city_c, temp_valid, false, false) != -1: 
+			has_conn = true
+			routes_created_msg += "\n* Rota: Azul <-> Verde"
+			
+	if city_b != Vector2i(-1, -1) and city_c != Vector2i(-1, -1):
+		if _bfs_shortest_dist(city_b, city_c, temp_valid, false, false) != -1: 
+			has_conn = true
+			routes_created_msg += "\n* Rota: Vermelha <-> Verde"
+
+	var is_valid = true
+	var t = "== PROJETO DE ENGENHARIA ==\n\n"
+	t += "[ DETALHES DA OBRA ]\nDistancia Construcao: " + str(dist_total) + " km\n"
+	if tunnel_count > 0: t += "- Tuneis: " + str(tunnel_count) + "\n"
+	if bridge_count > 0: t += "- Pontes: " + str(bridge_count) + "\n"
+	if forest_count > 0: t += "- Desmatamento: " + str(forest_count) + "\n"
+	if repair_tiles.size() > 0: t += "Reparos Solicitados: " + str(repair_tiles.size()) + "\n"
+	
+	t += "\n[ TAXAS GOVERNAMENTAIS ]\n"
+	if current_env_tax > 0: t += "Licenca Ambiental: $" + str(current_env_tax) + "\n"
+	if current_eng_tax > 0: t += "Licenca de Engenharia: $" + str(current_eng_tax) + "\n"
+	if current_sec_tax > 0: t += "Taxa Seg. Armada: $" + str(current_sec_tax) + "\n"
+	if current_env_tax == 0 and current_eng_tax == 0 and current_sec_tax == 0: t += "Isento de taxas especiais.\n"
+
+	t += "\n[ FINANCEIRO ]\n"
+	if build_cost > 0: t += "Novas Obras: $" + str(build_cost) + "\n"
+	if repair_cost > 0: t += "Custos de Reparo: $" + str(repair_cost) + "\n"
+	if refund_val > 0: t += "Reembolso Demolicao: +$" + str(refund_val) + "\n"
+	t += "---------------------------\nCUSTO TOTAL DO PROJETO: $" + str(current_total_cost) + "\n"
+	
+	if draft_paths.size() > 0 or deleted_paths.size() > 0 or repair_tiles.size() > 0:
+		if not has_conn and draft_paths.size() > 0:
+			is_valid = false
+			t += "\n[ ERRO: Rota desenhada nao toca nas estacoes! ]"
+		else:
+			if routes_created_msg != "":
+				t += "\n[ CONEXOES ASSEGURADAS ]" + routes_created_msg + "\n"
+				
+		if current_total_cost > GameManager.money:
+			is_valid = false
+			t += "\n[ ERRO: Fundos Insuficientes! ]"
+	else:
+		is_valid = false
+		t += "\nNenhuma alteracao projetada."
+
+	edit_info.text = t
+	btn_confirm.disabled = not is_valid
+
+
+
 
 func _process(delta: float) -> void:
 	if not visible: return
-	
 	var needs_redraw = false
 	for i in range(GameManager.active_contracts.size()):
 		var c = GameManager.active_contracts[i]
@@ -729,11 +1080,9 @@ func _process(delta: float) -> void:
 
 		if (is_op or is_under_construction) and has_physical_route:
 			needs_redraw = true
-			if not active_trains.has(i):
-				_spawn_train(i, c)
+			if not active_trains.has(i): _spawn_train(i, c)
 			else:
-				if is_op and not is_edit_mode:
-					_move_train(i, delta)
+				if is_op and not is_edit_mode: _move_train(i, delta)
 		else:
 			if active_trains.has(i):
 				active_trains.erase(i)
@@ -745,8 +1094,7 @@ func _process(delta: float) -> void:
 			active_trains.erase(k)
 			needs_redraw = true
 
-	if needs_redraw:
-		queue_redraw()
+	if needs_redraw: queue_redraw()
 
 func _spawn_train(contract_index: int, contract: Dictionary) -> void:
 	var route_id = contract["route_id"]
@@ -754,16 +1102,13 @@ func _spawn_train(contract_index: int, contract: Dictionary) -> void:
 	var target_city = Vector2i(-1, -1)
 
 	if "Azul" in route_id and "Vermelha" in route_id:
-		start_city = city_a
-		target_city = city_b
+		start_city = city_a; target_city = city_b
 	else:
 		if "Azul" in route_id and "Verde" in route_id:
-			start_city = city_a
-			target_city = city_c
+			start_city = city_a; target_city = city_c
 		else:
 			if "Vermelha" in route_id and "Verde" in route_id:
-				start_city = city_b
-				target_city = city_c
+				start_city = city_b; target_city = city_c
 
 	var valid_tiles = {}
 	for r in confirmed_routes:
@@ -775,19 +1120,12 @@ func _spawn_train(contract_index: int, contract: Dictionary) -> void:
 	if path_cells.size() < 2: return 
 	
 	var path_points = []
-	for cell in path_cells:
-		path_points.append(Vector2(cell.x * TILE_SIZE + TILE_SIZE/2.0, cell.y * TILE_SIZE + TILE_SIZE/2.0))
+	for cell in path_cells: path_points.append(Vector2(cell.x * TILE_SIZE + TILE_SIZE/2.0, cell.y * TILE_SIZE + TILE_SIZE/2.0))
 
 	var palette = [Color.CRIMSON, Color.ROYAL_BLUE, Color.GOLDENROD, Color.DARK_VIOLET, Color.DARK_ORANGE]
-	var v_color = palette[contract_index % palette.size()]
-
 	active_trains[contract_index] = {
-		"path": path_points,
-		"progress": 0.0,
-		"direction": 1,
-		"speed": 100.0, # Aumentado velocidade para compensar o tamanho maior nativo
-		"color": v_color,
-		"delay": contract_index * 1.5
+		"path": path_points, "progress": 0.0, "direction": 1,
+		"speed": 100.0, "color": palette[contract_index % palette.size()], "delay": contract_index * 1.5
 	}
 
 func _move_train(index: int, delta: float) -> void:
@@ -802,25 +1140,19 @@ func _move_train(index: int, delta: float) -> void:
 	var pos = loco_info["pos"]
 	var cell = Vector2i(int(pos.x / TILE_SIZE), int(pos.y / TILE_SIZE))
 	
-	var tile_health = 1.0
-	if GameManager.tile_data.has(cell):
-		tile_health = GameManager.tile_data[cell].get("h", 1.0)
-	
+	var tile_health = GameManager.tile_data.get(cell, {}).get("h", 1.0)
 	var speed_mult = 0.2 + (0.8 * tile_health)
 	
 	var path_len = 0.0
-	for i in range(train["path"].size() - 1):
-		path_len += train["path"][i].distance_to(train["path"][i+1])
+	for i in range(train["path"].size() - 1): path_len += train["path"][i].distance_to(train["path"][i+1])
 		
 	train["progress"] += train["speed"] * speed_mult * delta * train["direction"]
 
 	if train["progress"] >= path_len:
-		train["progress"] = path_len
-		train["direction"] = -1
+		train["progress"] = path_len; train["direction"] = -1
 	else:
 		if train["progress"] <= 0:
-			train["progress"] = 0
-			train["direction"] = 1
+			train["progress"] = 0; train["direction"] = 1
 
 func _get_path_info(path: Array, dist: float) -> Dictionary:
 	var path_len = 0.0
@@ -851,21 +1183,18 @@ func _draw_trains() -> void:
 		if path.size() < 2: continue
 		var current_dist = train["progress"]
 		if train.has("delay") and train["delay"] > 0: current_dist = 0.0 
-		var loco_dist = current_dist
-		var wagon_dist = current_dist - (20.0 * train["direction"]) # Aumentado dist wagon
-		var loco_info = _get_path_info(path, loco_dist)
-		var wagon_info = _get_path_info(path, wagon_dist)
+		var loco_info = _get_path_info(path, current_dist)
+		var wagon_info = _get_path_info(path, current_dist - (20.0 * train["direction"]))
 		var loco_dir = loco_info["dir"]
 		var wagon_dir = wagon_info["dir"]
 		if train["direction"] == -1:
-			loco_dir = -loco_dir
-			wagon_dir = -wagon_dir
+			loco_dir = -loco_dir; wagon_dir = -wagon_dir
 			
 		draw_set_transform(wagon_info["pos"], wagon_dir.angle(), Vector2.ONE)
-		draw_rect(Rect2(-10, -6, 20, 12), train["color"]) # Wagon maior nativo
+		draw_rect(Rect2(-10, -6, 20, 12), train["color"]) 
 		draw_set_transform(loco_info["pos"], loco_dir.angle(), Vector2.ONE)
-		draw_rect(Rect2(-12, -8, 24, 16), Color(0.15, 0.15, 0.15)) # Loco maior native
-		draw_rect(Rect2(2, -4, 8, 10), Color(0.7, 0.7, 0.7)) # Janela maior native
+		draw_rect(Rect2(-12, -8, 24, 16), Color(0.15, 0.15, 0.15)) 
+		draw_rect(Rect2(2, -4, 8, 10), Color(0.7, 0.7, 0.7)) 
 		draw_set_transform(Vector2.ZERO, 0, Vector2.ONE)
 
 func _bfs_get_path_array(start_node: Vector2i, target_node: Vector2i, valid_tiles: Dictionary) -> Array[Vector2i]:
@@ -876,8 +1205,7 @@ func _bfs_get_path_array(start_node: Vector2i, target_node: Vector2i, valid_tile
 		var path: Array[Vector2i] = queue.pop_front()
 		var cell = path.back()
 		if cell == target_node: return path
-		var neighbors = [cell + Vector2i.UP, cell + Vector2i.DOWN, cell + Vector2i.LEFT, cell + Vector2i.RIGHT]
-		for n in neighbors:
+		for n in [cell + Vector2i.UP, cell + Vector2i.DOWN, cell + Vector2i.LEFT, cell + Vector2i.RIGHT]:
 			if valid_tiles.has(n) and not visited.has(n):
 				visited[n] = true
 				var new_path: Array[Vector2i] = path.duplicate()
@@ -891,16 +1219,12 @@ func _is_cell_occupied_by_track(cell: Vector2i) -> bool:
 	if cell in tentative_path: return true
 	for draft in draft_paths:
 		if cell in draft: return true
-		
 	if not GameManager.pending_blueprint.is_empty():
 		for draft in GameManager.pending_blueprint.get("draft_paths", []):
 			if cell in draft: return true
-			
 	return false
 
 func _draw() -> void:
-	# Limitar o desenho APENAS aos 2/3 esquerdos da tela (40 colunas)
-	# REESTRUTURAÇÃO NATIVA: Não usamos mais scale, desenhamos tudo com TILE_SIZE=32 direto
 	for x in range(grid_width):
 		for y in range(grid_height):
 			var cell = Vector2i(x, y)
@@ -917,13 +1241,11 @@ func _draw() -> void:
 	for cell in gang_map.keys():
 		draw_rect(Rect2(cell.x * TILE_SIZE, cell.y * TILE_SIZE, TILE_SIZE, TILE_SIZE), Color(0.8, 0.1, 0.1, 0.4))
 
-	# Linhas de grelha limitadas
 	for x in range(grid_width + 1):
 		draw_line(Vector2(x * TILE_SIZE, 0), Vector2(x * TILE_SIZE, grid_height * TILE_SIZE), Color(0, 0, 0, 0.1), 1.0)
 	for y in range(grid_height + 1):
 		draw_line(Vector2(0, y * TILE_SIZE), Vector2(grid_width * TILE_SIZE, y * TILE_SIZE), Color(0, 0, 0, 0.1), 1.0)
 
-	# Lógica de rotas e obras (sem alteração, pois as variáveis já estão corretas na BFS)
 	var valid_built = {}
 	for r in confirmed_routes:
 		for c in r: valid_built[c] = true
@@ -934,12 +1256,9 @@ func _draw() -> void:
 	var path_ab = []
 	var path_ac = []
 	var path_bc = []
-	if city_a != Vector2i(-1, -1) and city_b != Vector2i(-1, -1):
-		path_ab = _bfs_get_path_array(city_a, city_b, valid_built)
-	if city_a != Vector2i(-1, -1) and city_c != Vector2i(-1, -1):
-		path_ac = _bfs_get_path_array(city_a, city_c, valid_built)
-	if city_b != Vector2i(-1, -1) and city_c != Vector2i(-1, -1):
-		path_bc = _bfs_get_path_array(city_b, city_c, valid_built)
+	if city_a != Vector2i(-1, -1) and city_b != Vector2i(-1, -1): path_ab = _bfs_get_path_array(city_a, city_b, valid_built)
+	if city_a != Vector2i(-1, -1) and city_c != Vector2i(-1, -1): path_ac = _bfs_get_path_array(city_a, city_c, valid_built)
+	if city_b != Vector2i(-1, -1) and city_c != Vector2i(-1, -1): path_bc = _bfs_get_path_array(city_b, city_c, valid_built)
 
 	var const_cells = {}
 	if GameManager.routes_under_construction.get("Azul-Vermelha", 0) > 0:
@@ -952,39 +1271,33 @@ func _draw() -> void:
 	var drawn_texts = {}
 	for route in confirmed_routes: 
 		var is_del = deleted_paths.has(route)
-		
 		if not GameManager.pending_blueprint.is_empty():
 			for d in GameManager.pending_blueprint.get("deleted_paths", []):
 				if _are_routes_equal(route, d): is_del = true
 
 		var route_is_const = false
 		var max_d = 0
-		
 		for cell in route:
 			if const_cells.has(cell):
 				route_is_const = true
 				if const_cells[cell] > max_d: max_d = const_cells[cell]
 				
 		_draw_custom_track(route, false, route_is_const, is_del) 
-		if route_is_const and not is_del:
-			if route.size() > 2:
-				var mid = route[route.size() / 2]
-				var px = mid.x * TILE_SIZE + 16
-				var py = mid.y * TILE_SIZE + 16
-				
-				var mid_str = str(mid.x) + "_" + str(mid.y)
-				if not drawn_texts.has(mid_str):
-					drawn_texts[mid_str] = true
-					draw_rect(Rect2(px - 50, py - 12, 100, 24), Color(0.1, 0.1, 0.1, 0.9))
-					draw_string(ThemeDB.fallback_font, Vector2(px - 45, py + 4), "[ OBRAS: " + str(max_d) + "d ]", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color.ORANGE)
+		if route_is_const and not is_del and route.size() > 2:
+			var mid = route[route.size() / 2]
+			var px = mid.x * TILE_SIZE + 16
+			var py = mid.y * TILE_SIZE + 16
+			var mid_str = str(mid.x) + "_" + str(mid.y)
+			if not drawn_texts.has(mid_str):
+				drawn_texts[mid_str] = true
+				draw_rect(Rect2(px - 50, py - 12, 100, 24), Color(0.1, 0.1, 0.1, 0.9))
+				draw_string(ThemeDB.fallback_font, Vector2(px - 45, py + 4), "[ OBRAS: " + str(max_d) + "d ]", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color.ORANGE)
 	
-	for draft in draft_paths:
-		_draw_custom_track(draft, true, false, false)
+	for draft in draft_paths: _draw_custom_track(draft, true, false, false)
 	_draw_custom_track(tentative_path, true, false, false)
 
 	if not GameManager.pending_blueprint.is_empty():
-		var bp_drafts = GameManager.pending_blueprint.get("draft_paths", [])
-		for draft in bp_drafts:
+		for draft in GameManager.pending_blueprint.get("draft_paths", []):
 			_draw_custom_track(draft, true, false, false)
 			if draft.size() > 2:
 				var mid = draft[draft.size() / 2]
@@ -996,32 +1309,28 @@ func _draw() -> void:
 					draw_rect(Rect2(px - 75, py - 12, 150, 24), Color(0.1, 0.2, 0.4, 0.9))
 					draw_string(ThemeDB.fallback_font, Vector2(px - 70, py + 4), "[ AGUARDANDO APROV. ]", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color.SKY_BLUE)
 					
-		var bp_repairs = GameManager.pending_blueprint.get("repair_tiles", [])
-		for cell in bp_repairs:
-			var px = cell.x * TILE_SIZE + 16
-			var py = cell.y * TILE_SIZE + 16
-			draw_arc(Vector2(px, py), 18.0, 0, TAU, 16, Color.SKY_BLUE, 3.0)
+		for cell in GameManager.pending_blueprint.get("repair_tiles", []):
+			draw_arc(Vector2(cell.x * TILE_SIZE + 16, cell.y * TILE_SIZE + 16), 18.0, 0, TAU, 16, Color.SKY_BLUE, 3.0)
 
 	if city_a != Vector2i(-1, -1): draw_rect(Rect2(city_a.x * TILE_SIZE, city_a.y * TILE_SIZE, TILE_SIZE, TILE_SIZE), Color.DODGER_BLUE)
 	if city_b != Vector2i(-1, -1): draw_rect(Rect2(city_b.x * TILE_SIZE, city_b.y * TILE_SIZE, TILE_SIZE, TILE_SIZE), Color.CRIMSON)
 	if city_c != Vector2i(-1, -1): draw_rect(Rect2(city_c.x * TILE_SIZE, city_c.y * TILE_SIZE, TILE_SIZE, TILE_SIZE), Color.FOREST_GREEN)
+	
 	_draw_trains()
 	
 	for cell in GameManager.broken_tiles:
 		var px = cell.x * TILE_SIZE + 16
 		var py = cell.y * TILE_SIZE + 16
-		var b_type = biome_map.get(cell, Biome.PLAIN)
-		if b_type == Biome.FOREST:
+		if biome_map.get(cell, Biome.PLAIN) == Biome.FOREST:
 			draw_circle(Vector2(px, py), 14.0, Color(0.8, 0.2, 0.0))
 			draw_circle(Vector2(px, py - 4), 8.0, Color(0.9, 0.6, 0.1))
 		else:
 			draw_line(Vector2(px - 14, py - 14), Vector2(px + 14, py + 14), Color.RED, 4.0)
 			draw_line(Vector2(px + 14, py - 14), Vector2(px - 14, py + 14), Color.RED, 4.0)
-			
 		if repair_tiles.has(cell):
 			draw_arc(Vector2(px, py), 18.0, 0, TAU, 16, Color.YELLOW, 3.0)
 
-	# REESTRUTURAÇÃO NATIVA: Pintar o 1/3 da direita de preto sólido para garantir que o mapa não "vaza"
+	# Fundo preto para garantir que o mapa não vaza sob o 1/3 da direita
 	var panel_x = grid_width * TILE_SIZE
 	draw_rect(Rect2(panel_x, 0, 1920 - panel_x, 1088), Color.BLACK)
 
@@ -1036,8 +1345,7 @@ func _get_track_color(b: int, is_preview: bool, is_construction: bool, is_delete
 func _draw_custom_track(path: Array, is_preview: bool, is_const: bool, is_deleted: bool = false) -> void:
 	if path.size() == 0: return
 	if path.size() == 1:
-		var b = biome_map.get(path[0], Biome.PLAIN)
-		draw_circle(Vector2(path[0].x * 32 + 16, path[0].y * 32 + 16), 5.0, _get_track_color(b, is_preview, is_const, is_deleted))
+		draw_circle(Vector2(path[0].x * 32 + 16, path[0].y * 32 + 16), 5.0, _get_track_color(biome_map.get(path[0], Biome.PLAIN), is_preview, is_const, is_deleted))
 		return
 	for cell in path:
 		if biome_map.get(cell, Biome.PLAIN) == Biome.FOREST:
@@ -1054,22 +1362,30 @@ func _draw_custom_track(path: Array, is_preview: bool, is_const: bool, is_delete
 			if b1 == Biome.RIVER or b2 == Biome.RIVER: segment_biome = Biome.RIVER
 			else:
 				if b1 == Biome.FOREST or b2 == Biome.FOREST: segment_biome = Biome.FOREST
+		
 		var line_color = _get_track_color(segment_biome, is_preview, is_const, is_deleted)
 		var line_width = 3.0
-		if segment_biome == Biome.MOUNTAIN: line_width = 7.0
+		if segment_biome == Biome.MOUNTAIN:
+			line_width = 7.0
+			
 		var p1 = Vector2(p1_cell.x * 32 + 16, p1_cell.y * 32 + 16)
 		var p2 = Vector2(p2_cell.x * 32 + 16, p2_cell.y * 32 + 16)
 		draw_line(p1, p2, line_color, line_width)
+		
 		if segment_biome != Biome.MOUNTAIN:
 			var dir = (p2 - p1).normalized()
 			var normal = Vector2(-dir.y, dir.x)
-			var segment_length = p1.distance_to(p2)
 			var spacing = 10.0
-			if segment_biome == Biome.RIVER: spacing = 5.0
-			var num_ties = int(segment_length / spacing)
+			if segment_biome == Biome.RIVER:
+				spacing = 5.0
+			var num_ties = int(p1.distance_to(p2) / spacing)
 			var tie_color = line_color
-			if segment_biome == Biome.RIVER and not is_preview: tie_color = Color(0.3, 0.2, 0.1)
-			if is_const and not is_deleted: tie_color = Color.BLACK
+			if segment_biome == Biome.RIVER and not is_preview:
+				tie_color = Color(0.3, 0.2, 0.1)
+			else:
+				if is_const and not is_deleted:
+					tie_color = Color.BLACK
+			
 			for j in range(1, num_ties + 1):
 				var tie_center = p1 + dir * (j * spacing)
 				draw_line(tie_center - normal * 5.0, tie_center + normal * 5.0, tie_color, 2.0)
@@ -1077,7 +1393,7 @@ func _draw_custom_track(path: Array, is_preview: bool, is_const: bool, is_delete
 func _unhandled_input(event: InputEvent) -> void:
 	if not visible: return
 	if is_edit_mode:
-		# REESTRUTURAÇÃO NATIVA: Impedir que cliques na área de 1/3 da direita afetem o mapa
+		# GAIOLA: Bloqueia cliques fora dos 1280px (Área do Mapa)
 		if event is InputEventMouseButton or event is InputEventMouseMotion:
 			if event.position.x > grid_width * TILE_SIZE: return
 
@@ -1101,50 +1417,40 @@ func _unhandled_input(event: InputEvent) -> void:
 				if event.button_index == MOUSE_BUTTON_RIGHT and event.is_pressed():
 					var cell = _get_cell_under_mouse(event.position)
 					var handled = false
-					
 					for i in range(draft_paths.size() - 1, -1, -1):
 						if draft_paths[i].has(cell):
 							draft_paths.remove_at(i)
 							handled = true
 							break
-							
 					if not handled:
 						if GameManager.broken_tiles.has(cell):
 							var route_is_deleted = false
 							for r in deleted_paths:
 								if r.has(cell): route_is_deleted = true
-							
 							if not route_is_deleted: 
-								if repair_tiles.has(cell):
-									repair_tiles.erase(cell)
-								else:
-									repair_tiles.append(cell)
+								if repair_tiles.has(cell): repair_tiles.erase(cell)
+								else: repair_tiles.append(cell)
 								handled = true
-								
 					if not handled:
 						for r in confirmed_routes:
 							if r.has(cell):
-								if deleted_paths.has(r): 
-									deleted_paths.erase(r) 
+								if deleted_paths.has(r): deleted_paths.erase(r) 
 								else: 
 									deleted_paths.append(r)
 									for c in r:
-										if repair_tiles.has(c):
-											repair_tiles.erase(c)
+										if repair_tiles.has(c): repair_tiles.erase(c)
 								break
 					_update_edit_panel()
 					queue_redraw()
 		else:
 			if event is InputEventMouseMotion and is_dragging:
 				var cell = _get_cell_under_mouse(event.position)
-				# Limitar ortogonal à grelha nativa
 				cell.x = clamp(cell.x, 0, grid_width - 1)
 				cell.y = clamp(cell.y, 0, grid_height - 1)
 				if tentative_path.size() > 0:
 					var last = tentative_path.back()
 					if cell != last:
-						var segment = _get_orthogonal_path(last, cell)
-						for p in segment:
+						for p in _get_orthogonal_path(last, cell):
 							var idx = tentative_path.find(p)
 							if idx != -1: tentative_path.resize(idx + 1)
 							else: tentative_path.append(p)
@@ -1162,9 +1468,7 @@ func _get_orthogonal_path(start: Vector2i, end: Vector2i) -> Array[Vector2i]:
 	return path
 
 func _update_network_status() -> void:
-	# Lógica idêntica, as referências de rede estão no GameManager que é global
 	active_trains.clear()
-	
 	var valid_for_path = {}
 	for r in confirmed_routes:
 		for c in r: valid_for_path[c] = true
@@ -1175,12 +1479,9 @@ func _update_network_status() -> void:
 	var path_ab = []
 	var path_ac = []
 	var path_bc = []
-	if city_a != Vector2i(-1, -1) and city_b != Vector2i(-1, -1):
-		path_ab = _bfs_get_path_array(city_a, city_b, valid_for_path)
-	if city_a != Vector2i(-1, -1) and city_c != Vector2i(-1, -1):
-		path_ac = _bfs_get_path_array(city_a, city_c, valid_for_path)
-	if city_b != Vector2i(-1, -1) and city_c != Vector2i(-1, -1):
-		path_bc = _bfs_get_path_array(city_b, city_c, valid_for_path)
+	if city_a != Vector2i(-1, -1) and city_b != Vector2i(-1, -1): path_ab = _bfs_get_path_array(city_a, city_b, valid_for_path)
+	if city_a != Vector2i(-1, -1) and city_c != Vector2i(-1, -1): path_ac = _bfs_get_path_array(city_a, city_c, valid_for_path)
+	if city_b != Vector2i(-1, -1) and city_c != Vector2i(-1, -1): path_bc = _bfs_get_path_array(city_b, city_c, valid_for_path)
 
 	var const_cells = {}
 	if GameManager.routes_under_construction.get("Azul-Vermelha", 0) > 0:
@@ -1192,7 +1493,6 @@ func _update_network_status() -> void:
 		
 	var built = {}
 	var toll = 0
-	
 	var i_infra = 0
 	var i_tracks = 0
 	var i_env = 0
@@ -1205,19 +1505,16 @@ func _update_network_status() -> void:
 			built[cell] = true
 			if gang_map.has(cell): has_g = true
 			if const_cells.has(cell): is_route_const = true
-		
 		if has_g and not is_route_const: toll += GANG_TOLL_RATE
 		
 	for cell in built.keys():
 		if const_cells.has(cell): continue
-		
 		var b = biome_map.get(cell, Biome.PLAIN)
-		if b == Biome.MOUNTAIN or b == Biome.RIVER:
-			i_infra += BIOME_DATA[b]["maint"]
-		if b == Biome.PLAIN:
-			i_tracks += BIOME_DATA[b]["maint"]
-		if b == Biome.FOREST:
-			i_env += BIOME_DATA[b]["maint"]
+		if b == Biome.MOUNTAIN or b == Biome.RIVER: i_infra += BIOME_DATA[b]["maint"]
+		else:
+			if b == Biome.PLAIN: i_tracks += BIOME_DATA[b]["maint"]
+			else:
+				if b == Biome.FOREST: i_env += BIOME_DATA[b]["maint"]
 			
 	i_sec = toll
 
@@ -1225,22 +1522,18 @@ func _update_network_status() -> void:
 	GameManager.ideal_maint_tracks = i_tracks
 	GameManager.ideal_maint_env = i_env
 	GameManager.ideal_maint_sec = i_sec
-	
 	GameManager.ideal_maint_crew = GameManager.active_contracts.size() * 25
 	GameManager.ideal_maint_lobby = 50
 	
 	GameManager.update_actual_maintenance()
-	
-	if is_instance_valid(maint_panel):
-		_sync_maint_ui()
+	if is_instance_valid(maint_panel): _sync_maint_ui()
 	
 	if city_a != Vector2i(-1, -1): built[city_a] = true
 	if city_b != Vector2i(-1, -1): built[city_b] = true
 	if city_c != Vector2i(-1, -1): built[city_c] = true
 	
 	var built_unbroken = built.duplicate()
-	for bt in GameManager.broken_tiles:
-		built_unbroken.erase(bt)
+	for bt in GameManager.broken_tiles: built_unbroken.erase(bt)
 	
 	var connections = []
 	var stats = {}
@@ -1309,11 +1602,11 @@ func _bfs_shortest_dist(start: Vector2i, target: Vector2i, valid: Dictionary, av
 				q.push_back({"cell": n, "dist": curr["dist"] + 1})
 	return -1
 	
-func _get_cell_under_mouse(p: Vector2) -> Vector2i: 
-	return Vector2i(p.x / TILE_SIZE, p.y / TILE_SIZE)
-
 func _are_routes_equal(r1: Array, r2: Array) -> bool:
 	if r1.size() != r2.size(): return false
 	for i in range(r1.size()):
 		if r1[i] != r2[i]: return false
 	return true
+
+func _get_cell_under_mouse(p: Vector2) -> Vector2i: 
+	return Vector2i(p.x / TILE_SIZE, p.y / TILE_SIZE)
