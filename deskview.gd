@@ -1286,15 +1286,19 @@ func _spawn_proposal_paper(c_data: Dictionary, is_urg: bool, reward: int) -> voi
 
 	var content = Control.new()
 	content.name = "content"
-	content.set_anchors_preset(Control.PRESET_FULL_RECT)
+	# Define margens internas de 20px
+	content.position = Vector2(20, 20)
+	content.size = paper.size - Vector2(40, 40)
 	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	paper.add_child(content)
 
 	var text_lbl = Label.new()
 	text_lbl.add_theme_color_override("font_color", Color.BLACK)
 	text_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	text_lbl.size = paper.size - Vector2(40, 40)
-	text_lbl.position = Vector2(20, 20)
+	# Define o tamanho da fonte menor para caber mais texto
+	text_lbl.add_theme_font_size_override("font_size", 14) 
+	# Ocupa todo o espaço interno do content
+	text_lbl.size = content.size 
 
 	var text = "TERMO DE TRANSPORTE\n\n"
 	text += "Empresa: " + c_data["name"] + "\n"
@@ -1306,11 +1310,12 @@ func _spawn_proposal_paper(c_data: Dictionary, is_urg: bool, reward: int) -> voi
 	else:
 		text += "Contrato Padrao (5-10 dias)\nPagamento Diario: $" + str(reward) + "\n"
 
-	var flav = "Termos padrao de logistica se aplicam. A Cia de Entregas Ferroviarias responsabiliza-se pela carga a partir do embarque."
+	# Reduzi levemente o texto para caber melhor no design
+	var flav = "Logistica: A Cia Ferroviaria responsabiliza-se pela carga a partir do embarque."
 	text += "\nNota: " + flav + "\n\n"
 	
 	if pending_is_risk:
-		text += "[ATENCAO: CONTRATO DE RISCO]\nVia inexistente ou em obras.\nPrazo estrito: 3 dias para iniciar a operacao."
+		text += "[ATENCAO: CONTRATO DE RISCO]\nVia inexistente ou em obras.\nPrazo estrito: 3 dias p/ iniciar."
 	else:
 		text += "(Aguarde validacao manual para Enviar)"
 	
@@ -1332,7 +1337,6 @@ func _spawn_proposal_paper(c_data: Dictionary, is_urg: bool, reward: int) -> voi
 	spawned_papers.append(paper)
 	
 	_load_agenda_contacts()
-	
 	
 
 func _on_cutscene_rejected() -> void:
