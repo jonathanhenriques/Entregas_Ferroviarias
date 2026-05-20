@@ -32,19 +32,22 @@ var daily_maintenance: int = 0 :
 		
 		
 		
-# VARIÁVEIS DA TRIAGEM E PESAGEM
+
+# === VARIÁVEIS DA TRIAGEM E PESAGEM ===
 var package_queue: Array = []
 var strikes: int = 0
 var pendent_strike_warning: String = ""
 var package_timer: float = 0.0
 const PACKAGE_INTERVAL: float = 20.0 
 
-# NOVAS VARIÁVEIS PARA O EVENTO DO CHEFE
+# === NOVAS VARIÁVEIS (TUTORIAL, AGIOTA E TEMPORIZADOR) ===
+var is_first_route_built: bool = false
+var first_fiscal_warning_done: bool = false
+var shift_time_left: float = 0.0
+var shift_active: bool = false
+
 var boss_package_intro_done: bool = false
-var pending_boss_package_call: bool = false		
-
-
-# === NOVAS VARIÁVEIS DA FASE 1 (ECONOMIA E AGIOTA) ===
+var pending_boss_package_call: bool = false
 var packages_generated_today: int = 0
 var has_loan_shark: bool = false
 var loan_shark_days_left: int = 0
@@ -100,26 +103,36 @@ var pending_blueprint: Dictionary = {}
 
 func _process(delta: float) -> void:
 	if current_day > 0 and money > -9999: 
-		# FASE 1: Limite de falência movido para -$2000
+		# Limite de falência
 		if money <= -2000:
 			trigger_bankruptcy()
 			return
 			
-		# FASE 1: Gatilho do Agiota (Aparece ao chegar a -$1500)
+		# Gatilho do Agiota
 		if money <= -1500 and not has_loan_shark and not pending_shark_call and not shark_declined:
 			pending_shark_call = true
 			
+		# OPÇÃO A: Acelera a primeira rota do jogo para durar apenas 1 dia!
+		if not is_first_route_built and routes_under_construction.size() > 0:
+			is_first_route_built = true
+			for k in routes_under_construction.keys():
+				routes_under_construction[k] = 1 
+				
 		if not has_ready_route(): return
 		
+		# Gatilho do Chefe
 		if not boss_package_intro_done and not pending_boss_package_call:
 			pending_boss_package_call = true
 			
-		if boss_package_intro_done:
-			package_timer += delta
-			if package_timer >= PACKAGE_INTERVAL:
-				package_timer = 0.0
-				_generate_package()
-
+		# TEMPORIZADOR DO TURNO (O comboio vai partir!)
+		if boss_package_intro_done and shift_active:
+			shift_time_left -= delta
+			if shift_time_left <= 0:
+				shift_active = false
+				if package_queue.size() > 0:
+					add_strike("O comboio partiu e " + str(package_queue.size()) + " encomendas ficaram na plataforma!")
+					package_queue.clear()
+					package_queue_updated.emit(0)
 
 
 # NOVA FUNÇÃO DE VALIDAÇÃO GERAL
@@ -185,16 +198,12 @@ func end_day(upfront_income: int = 0) -> void:
 	money -= daily_crew_cost
 	money -= daily_lobby_cost
 	
-	# FASE 1: Cobrança dos juros do Agiota ($150 por dia durante 20 dias)
 	if has_loan_shark:
 		money -= 150 
 		loan_shark_days_left -= 1
 		if loan_shark_days_left <= 0:
 			has_loan_shark = false 
 			
-	# FASE 1: Reset do limite diário de encomendas
-	packages_generated_today = 0
-	
 	var new_ruc = {}
 	var ruc_keys = routes_under_construction.keys()
 	for i in range(ruc_keys.size()):
@@ -267,14 +276,17 @@ func end_day(upfront_income: int = 0) -> void:
 	
 	_generate_daily_generics()
 	
-	var keep_queue = []
-	for p in package_queue:
-		p["days_in_queue"] += 1
-		if p["true_category"] == "Perecivel" and p["days_in_queue"] >= 2:
-			add_strike("A carga de " + p["declared_item"] + " apodreceu na sua triagem!")
-		else:
-			keep_queue.append(p)
-	package_queue = keep_queue
+	# PREPARAÇÃO DO TURNO DE TRIAGEM PARA O DIA SEGUINTE
+	package_queue.clear()
+	packages_generated_today = 0
+	shift_active = false
+	
+	if has_ready_route() and boss_package_intro_done:
+		shift_time_left = 120.0 + (get_daily_package_limit() * 10.0) # 2 a 3 minutos
+		shift_active = true
+		for i in range(get_daily_package_limit()):
+			_generate_package()
+			
 	package_queue_updated.emit(package_queue.size())
 	
 	contracts_updated.emit()
@@ -284,18 +296,12 @@ func end_day(upfront_income: int = 0) -> void:
 	if money <= -2000: trigger_bankruptcy()
 	elif money >= LevelData.LEVELS[current_level]["goal"]: trigger_victory()
 
-
-# FUNÇÕES DA ESTAÇÃO DE TRIAGEM
 func get_daily_package_limit() -> int:
 	if current_day <= 2: return 3
 	if current_day <= 5: return 5
 	return 8
 
 func _generate_package() -> void:
-	# FASE 1: Limite diário de encomendas respeitado
-	if packages_generated_today >= get_daily_package_limit(): return
-	if package_queue.size() >= 10: return 
-	
 	var categories = ["Cartas", "Perecivel", "Valioso"]
 	var cat = categories.pick_random()
 	var item = ""
@@ -316,8 +322,6 @@ func _generate_package() -> void:
 		true_stamp = "Selo Azul"
 
 	base_weight = snapped(base_weight, 0.1)
-	
-	# Recompensa base do pacote
 	var base_reward = randi_range(30, 70)
 
 	var pkg = {
@@ -333,13 +337,12 @@ func _generate_package() -> void:
 		"stamp_used": true_stamp,
 		"days_in_queue": 0,
 		"base_reward": base_reward,
-		"reward": base_reward # Temporário até alterarmos o mapview.gd
+		"reward": base_reward 
 	}
 
-	# FASE 1: Trava de aprendizado - ZERO fraude nos 3 primeiros dias
 	var fraud_chance = 0.35
 	if cat == "Cartas": fraud_chance = 0.10
-	if current_day <= 3: fraud_chance = 0.0 
+	if current_day <= 3: fraud_chance = 0.0 # Sem fraude no tutorial
 
 	if randf() < fraud_chance:
 		var f_type = randi() % 3
@@ -353,9 +356,6 @@ func _generate_package() -> void:
 
 	packages_generated_today += 1
 	package_queue.append(pkg)
-	package_queue_updated.emit(package_queue.size())
-
-
 
 func add_strike(reason: String) -> void:
 	strikes += 1
@@ -518,7 +518,7 @@ func reset_game() -> void:
 	pendent_strike_warning = ""
 	package_timer = 0.0
 	
-	# Reset Fase 1
+	# Reset Fase 1 e Temporizador
 	packages_generated_today = 0
 	has_loan_shark = false
 	loan_shark_days_left = 0
@@ -528,9 +528,13 @@ func reset_game() -> void:
 	boss_package_intro_done = false
 	pending_boss_package_call = false
 	
+	is_first_route_built = false
+	first_fiscal_warning_done = false
+	shift_time_left = 0.0
+	shift_active = false
+	
 	_generate_daily_generics()
 	save_game()
-
 
 func save_game() -> void:
 	var data = {
@@ -542,6 +546,12 @@ func save_game() -> void:
 		"last_audit_day": last_audit_day,
 		"boss_package_intro_done": boss_package_intro_done,
 		"pending_boss_package_call": pending_boss_package_call,
+		
+		"is_first_route_built": is_first_route_built,
+		"first_fiscal_warning_done": first_fiscal_warning_done,
+		"shift_time_left": shift_time_left,
+		"shift_active": shift_active,
+		
 		"money": money, "current_day": current_day,
 		"daily_maintenance": daily_maintenance, "daily_gang_toll": daily_gang_toll,
 		"daily_crew_cost": daily_crew_cost, "daily_lobby_cost": daily_lobby_cost,
@@ -562,6 +572,7 @@ func save_game() -> void:
 	file.store_string(JSON.stringify(data))
 	file.close()
 
+
 func load_game() -> bool:
 	if not has_save(): return false
 	var file = FileAccess.open(SAVE_PATH, FileAccess.READ)
@@ -577,6 +588,11 @@ func load_game() -> bool:
 		last_audit_day = data.get("last_audit_day", -99)
 		boss_package_intro_done = data.get("boss_package_intro_done", false)
 		pending_boss_package_call = data.get("pending_boss_package_call", false)
+		
+		is_first_route_built = data.get("is_first_route_built", false)
+		first_fiscal_warning_done = data.get("first_fiscal_warning_done", false)
+		shift_time_left = data.get("shift_time_left", 0.0)
+		shift_active = data.get("shift_active", false)
 		
 		money = data.get("money", 1500)
 		current_day = data.get("current_day", 1)
@@ -616,7 +632,6 @@ func load_game() -> bool:
 		contracts_updated.emit()
 		return true
 	return false
-
 
 func _routes_to_array(routes: Array) -> Array:
 	var arr = []

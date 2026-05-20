@@ -18,6 +18,8 @@ const BIOME_DATA = {
 
 const GANG_TOLL_RATE: int = 100 
 
+var lbl_timer: Label
+
 var biome_map: Dictionary = {}
 var gang_map: Dictionary = {} 
 
@@ -218,11 +220,11 @@ func _setup_ui() -> void:
 	ui_layer = CanvasLayer.new()
 	add_child(ui_layer)
 
-	var map_limit_x = grid_width * TILE_SIZE # 1280px
-	var right_panel_width = 1920 - map_limit_x # 640px
+	var map_limit_x = grid_width * TILE_SIZE 
+	var right_panel_width = 1920 - map_limit_x 
 	
 	# ==========================================================
-	# 1. ESTAÇÃO DE TRIAGEM (Quadrante Topo-Direito, Parede/Fundo)
+	# 1. ESTAÇÃO DE TRIAGEM (Quadrante Topo-Direito)
 	# ==========================================================
 	inspection_bg = ColorRect.new()
 	inspection_bg.color = Color(0.12, 0.14, 0.16)
@@ -243,7 +245,15 @@ func _setup_ui() -> void:
 	lbl_queue_count.position = Vector2(400, 20)
 	inspection_bg.add_child(lbl_queue_count)
 
-	# Balança Analógica (Montada na parede acima da esteira)
+	# NOVO: Relógio Digital do Temporizador
+	lbl_timer = Label.new()
+	lbl_timer.text = "PARTIDA EM: 00:00"
+	lbl_timer.add_theme_font_size_override("font_size", 20)
+	lbl_timer.add_theme_color_override("font_color", Color(0.9, 0.2, 0.2))
+	lbl_timer.position = Vector2(400, 50)
+	inspection_bg.add_child(lbl_timer)
+
+	# Balança Analógica 
 	var scale_base = ColorRect.new()
 	scale_base.color = Color(0.7, 0.75, 0.7)
 	scale_base.size = Vector2(160, 130)
@@ -297,7 +307,6 @@ func _setup_ui() -> void:
 		roller.position = Vector2(i * 45, 0)
 		conveyor.add_child(roller)
 
-	# A Caixa (Move-se da esquerda para a direita na esteira)
 	box_visual = ColorRect.new()
 	box_visual.size = Vector2(140, 120)
 	box_visual.position = Vector2(-200, 170) 
@@ -314,7 +323,6 @@ func _setup_ui() -> void:
 	box_xray_poly.visible = false
 	box_visual.add_child(box_xray_poly)
 
-	# Cabine do Raio-X (Túnel no meio da esteira horizontal)
 	var scanner_arch = ColorRect.new()
 	scanner_arch.color = Color(0.12, 0.12, 0.15, 0.85)
 	scanner_arch.size = Vector2(180, 200)
@@ -345,7 +353,6 @@ func _setup_ui() -> void:
 	desk_border.border_width = 8
 	desk_bg.add_child(desk_border)
 
-	# Botões Físicos de Despacho e Mecânica (Na mesa)
 	btn_lever = Button.new()
 	btn_lever.text = "[ CHUTA ALAVANCA ]\nChamar Encomenda"
 	btn_lever.size = Vector2(160, 60)
@@ -377,7 +384,6 @@ func _setup_ui() -> void:
 	btn_reject_pkg.pressed.connect(_on_reject_pkg_pressed)
 	desk_bg.add_child(btn_reject_pkg)
 
-	# A Prancheta da Triagem (Esquerda da Mesa)
 	var clipboard_bg = ColorRect.new()
 	clipboard_bg.color = Color(0.85, 0.8, 0.65)
 	clipboard_bg.size = Vector2(280, 400)
@@ -412,7 +418,6 @@ func _setup_ui() -> void:
 	clip_stamp.position = Vector2(20, 160)
 	clipboard_bg.add_child(clip_stamp)
 
-	# Manual de Regras (Direita da Mesa)
 	var manual_bg = ColorRect.new()
 	manual_bg.color = Color(0.7, 0.7, 0.8)
 	manual_bg.size = Vector2(260, 400)
@@ -433,19 +438,17 @@ func _setup_ui() -> void:
 	man_text.position = Vector2(10, 60)
 	manual_bg.add_child(man_text)
 
-# ==========================================================
+	# ==========================================================
 	# 3. HUD DO MAPA E ESCURECIMENTO
 	# ==========================================================
-	# NOVO: Fundo escuro para a tela de triagem
 	panel_overlay = ColorRect.new()
-	panel_overlay.color = Color(0, 0, 0, 0.8) # Preto com 80% de opacidade
+	panel_overlay.color = Color(0, 0, 0, 0.8) 
 	panel_overlay.size = Vector2(1920 - map_limit_x, 1080)
 	panel_overlay.position = Vector2(map_limit_x, 0)
 	panel_overlay.visible = false
 	ui_layer.add_child(panel_overlay)
 
 	var ui_area_width = 250
-	# ... continuação normal do seu código (_setup_ui)
 	var btn_x = map_limit_x - ui_area_width - 20 
 	var start_y = (grid_height * TILE_SIZE) - 200 
 	
@@ -472,7 +475,6 @@ func _setup_ui() -> void:
 	btn_maint.pressed.connect(_on_btn_maint_pressed)
 	ui_layer.add_child(btn_maint)
 
-	# CORREÇÃO DO HUD: Centralizando os painéis na DIREITA (Em cima da triagem)
 	var right_center_x = map_limit_x + (right_panel_width / 2.0)
 
 	edit_panel = ColorRect.new()
@@ -635,6 +637,9 @@ func _setup_ui() -> void:
 
 	_clear_inspection_desk()
 
+
+
+
 # === LÓGICA DA TRIAGEM ===
 
 func _clear_inspection_desk() -> void:
@@ -741,35 +746,47 @@ func _process_decision(approved: bool) -> void:
 
 	if approved:
 		if current_package.get("is_contraband", false):
-			var fine = 1500
-			GameManager.pending_fiscal_event = {
-				"reason": "CONTRABANDO: O seu posto aprovou carga ilegal oculta! O Raio-X deveria ter sido usado!",
-				"fine": fine,
-				"can_bribe": (GameManager.maint_pct_lobby >= 0.7),
-				"bribe_cost": int(fine * 0.15),
-				"contract_name": "Remetente Avulso"
-			}
+			if not GameManager.first_fiscal_warning_done:
+				GameManager.first_fiscal_warning_done = true
+				GameManager.pendent_strike_warning = "AVISO OFICIAL: Aprovou carga ilegal. Como e a primeira vez, a coima foi perdoada. Cuidado!"
+				_show_strike_warning(GameManager.pendent_strike_warning)
+			else:
+				var fine = 1500
+				GameManager.pending_fiscal_event = {
+					"reason": "CONTRABANDO: O seu posto aprovou carga ilegal oculta! O Raio-X deveria ter sido usado!",
+					"fine": fine,
+					"can_bribe": (GameManager.maint_pct_lobby >= 0.7),
+					"bribe_cost": int(fine * 0.15),
+					"contract_name": "Remetente Avulso"
+				}
 		else:
 			if is_fraud:
-				if GameManager.has_method("add_strike"): GameManager.add_strike("Voce enviou uma carga com peso ou selo fraudado!")
+				if not GameManager.first_fiscal_warning_done:
+					GameManager.first_fiscal_warning_done = true
+					GameManager.pendent_strike_warning = "AVISO OFICIAL: Aprovou carga com peso ou selo fraudado. A coima foi perdoada desta vez!"
+					_show_strike_warning(GameManager.pendent_strike_warning)
+				else:
+					if GameManager.has_method("add_strike"): GameManager.add_strike("Voce enviou uma carga com peso ou selo fraudado!")
 			else:
-				GameManager.money += current_package.get("reward", 0)
+				# NOVO CÁLCULO DE LUCRO (Recompensa - Custo do Peso Real)
+				if GameManager.has_method("process_package_approval"):
+					GameManager.process_package_approval(current_package)
 	else:
 		if not is_fraud:
 			if GameManager.has_method("add_strike"): GameManager.add_strike("Voce bloqueou uma carga valida. O cliente abriu uma queixa!")
 	
 	var tw = create_tween()
 	if approved:
-		# Animação HORIZONTAL: Vai embora pela direita
 		tw.tween_property(box_visual, "position", Vector2(700, 170), 0.5) 
 	else:
-		# Animação HORIZONTAL: Devolvido pela esquerda
 		tw.tween_property(box_visual, "position", Vector2(-200, 170), 0.5) 
 
 	await tw.finished
 	current_package = {}
 	_clear_inspection_desk()
 	_on_queue_updated(GameManager.package_queue.size())
+
+
 
 func _show_strike_warning(msg: String) -> void:
 	lbl_strike_warning.text = "[!] " + msg
@@ -1071,6 +1088,16 @@ func _update_edit_panel() -> void:
 
 func _process(delta: float) -> void:
 	if not visible: return
+	
+	# ATUALIZA O RELÓGIO DA TRIAGEM
+	if is_instance_valid(lbl_timer):
+		if GameManager.shift_active and GameManager.boss_package_intro_done:
+			var m = int(GameManager.shift_time_left) / 60
+			var s = int(GameManager.shift_time_left) % 60
+			lbl_timer.text = "PARTIDA EM: %02d:%02d" % [m, s]
+		else:
+			lbl_timer.text = "AGUARDANDO COMBOIO"
+	
 	var needs_redraw = false
 	for i in range(GameManager.active_contracts.size()):
 		var c = GameManager.active_contracts[i]
@@ -1095,6 +1122,8 @@ func _process(delta: float) -> void:
 			needs_redraw = true
 
 	if needs_redraw: queue_redraw()
+
+
 
 func _spawn_train(contract_index: int, contract: Dictionary) -> void:
 	var route_id = contract["route_id"]
