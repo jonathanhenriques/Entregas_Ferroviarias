@@ -6,6 +6,10 @@ var ui_layer: CanvasLayer
 var status_panel: ColorRect
 var status_vbox: VBoxContainer
 
+var pen_base: ColorRect
+var pen_visual: ColorRect
+var is_pen_equipped: bool = false
+
 const TILE_SIZE: int = 32
 # Grelha restaurada para 2/3 da tela (40 colunas * 32px = 1280px)
 var grid_width: int = 40  
@@ -229,28 +233,38 @@ func _setup_ui() -> void:
 	ui_layer = CanvasLayer.new()
 	add_child(ui_layer)
 
-	var map_limit_x = grid_width * TILE_SIZE # 1280px
-	var right_panel_width = 1920 - map_limit_x # 640px
+	var map_limit_x = grid_width * TILE_SIZE 
+	var right_panel_width = 1920 - map_limit_x 
+	var right_center_x = map_limit_x + (right_panel_width / 2.0)
 	
-	# ==========================================================
-	# 1. ESTAÇÃO DE TRIAGEM (Quadrante Topo-Direito, Parede/Fundo)
-	# ==========================================================
+	# Agora a função principal apenas delega as tarefas!
+	_setup_inspection_panel(map_limit_x, right_panel_width)
+	_setup_director_desk(map_limit_x, right_panel_width)
+	_setup_map_hud(map_limit_x, right_panel_width)
+	_setup_popups(right_center_x)
+
+	_clear_inspection_desk()
+
+# ------------------------------------------------------------------
+# MÓDULO 1: Painel da Esteira e Balança
+# ------------------------------------------------------------------
+func _setup_inspection_panel(map_limit_x: float, right_panel_width: float) -> void:
 	inspection_bg = ColorRect.new()
-	inspection_bg.color = Color(0.12, 0.14, 0.16)
+	inspection_bg.color = Color(0.5, 0.5, 0.55)
 	inspection_bg.size = Vector2(right_panel_width, 1080)
 	inspection_bg.position = Vector2(map_limit_x, 0)
 	ui_layer.add_child(inspection_bg)
 	
 	var insp_border = ReferenceRect.new()
 	insp_border.set_anchors_preset(Control.PRESET_FULL_RECT)
-	insp_border.border_color = Color(0.3, 0.3, 0.35)
+	insp_border.border_color = Color(0.2, 0.2, 0.25)
 	insp_border.border_width = 4
 	inspection_bg.add_child(insp_border)
 
 	lbl_queue_count = Label.new()
 	lbl_queue_count.text = "FILA: 0 ENCOMENDAS"
 	lbl_queue_count.add_theme_font_size_override("font_size", 18)
-	lbl_queue_count.add_theme_color_override("font_color", Color(0.8, 0.8, 0.3))
+	lbl_queue_count.add_theme_color_override("font_color", Color.BLACK)
 	lbl_queue_count.position = Vector2(400, 20)
 	inspection_bg.add_child(lbl_queue_count)
 
@@ -294,19 +308,31 @@ func _setup_ui() -> void:
 	scale_circle.add_child(lbl_scale_digital)
 
 	var conveyor = ColorRect.new()
-	conveyor.color = Color(0.10, 0.11, 0.12)
+	conveyor.color = Color(0.1, 0.1, 0.1)
 	conveyor.size = Vector2(640, 160)
 	conveyor.position = Vector2(0, 150)
 	inspection_bg.add_child(conveyor)
 	
+	var conv_border = ReferenceRect.new()
+	conv_border.set_anchors_preset(Control.PRESET_FULL_RECT)
+	conv_border.border_color = Color(0.3, 0.3, 0.3)
+	conv_border.border_width = 3
+	conveyor.add_child(conv_border)
+	
 	for i in range(15):
 		var roller = ColorRect.new()
-		roller.color = Color(0.2, 0.22, 0.25)
-		roller.size = Vector2(10, 160)
-		roller.position = Vector2(i * 45, 0)
+		roller.color = Color(0.25, 0.25, 0.3) 
+		roller.size = Vector2(8, 160) 
+		roller.position = Vector2(i * 45 + 18, 0) 
 		conveyor.add_child(roller)
 
 	box_visual = ColorRect.new()
+	box_visual.color = Color(0.75, 0.6, 0.4) 
+	var box_outline = ReferenceRect.new()
+	box_outline.set_anchors_preset(Control.PRESET_FULL_RECT)
+	box_outline.border_color = Color(0.4, 0.3, 0.2)
+	box_outline.border_width = 2
+	box_visual.add_child(box_outline)
 	box_visual.size = Vector2(140, 120)
 	box_visual.position = Vector2(-200, 170) 
 	box_visual.visible = false
@@ -318,28 +344,42 @@ func _setup_ui() -> void:
 	box_visual.add_child(box_stamp)
 	
 	box_xray_poly = Polygon2D.new()
-	box_xray_poly.color = Color(0.05, 0.2, 0.05, 0.9)
+	box_xray_poly.color = Color(0.0, 0.4, 0.0, 0.8) 
 	box_xray_poly.visible = false
 	box_visual.add_child(box_xray_poly)
 
 	var scanner_arch = ColorRect.new()
-	scanner_arch.color = Color(0.12, 0.12, 0.15, 0.85)
+	scanner_arch.color = Color(0.2, 0.2, 0.25)
 	scanner_arch.size = Vector2(180, 200)
 	scanner_arch.position = Vector2(230, 130)
 	inspection_bg.add_child(scanner_arch)
+	
+	var scanner_border = ReferenceRect.new()
+	scanner_border.set_anchors_preset(Control.PRESET_FULL_RECT)
+	scanner_border.border_color = Color.BLACK
+	scanner_border.border_width = 4
+	scanner_arch.add_child(scanner_border)
+	
+	var scanner_lights = ColorRect.new()
+	scanner_lights.color = Color(0.0, 0.8, 0.0, 0.2)
+	scanner_lights.size = Vector2(172, 192)
+	scanner_lights.position = Vector2(4,4)
+	scanner_arch.add_child(scanner_lights)
 
 	lbl_strike_warning = Label.new()
 	lbl_strike_warning.add_theme_color_override("font_color", Color.RED)
-	lbl_strike_warning.add_theme_font_size_override("font_size", 18)
+	lbl_strike_warning.add_theme_font_size_override("font_size", 16)
+	lbl_strike_warning.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lbl_strike_warning.size = Vector2(600, 40)
 	lbl_strike_warning.position = Vector2(20, 320)
 	lbl_strike_warning.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl_strike_warning.visible = false
 	inspection_bg.add_child(lbl_strike_warning)
 
-	# ==========================================================
-	# 2. A MESA DO DIRETOR (Base do Painel 1/3)
-	# ==========================================================
+# ------------------------------------------------------------------
+# MÓDULO 2: Mesa do Diretor e Documentos
+# ------------------------------------------------------------------
+func _setup_director_desk(map_limit_x: float, right_panel_width: float) -> void:
 	desk_bg = ColorRect.new()
 	desk_bg.color = Color(0.4, 0.28, 0.2) 
 	desk_bg.size = Vector2(right_panel_width, 730)
@@ -353,7 +393,7 @@ func _setup_ui() -> void:
 	desk_bg.add_child(desk_border)
 
 	btn_lever = Button.new()
-	btn_lever.text = "[ CHUTA ALAVANCA ]\nChamar Encomenda"
+	btn_lever.text = "[ ALAVANCA ]\nChamar Encomenda"
 	btn_lever.size = Vector2(160, 60)
 	btn_lever.position = Vector2(40, 40)
 	btn_lever.pressed.connect(_on_btn_lever_pressed)
@@ -383,6 +423,22 @@ func _setup_ui() -> void:
 	btn_reject_pkg.pressed.connect(_on_reject_pkg_pressed)
 	desk_bg.add_child(btn_reject_pkg)
 
+	pen_base = ColorRect.new()
+	pen_base.color = Color(0.15, 0.15, 0.15)
+	pen_base.size = Vector2(60, 20)
+	pen_base.position = Vector2(200, 195)
+	if has_method("_on_pen_base_input"):
+		pen_base.gui_input.connect(_on_pen_base_input)
+	desk_bg.add_child(pen_base)
+
+	pen_visual = ColorRect.new()
+	pen_visual.color = Color(0.8, 0.1, 0.1)
+	pen_visual.size = Vector2(40, 8)
+	pen_visual.position = Vector2(map_limit_x + 210, 350 + 201)
+	if has_method("_on_pen_input"):
+		pen_visual.gui_input.connect(_on_pen_input)
+	ui_layer.add_child(pen_visual)
+
 	var clipboard_bg = ColorRect.new()
 	clipboard_bg.color = Color(0.85, 0.8, 0.65)
 	clipboard_bg.size = Vector2(280, 400)
@@ -404,17 +460,20 @@ func _setup_ui() -> void:
 
 	clip_content = Label.new()
 	clip_content.add_theme_color_override("font_color", Color.BLACK)
+	clip_content.add_theme_font_size_override("font_size", 14)
+	clip_content.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	clip_content.size = Vector2(240, 50)
 	clip_content.position = Vector2(20, 80)
 	clipboard_bg.add_child(clip_content)
 	
 	clip_weight = Label.new()
 	clip_weight.add_theme_color_override("font_color", Color.BLACK)
-	clip_weight.position = Vector2(20, 120)
+	clip_weight.position = Vector2(20, 140)
 	clipboard_bg.add_child(clip_weight)
 	
 	clip_stamp = Label.new()
 	clip_stamp.add_theme_color_override("font_color", Color.BLACK)
-	clip_stamp.position = Vector2(20, 160)
+	clip_stamp.position = Vector2(20, 180)
 	clipboard_bg.add_child(clip_stamp)
 
 	var manual_bg = ColorRect.new()
@@ -424,28 +483,28 @@ func _setup_ui() -> void:
 	desk_bg.add_child(manual_bg)
 
 	var man_title = Label.new()
-	man_title.text = "MANUAL DE FISCALIZACAO"
+	man_title.text = "MANUAL DE FISCALIZAÇÃO"
 	man_title.add_theme_color_override("font_color", Color.BLACK)
 	man_title.position = Vector2(10, 20)
 	manual_bg.add_child(man_title)
 
 	var man_text = Label.new()
-	man_text.text = "- CARTAS: Selo Branco.\n\n- PERECIVEIS: Selo Verde.\n\n- VALIOSOS: Selo Azul.\n\n* Atencao ao Peso Real!\n* Use Raio-X em Valiosos para\nevitar contrabando d'armas."
+	man_text.text = "- CARTAS: Selo Branco.\n\n- PERECÍVEIS: Selo Verde.\n\n- VALIOSOS: Selo Azul.\n\n* Atenção ao Peso Real!\n* Use Raio-X em Valiosos para evitar armas e contrabando.\n* Multas serão aplicadas em caso de fraude."
 	man_text.add_theme_color_override("font_color", Color.DARK_SLATE_GRAY)
+	man_text.add_theme_font_size_override("font_size", 14)
 	man_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	man_text.size = Vector2(240, 300)
 	man_text.position = Vector2(10, 60)
 	manual_bg.add_child(man_text)
 
-	# ==========================================================
-	# 3. HUD DO MAPA (Legenda + Botões + Popups restritos à direita)
-	# ==========================================================
-	
-	# ---> A LEGENDA DOS BIOMAS RESTAURADA (Canto inferior esquerdo) <---
+# ------------------------------------------------------------------
+# MÓDULO 3: Legenda e Botões do Mapa
+# ------------------------------------------------------------------
+func _setup_map_hud(map_limit_x: float, right_panel_width: float) -> void:
 	var legend_bg = ColorRect.new()
 	legend_bg.color = Color(0.95, 0.95, 0.95, 0.9)
 	legend_bg.size = Vector2(140, 140)
-	legend_bg.position = Vector2(20, 1080 - 140 - 20) # Canto inferior esquerdo do mapa
+	legend_bg.position = Vector2(20, 1080 - 140 - 20) 
 	ui_layer.add_child(legend_bg)
 	
 	var leg_vbox = VBoxContainer.new()
@@ -454,7 +513,7 @@ func _setup_ui() -> void:
 	legend_bg.add_child(leg_vbox)
 	
 	var leg_items = [
-		{"name": "Planicie", "color": Color(0.8, 0.9, 0.4)},
+		{"name": "Planície", "color": Color(0.8, 0.9, 0.4)},
 		{"name": "Floresta", "color": Color(0.2, 0.6, 0.2)},
 		{"name": "Rio", "color": Color(0.2, 0.4, 0.8)},
 		{"name": "Montanha", "color": Color(0.6, 0.5, 0.4)},
@@ -473,30 +532,26 @@ func _setup_ui() -> void:
 		hb.add_child(l)
 		leg_vbox.add_child(hb)
 
-
-	# ---> ESCURECIMENTO (Overlay cobrindo APENAS a tela de pesagem à direita) <---
 	panel_overlay = ColorRect.new()
-	panel_overlay.color = Color(0, 0, 0, 0.8) 
+	panel_overlay.color = Color(0, 0, 0, 0.85) 
 	panel_overlay.size = Vector2(right_panel_width, 1080) 
 	panel_overlay.position = Vector2(map_limit_x, 0)
 	panel_overlay.visible = false
 	ui_layer.add_child(panel_overlay)
 
-
-	# ---> BOTÕES DO MAPA (Canto inferior direito do mapa) <---
 	var ui_area_width = 250
 	var btn_x = map_limit_x - ui_area_width - 20 
 	var start_y = (grid_height * TILE_SIZE) - 200 
 	
 	btn_go_desk = Button.new()
-	btn_go_desk.text = "<- Ir para Escritorio"
+	btn_go_desk.text = "<- Ir para o Escritório"
 	btn_go_desk.position = Vector2(btn_x, start_y)
 	btn_go_desk.size = Vector2(ui_area_width, 40)
 	btn_go_desk.pressed.connect(_on_go_desk_pressed)
 	ui_layer.add_child(btn_go_desk)
 	
 	btn_edit_mode = Button.new()
-	btn_edit_mode.text = "[ MODO OBRAS ]"
+	btn_edit_mode.text = "[ MODO DE OBRAS ]"
 	btn_edit_mode.position = Vector2(btn_x, start_y + 50)
 	btn_edit_mode.size = Vector2(ui_area_width, 40)
 	btn_edit_mode.add_theme_color_override("font_color", Color.YELLOW)
@@ -504,20 +559,20 @@ func _setup_ui() -> void:
 	ui_layer.add_child(btn_edit_mode)
 
 	btn_maint = Button.new()
-	btn_maint.text = "[/!\\ ] Orcamento"
+	btn_maint.text = "[/!\\ ] Ver Orçamento"
 	btn_maint.position = Vector2(btn_x, start_y + 100)
 	btn_maint.size = Vector2(ui_area_width, 40)
 	btn_maint.add_theme_color_override("font_color", Color.ORANGE)
 	btn_maint.pressed.connect(_on_btn_maint_pressed)
 	ui_layer.add_child(btn_maint)
 
-
-	# ---> POPUPS DE OBRAS E ORÇAMENTO (Centralizados sobre a tela de pesagem à direita) <---
-	var right_center_x = map_limit_x + (right_panel_width / 2.0)
-
+# ------------------------------------------------------------------
+# MÓDULO 4: Popups (Obras e Orçamento)
+# ------------------------------------------------------------------
+func _setup_popups(right_center_x: float) -> void:
 	edit_panel = ColorRect.new()
 	edit_panel.color = Color(0.1, 0.1, 0.15, 0.95)
-	edit_panel.position = Vector2(right_center_x - 170, 200)
+	edit_panel.position = Vector2(right_center_x - 170, 200) 
 	edit_panel.size = Vector2(340, 560) 
 	edit_panel.visible = false
 	ui_layer.add_child(edit_panel)
@@ -532,11 +587,11 @@ func _setup_ui() -> void:
 	edit_info.position = Vector2(20, 20)
 	edit_info.size = Vector2(300, 460) 
 	edit_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	edit_info.add_theme_font_size_override("font_size", 15)
+	edit_info.add_theme_font_size_override("font_size", 14)
 	edit_panel.add_child(edit_info)
 
 	btn_confirm = Button.new()
-	btn_confirm.text = "GERAR PLANTA"
+	btn_confirm.text = "GERAR PROJETO"
 	btn_confirm.position = Vector2(20, 490) 
 	btn_confirm.size = Vector2(145, 50)
 	btn_confirm.add_theme_color_override("font_color", Color.SKY_BLUE)
@@ -544,7 +599,7 @@ func _setup_ui() -> void:
 	edit_panel.add_child(btn_confirm)
 
 	btn_cancel = Button.new()
-	btn_cancel.text = "DESCARTAR TUDO"
+	btn_cancel.text = "DESCARTAR PROJETO"
 	btn_cancel.position = Vector2(175, 490) 
 	btn_cancel.size = Vector2(145, 50)
 	btn_cancel.add_theme_color_override("font_color", Color.INDIAN_RED)
@@ -554,7 +609,7 @@ func _setup_ui() -> void:
 	maint_panel = ColorRect.new()
 	maint_panel.color = Color(0.15, 0.15, 0.15, 0.95)
 	maint_panel.size = Vector2(400, 460)
-	maint_panel.position = Vector2(right_center_x - 200, 250)
+	maint_panel.position = Vector2(right_center_x - 200, 250) 
 	maint_panel.visible = false
 	ui_layer.add_child(maint_panel)
 
@@ -565,13 +620,13 @@ func _setup_ui() -> void:
 	maint_panel.add_child(border_maint)
 
 	var lbl_mtitle = Label.new()
-	lbl_mtitle.text = "LIVRO DE MANUTENCAO DA MALHA"
+	lbl_mtitle.text = "ORÇAMENTO E MANUTENÇÃO"
 	lbl_mtitle.position = Vector2(20, 20)
 	lbl_mtitle.add_theme_color_override("font_color", Color.ORANGE)
 	maint_panel.add_child(lbl_mtitle)
 
 	var lbl_i = Label.new()
-	lbl_i.text = "Infra Pesada (Pontes/Tuneis)"
+	lbl_i.text = "Infraestrutura (Pontes/Túneis)"
 	lbl_i.position = Vector2(20, 60)
 	maint_panel.add_child(lbl_i)
 	sld_infra = HSlider.new()
@@ -587,7 +642,7 @@ func _setup_ui() -> void:
 	maint_panel.add_child(lbl_infra_val)
 
 	var lbl_t = Label.new()
-	lbl_t.text = "Carris (Velocidade/Quebra)"
+	lbl_t.text = "Trilhos (Velocidade/Quebras)"
 	lbl_t.position = Vector2(20, 115)
 	maint_panel.add_child(lbl_t)
 	sld_tracks = HSlider.new()
@@ -603,7 +658,7 @@ func _setup_ui() -> void:
 	maint_panel.add_child(lbl_tracks_val)
 
 	var lbl_e = Label.new()
-	lbl_e.text = "Controlo Ambiental (Incendios)"
+	lbl_e.text = "Controle Ambiental (Incêndios)"
 	lbl_e.position = Vector2(20, 170)
 	maint_panel.add_child(lbl_e)
 	sld_env = HSlider.new()
@@ -619,7 +674,7 @@ func _setup_ui() -> void:
 	maint_panel.add_child(lbl_env_val)
 
 	var lbl_s = Label.new()
-	lbl_s.text = "Seguranca (Patrulha de Gangues)"
+	lbl_s.text = "Segurança (Patrulha de Gangues)"
 	lbl_s.position = Vector2(20, 225)
 	maint_panel.add_child(lbl_s)
 	sld_sec = HSlider.new()
@@ -635,7 +690,7 @@ func _setup_ui() -> void:
 	maint_panel.add_child(lbl_sec_val)
 
 	var lbl_c = Label.new()
-	lbl_c.text = "Salarios da Equipa"
+	lbl_c.text = "Salários da Equipe"
 	lbl_c.position = Vector2(20, 280)
 	maint_panel.add_child(lbl_c)
 	sld_crew = HSlider.new()
@@ -651,7 +706,7 @@ func _setup_ui() -> void:
 	maint_panel.add_child(lbl_crew_val)
 
 	var lbl_l = Label.new()
-	lbl_l.text = "Relacoes Governamentais (Lobby)"
+	lbl_l.text = "Relações Gov. (Lobby Político)"
 	lbl_l.position = Vector2(20, 335)
 	maint_panel.add_child(lbl_l)
 	sld_lobby = HSlider.new()
@@ -667,14 +722,11 @@ func _setup_ui() -> void:
 	maint_panel.add_child(lbl_lobby_val)
 
 	btn_close_maint = Button.new()
-	btn_close_maint.text = "FECHAR LIVRO"
+	btn_close_maint.text = "FECHAR ORÇAMENTO"
 	btn_close_maint.position = Vector2(20, 400)
 	btn_close_maint.size = Vector2(360, 40)
 	btn_close_maint.pressed.connect(_on_btn_close_maint_pressed)
 	maint_panel.add_child(btn_close_maint)
-
-	_clear_inspection_desk()
-
 
 
 # === LÓGICA DA TRIAGEM ===
@@ -774,55 +826,52 @@ func _on_approve_pkg_pressed() -> void:
 func _on_reject_pkg_pressed() -> void:
 	_process_decision(false)
 
-func _process_decision(approved: bool) -> void:
-	btn_approve_pkg.disabled = true
-	btn_reject_pkg.disabled = true
-	btn_xray.disabled = true
+func _process_decision(approved: bool, pkg: Dictionary = {}) -> void:
+	var target_pkg = pkg if not pkg.is_empty() else current_package
+	if target_pkg.is_empty(): return
 	
-	var is_fraud = current_package.get("is_contraband", false) or current_package["true_weight"] != current_package["declared_weight"] or current_package["stamp_used"] != current_package["true_stamp"]
+	var is_fraud = target_pkg.get("is_contraband", false) or target_pkg["true_weight"] != target_pkg["declared_weight"] or target_pkg["stamp_used"] != target_pkg["true_stamp"]
 
 	if approved:
-		if current_package.get("is_contraband", false):
+		if target_pkg.get("is_contraband", false):
 			if not GameManager.first_fiscal_warning_done:
 				GameManager.first_fiscal_warning_done = true
-				GameManager.pendent_strike_warning = "AVISO OFICIAL: Aprovou carga ilegal. Como e a primeira vez, a coima foi perdoada. Cuidado!"
-				_show_strike_warning(GameManager.pendent_strike_warning)
+				_show_strike_warning("AVISO OFICIAL: Você aprovou uma carga ilegal. Como é sua primeira infração, a multa foi perdoada. Atenção ao Raio-X!")
 			else:
 				var fine = 1500
 				GameManager.pending_fiscal_event = {
-					"reason": "CONTRABANDO: O seu posto aprovou carga ilegal oculta! O Raio-X deveria ter sido usado!",
+					"reason": "CONTRABANDO: Seu posto de triagem aprovou carga bélica/ilegal oculta! O Raio-X é obrigatório para caixas suspeitas!",
 					"fine": fine,
 					"can_bribe": (GameManager.maint_pct_lobby >= 0.7),
 					"bribe_cost": int(fine * 0.15),
-					"contract_name": "Remetente Avulso"
+					"contract_name": "Remetente Anônimo"
 				}
 		else:
 			if is_fraud:
 				if not GameManager.first_fiscal_warning_done:
 					GameManager.first_fiscal_warning_done = true
-					GameManager.pendent_strike_warning = "AVISO OFICIAL: Aprovou carga com peso ou selo fraudado. A coima foi perdoada desta vez!"
-					_show_strike_warning(GameManager.pendent_strike_warning)
+					_show_strike_warning("AVISO OFICIAL: Você aprovou carga com peso ou selo fraudado. A multa foi perdoada desta vez!")
 				else:
-					if GameManager.has_method("add_strike"): GameManager.add_strike("Voce enviou uma carga com peso ou selo fraudado!")
+					if GameManager.has_method("add_strike"): GameManager.add_strike("Você despachou uma carga com peso ou selo fraudado! A empresa foi notificada.")
 			else:
-				# NOVO CÁLCULO DE LUCRO (Recompensa - Custo do Peso Real)
 				if GameManager.has_method("process_package_approval"):
-					GameManager.process_package_approval(current_package)
+					GameManager.process_package_approval(target_pkg)
 	else:
 		if not is_fraud:
-			if GameManager.has_method("add_strike"): GameManager.add_strike("Voce bloqueou uma carga valida. O cliente abriu uma queixa!")
-	
-	var tw = create_tween()
-	if approved:
-		tw.tween_property(box_visual, "position", Vector2(700, 170), 0.5) 
-	else:
-		tw.tween_property(box_visual, "position", Vector2(-200, 170), 0.5) 
+			if GameManager.has_method("add_strike"): GameManager.add_strike("Você reteve e bloqueou uma carga 100% válida. O cliente processou a empresa por atraso!")
 
-	await tw.finished
+	if is_instance_valid(box_visual):
+		var tw = create_tween()
+		tw.tween_property(box_visual, "position", Vector2(700, 170) if approved else Vector2(-200, 170), 0.5) 
+		await tw.finished
+		
+	for child in ui_layer.get_children():
+		if child.has_meta("is_paper") and child.has_meta("pkg_data"):
+			if child.get_meta("pkg_data").get("id") == target_pkg.get("id"):
+				child.queue_free()
+
 	current_package = {}
-	_clear_inspection_desk()
 	_on_queue_updated(GameManager.package_queue.size())
-
 
 
 func _show_strike_warning(msg: String) -> void:
@@ -1121,44 +1170,6 @@ func _update_edit_panel() -> void:
 	btn_confirm.disabled = not is_valid
 
 
-
-
-func _process(delta: float) -> void:
-	if not visible: return
-	
-	# ATUALIZA O RELÓGIO DA TRIAGEM
-	if is_instance_valid(lbl_timer):
-		if GameManager.shift_active and GameManager.boss_package_intro_done:
-			var m = int(GameManager.shift_time_left) / 60
-			var s = int(GameManager.shift_time_left) % 60
-			lbl_timer.text = "PARTIDA EM: %02d:%02d" % [m, s]
-		else:
-			lbl_timer.text = "AGUARDANDO COMBOIO"
-	
-	var needs_redraw = false
-	for i in range(GameManager.active_contracts.size()):
-		var c = GameManager.active_contracts[i]
-		var is_op = GameManager.is_contract_operating(c)
-		var is_under_construction = (GameManager.routes_under_construction.get(c["route_id"], 0) > 0)
-		var has_physical_route = (c["route_id"] in GameManager.network_connections)
-
-		if (is_op or is_under_construction) and has_physical_route:
-			needs_redraw = true
-			if not active_trains.has(i): _spawn_train(i, c)
-			else:
-				if is_op and not is_edit_mode: _move_train(i, delta)
-		else:
-			if active_trains.has(i):
-				active_trains.erase(i)
-				needs_redraw = true
-
-	var keys = active_trains.keys()
-	for k in keys:
-		if k >= GameManager.active_contracts.size():
-			active_trains.erase(k)
-			needs_redraw = true
-
-	if needs_redraw: queue_redraw()
 
 
 
@@ -1816,3 +1827,138 @@ func _draw_custom_track(path: Array, is_preview: bool, is_const: bool, is_delete
 			for j in range(1, num_ties + 1):
 				var tie_center = p1 + dir * (j * spacing)
 				draw_line(tie_center - normal * 5.0, tie_center + normal * 5.0, tie_color, 2.0)
+				
+				
+func _update_edit_info() -> void:
+	if tentative_path.size() < 2:
+		edit_info.text = "PROJETO DE ENGENHARIA\n\nSelecione o ponto de partida e o destino no mapa para gerar o estudo de viabilidade técnica, ambiental e financeira da via."
+		btn_confirm.disabled = true
+		return
+		
+	var dist = tentative_path.size()
+	var km_total = dist * 15 # Cada bloco equivale a 15km
+	var cost = 0
+	var forests = 0
+	var mountains = 0
+	var rivers = 0
+	var gangs = 0
+	
+	for cell in tentative_path:
+		var b = biome_map.get(cell, Biome.PLAIN)
+		if b == Biome.FOREST: forests += 1
+		elif b == Biome.MOUNTAIN: mountains += 1
+		elif b == Biome.RIVER: rivers += 1
+		if gang_map.has(cell): gangs += 1
+		cost += GameManager.COSTS[b]
+		
+	# Cálculo de Manutenção Estimada Diária
+	var maint_cost = dist * 25
+	
+	btn_confirm.disabled = false
+	
+	var relatorio = "[ PROJETO DE ENGENHARIA ]\n\n"
+	relatorio += "► ESPECIFICAÇÕES DA VIA\n"
+	relatorio += "Extensão Total: " + str(km_total) + " km\n"
+	relatorio += "Orçamento de Obras: $" + str(cost) + "\n"
+	relatorio += "Custo de Manutenção (Est.): $" + str(maint_cost) + "/dia\n\n"
+	
+	relatorio += "► OBRAS DE ARTE (INFRAESTRUTURA)\n"
+	relatorio += "Pontes Requeridas (Rios): " + str(rivers) + "\n"
+	relatorio += "Túneis Escavados (Montanhas): " + str(mountains) + "\n\n"
+	
+	relatorio += "► AVALIAÇÃO DE RISCO\n"
+	if forests > 0:
+		relatorio += "Ambiental: ALERTA. " + str(forests * 10) + " hectares desmatados. Risco altíssimo de multas do Ibama local.\n"
+	else:
+		relatorio += "Ambiental: Impacto mínimo. Via aprovada.\n"
+		
+	if gangs > 0:
+		relatorio += "Segurança: ROTA CRÍTICA! " + str(gangs) + " áreas de risco interceptadas. Probabilidade de sabotagem e saques.\n"
+	else:
+		relatorio += "Segurança: Área patrulhada. Baixo risco de ataques.\n"
+		
+	edit_info.text = relatorio
+
+
+# ==========================================================
+# MECÂNICA DA CANETA DO DIRETOR
+# ==========================================================
+func _on_pen_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		if not is_pen_equipped:
+			_equip_pen()
+
+func _on_pen_base_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		if is_pen_equipped:
+			_unequip_pen()
+
+func _equip_pen() -> void:
+	is_pen_equipped = true
+	# Ignora os cliques na própria caneta para que você consiga clicar no papel que está atrás dela
+	pen_visual.mouse_filter = Control.MOUSE_FILTER_IGNORE 
+
+func _unequip_pen() -> void:
+	is_pen_equipped = false
+	pen_visual.mouse_filter = Control.MOUSE_FILTER_PASS
+	var map_limit_x = grid_width * TILE_SIZE
+	pen_visual.position = Vector2(map_limit_x + 210, 350 + 201)
+
+
+func _input(event: InputEvent) -> void:
+	# Permite soltar a caneta apertando o botão direito do mouse
+	if is_pen_equipped and event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
+		_unequip_pen()
+
+
+func _process(delta: float) -> void:
+	if not visible: return
+	
+	# ==========================================
+	# 1. MECÂNICA DA CANETA
+	# ==========================================
+	# Faz a caneta seguir o mouse quando estiver equipada
+	if is_pen_equipped and is_instance_valid(pen_visual):
+		pen_visual.global_position = get_viewport().get_mouse_position() + Vector2(2, 2)
+	
+	# ==========================================
+	# 2. ATUALIZA O RELÓGIO DA TRIAGEM
+	# ==========================================
+	if is_instance_valid(lbl_timer):
+		if GameManager.shift_active and GameManager.boss_package_intro_done:
+			var m = int(GameManager.shift_time_left) / 60
+			var s = int(GameManager.shift_time_left) % 60
+			lbl_timer.text = "PARTIDA EM: %02d:%02d" % [m, s]
+		else:
+			lbl_timer.text = "AGUARDANDO TREM"
+	
+	# ==========================================
+	# 3. LÓGICA E MOVIMENTO DOS TRENS
+	# ==========================================
+	var needs_redraw = false
+	for i in range(GameManager.active_contracts.size()):
+		var c = GameManager.active_contracts[i]
+		var is_op = GameManager.is_contract_operating(c)
+		var is_under_construction = (GameManager.routes_under_construction.get(c["route_id"], 0) > 0)
+		var has_physical_route = (c["route_id"] in GameManager.network_connections)
+
+		if (is_op or is_under_construction) and has_physical_route:
+			needs_redraw = true
+			if not active_trains.has(i): 
+				_spawn_train(i, c)
+			else:
+				if is_op and not is_edit_mode: 
+					_move_train(i, delta)
+		else:
+			if active_trains.has(i):
+				active_trains.erase(i)
+				needs_redraw = true
+
+	var keys = active_trains.keys()
+	for k in keys:
+		if k >= GameManager.active_contracts.size():
+			active_trains.erase(k)
+			needs_redraw = true
+
+	if needs_redraw: 
+		queue_redraw()
