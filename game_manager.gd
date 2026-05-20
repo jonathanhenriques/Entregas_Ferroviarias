@@ -103,16 +103,13 @@ var pending_blueprint: Dictionary = {}
 
 func _process(delta: float) -> void:
 	if current_day > 0 and money > -9999: 
-		# Limite de falência
 		if money <= -2000:
 			trigger_bankruptcy()
 			return
 			
-		# Gatilho do Agiota
 		if money <= -1500 and not has_loan_shark and not pending_shark_call and not shark_declined:
 			pending_shark_call = true
 			
-		# OPÇÃO A: Acelera a primeira rota do jogo para durar apenas 1 dia!
 		if not is_first_route_built and routes_under_construction.size() > 0:
 			is_first_route_built = true
 			for k in routes_under_construction.keys():
@@ -120,17 +117,23 @@ func _process(delta: float) -> void:
 				
 		if not has_ready_route(): return
 		
-		# Gatilho do Chefe
 		if not boss_package_intro_done and not pending_boss_package_call:
 			pending_boss_package_call = true
 			
-		# TEMPORIZADOR DO TURNO (O comboio vai partir!)
+		# CORREÇÃO: Inicia o turno de encomendas na mesma hora em que o chefe desliga o telefone no Dia 2!
+		if boss_package_intro_done and not shift_active and packages_generated_today == 0:
+			shift_time_left = 120.0 + (get_daily_package_limit() * 10.0) 
+			shift_active = true
+			for i in range(get_daily_package_limit()):
+				_generate_package()
+			package_queue_updated.emit(package_queue.size())
+			
 		if boss_package_intro_done and shift_active:
 			shift_time_left -= delta
 			if shift_time_left <= 0:
 				shift_active = false
 				if package_queue.size() > 0:
-					add_strike("O comboio partiu e " + str(package_queue.size()) + " encomendas ficaram na plataforma!")
+					if has_method("add_strike"): add_strike("O comboio partiu e " + str(package_queue.size()) + " encomendas ficaram na plataforma!")
 					package_queue.clear()
 					package_queue_updated.emit(0)
 
@@ -276,18 +279,11 @@ func end_day(upfront_income: int = 0) -> void:
 	
 	_generate_daily_generics()
 	
-	# PREPARAÇÃO DO TURNO DE TRIAGEM PARA O DIA SEGUINTE
+	# CORREÇÃO: Limpa o turno à noite para ele iniciar limpo de manhã
 	package_queue.clear()
 	packages_generated_today = 0
 	shift_active = false
-	
-	if has_ready_route() and boss_package_intro_done:
-		shift_time_left = 120.0 + (get_daily_package_limit() * 10.0) # 2 a 3 minutos
-		shift_active = true
-		for i in range(get_daily_package_limit()):
-			_generate_package()
-			
-	package_queue_updated.emit(package_queue.size())
+	package_queue_updated.emit(0)
 	
 	contracts_updated.emit()
 	current_day += 1
@@ -295,6 +291,8 @@ func end_day(upfront_income: int = 0) -> void:
 	
 	if money <= -2000: trigger_bankruptcy()
 	elif money >= LevelData.LEVELS[current_level]["goal"]: trigger_victory()
+
+
 
 func get_daily_package_limit() -> int:
 	if current_day <= 2: return 3

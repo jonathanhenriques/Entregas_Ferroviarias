@@ -254,6 +254,7 @@ func _setup_ui() -> void:
 	pad_extension.color = Color(0.35, 0.4, 0.45)
 	pad_extension.size = Vector2(140, 180)
 	pad_extension.position = Vector2(40, 600)
+	pad_extension.visible = false # ADICIONE ESTA LINHA AQUI!
 	ui_layer.add_child(pad_extension)
 	
 	var pad_clip_ext = ColorRect.new()
@@ -1398,58 +1399,42 @@ func _update_task_pad() -> void:
 	for child in task_vbox.get_children():
 		child.queue_free()
 		
-	var has_tasks = false
-	
-	if GameManager.broken_tiles.size() > 0:
-		var l = Label.new()
-		l.text = "[!] URGENTE: Consertar a via destruida!"
-		l.add_theme_color_override("font_color", Color.RED)
-		l.add_theme_font_size_override("font_size", 14)
-		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		l.custom_minimum_size = Vector2(260, 0)
-		task_vbox.add_child(l)
-		has_tasks = true
-	
-	for c in GameManager.active_contracts:
-		if c.has("pending_route_days"):
-			var l = Label.new()
-			l.text = "[ ] Via p/ " + c["route_name"] + " (" + str(c["pending_route_days"]) + "d)"
-			l.add_theme_color_override("font_color", Color(0.7, 0.1, 0.1))
-			l.add_theme_font_size_override("font_size", 14)
-			l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			l.custom_minimum_size = Vector2(260, 0)
-			task_vbox.add_child(l)
-			has_tasks = true
-			
-	for k in GameManager.routes_under_construction.keys():
-		var d = GameManager.routes_under_construction[k]
-		if d > 0:
-			var l = Label.new()
-			l.text = "[ ] Aguardar Obras na Via (" + str(d) + "d)"
-			l.add_theme_color_override("font_color", Color(0.2, 0.2, 0.6))
-			l.add_theme_font_size_override("font_size", 14)
-			l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			l.custom_minimum_size = Vector2(260, 0)
-			task_vbox.add_child(l)
-			has_tasks = true
-			break 
-			
-	if GameManager.money < 0:
-		var l = Label.new()
-		l.text = "[!] SALDO NEGATIVO! Gerar receita URGENTE!"
-		l.add_theme_color_override("font_color", Color.RED)
-		l.add_theme_font_size_override("font_size", 14)
-		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		l.custom_minimum_size = Vector2(260, 0)
-		task_vbox.add_child(l)
-		has_tasks = true
+	if GameManager.active_contracts.size() == 0:
+		var lbl = Label.new()
+		lbl.text = "Nenhum contrato ativo no momento."
+		lbl.add_theme_color_override("font_color", Color.DIM_GRAY)
+		lbl.add_theme_font_size_override("font_size", 12)
+		task_vbox.add_child(lbl)
+		return
 		
-	if not has_tasks:
-		var l = Label.new()
-		l.text = "Tudo em ordem. Tome um cafe."
-		l.add_theme_color_override("font_color", Color.DIM_GRAY)
-		l.add_theme_font_size_override("font_size", 14)
-		task_vbox.add_child(l)
+	for c in GameManager.active_contracts:
+		var lbl = Label.new()
+		var rid = c["route_id"]
+		var t = "- " + c["company_name"] + "\n  Status: "
+		
+		if c.has("pending_route_days"):
+			var is_building = (GameManager.routes_under_construction.get(rid, 0) > 0)
+			if is_building:
+				t += "EM OBRAS (" + str(GameManager.routes_under_construction[rid]) + "d restantes)"
+				lbl.add_theme_color_override("font_color", Color.DARK_GOLDENROD)
+			else:
+				t += "ROTA INEXISTENTE (" + str(c["pending_route_days"]) + "d p/ falha)"
+				lbl.add_theme_color_override("font_color", Color.DARK_RED)
+		else:
+			var stats = GameManager.network_stats.get(rid, {})
+			if stats.get("is_broken", false):
+				t += "INTERROMPIDO (Falha na Via)"
+				lbl.add_theme_color_override("font_color", Color.CRIMSON)
+			else:
+				t += "OPERACIONAL (" + str(c["days_left"]) + "d restantes)"
+				lbl.add_theme_color_override("font_color", Color.DARK_GREEN)
+				
+		lbl.text = t
+		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		lbl.add_theme_font_size_override("font_size", 12)
+		task_vbox.add_child(lbl)
+
+
 
 func _update_active_contracts_text() -> void:
 	for child in contracts_vbox.get_children(): 
@@ -1839,13 +1824,37 @@ func _on_visibility_changed() -> void:
 		_on_organize_pressed()
 		
 		var has_bp = false
+		var has_tut1 = false
+		var has_tut2 = false
+		var has_ext_note = false
+		
 		for p in spawned_papers:
-			if p.get_meta("is_blueprint", false):
-				has_bp = true
-				break
+			if p.has_meta("is_blueprint") and p.get_meta("is_blueprint"): has_bp = true
+			if p.has_meta("is_tutorial_1"): has_tut1 = true
+			if p.has_meta("is_tutorial_2"): has_tut2 = true
+			if p.has_meta("is_ext_note"): has_ext_note = true
 				
 		if not GameManager.pending_blueprint.is_empty() and not has_bp:
 			_spawn_blueprint_form()
+			
+		# FASE 2: TUTORIAL DINÂMICO DE INÍCIO
+		if GameManager.current_day == 1 and not GameManager.is_first_route_built and not has_tut1:
+			_spawn_tutorial_paper(1)
+			
+		if GameManager.boss_package_intro_done and not has_tut2 and GameManager.current_day <= 3:
+			_spawn_tutorial_paper(2)
+			
+		# FASE 2: FORMULÁRIO DE EXTENSÃO INTELIGENTE
+		var needs_extension = false
+		for c in GameManager.active_contracts:
+			if not c.has("pending_route_days") and c["days_left"] == 1:
+				needs_extension = true
+				
+		if is_instance_valid(pad_extension):
+			pad_extension.visible = needs_extension
+			
+		if needs_extension and not has_ext_note:
+			_spawn_extension_warning_note()
 		
 		if GameManager.broken_tiles.size() > 0:
 			GameManager.pending_radio_event = true
@@ -1860,10 +1869,13 @@ func _on_visibility_changed() -> void:
 			GameManager.pending_boss_package_call = false
 			GameManager.boss_package_intro_done = true
 			phone_cutscene.start_boss_package_call()
+		elif GameManager.pending_shark_call and not GameManager.shark_declined and not GameManager.has_loan_shark:
+			GameManager.pending_shark_call = false
+			if phone_cutscene.has_method("start_loan_shark_call"):
+				phone_cutscene.start_loan_shark_call()
 		elif not GameManager.intro_played:
 			GameManager.intro_played = true
 			phone_cutscene.start_boss_intro()
-
 
 func _on_back_map_pressed() -> void: 
 	get_parent().go_to_map()
@@ -1885,3 +1897,63 @@ func _on_fiscal_choice(is_bribe: bool, cost: int) -> void:
 	_update_diretrizes()
 	_update_active_contracts_text()
 	_update_task_pad()
+	
+	
+	
+func _spawn_tutorial_paper(type: int) -> void:
+	var paper = ColorRect.new()
+	paper.color = Color(0.95, 0.95, 0.8)
+	paper.size = Vector2(320, 400)
+	paper.pivot_offset = paper.size / 2.0
+	paper.position = Vector2(500 + randf_range(-20, 20), 300 + randf_range(-20, 20))
+	paper.rotation_degrees = randf_range(-3, 3)
+
+	var content = Control.new()
+	content.set_anchors_preset(Control.PRESET_FULL_RECT)
+	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	paper.add_child(content)
+
+	var lbl = Label.new()
+	lbl.add_theme_color_override("font_color", Color.BLACK)
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lbl.add_theme_font_size_override("font_size", 13)
+	lbl.position = Vector2(20, 20)
+	lbl.size = paper.size - Vector2(40, 40)
+
+	if type == 1:
+		lbl.text = "DIRETRIZES DE OPERACAO - DIA 1\n\nBem-vindo a Diretoria.\n\nPASSOS PARA HOJE:\n1. Abra o 'Arquivo de Clientes'.\n2. Clique em 'Preparar Contrato' para a Rota Azul <-> Vermelha.\n3. Arraste a Caneta e o Carimbo para aprovar e mova o papel para a Bandeja de Saida.\n4. Va ao Mapa (<-), clique em Modo Obras e ligue as duas estacoes.\n5. Clique em Gerar Planta, assine a planta na mesa e finalize o dia!"
+		paper.set_meta("is_tutorial_1", true)
+	elif type == 2:
+		lbl.text = "DIRETRIZES DE TRIAGEM\n\nSua rota esta pronta! A partir de agora, pacotes chegarao na Estacao de Triagem.\n\n- Va para a Triagem e chame pacotes.\n- Verifique o peso na balanca.\n- Use o Raio-X se desconfiar.\n- Se o peso ou o selo estiverem errados, REJEITE.\n- Cuidado com o Temporizador! O trem parte em breve."
+		paper.set_meta("is_tutorial_2", true)
+
+	content.add_child(lbl)
+	paper.set_meta("is_paper", true)
+	paper.set_meta("action", "")
+	_make_draggable(paper, "paper")
+	_add_ball_visual(paper)
+	ui_layer.add_child(paper)
+	spawned_papers.append(paper)
+
+func _spawn_extension_warning_note() -> void:
+	var note = ColorRect.new()
+	note.color = Color(0.9, 0.5, 0.5)
+	note.size = Vector2(220, 150)
+	note.position = Vector2(700, 200)
+	note.rotation_degrees = -5
+
+	var lbl = Label.new()
+	lbl.text = "AVISO DO CHEFE:\nUm dos nossos contratos vence amanha! Se nao renovarmos, o cliente processa-nos. Use o Formulario de Extensao (O bloco a esquerda)!"
+	lbl.add_theme_color_override("font_color", Color.BLACK)
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lbl.add_theme_font_size_override("font_size", 12)
+	lbl.position = Vector2(10, 10)
+	lbl.size = Vector2(200, 130)
+	note.add_child(lbl)
+
+	note.set_meta("is_paper", true)
+	note.set_meta("is_ext_note", true)
+	note.set_meta("action", "")
+	_make_draggable(note, "paper")
+	ui_layer.add_child(note)
+	spawned_papers.append(note)

@@ -394,3 +394,55 @@ func start_boss_package_call() -> void:
 	full_text += "Va ate la de vez em quando e valide os pacotes. Nao deixe a esteira acumular!"
 	
 	_type_next_char(false)
+
+
+
+func start_loan_shark_call() -> void:
+	_reset_ui()
+	current_mode = "LOAN_SHARK"
+
+	name_label.text = "[ TRANSMISSAO DESCONHECIDA ]"
+	name_label.add_theme_color_override("font_color", Color.CRIMSON)
+
+	full_text = "Estou a ver que as coisas vao mal por ai, Diretor... Conta no vermelho, nao e?\n\n"
+	full_text += "Eu posso limpar a sua divida e deixar-lhe com $1500 na mao agora mesmo. "
+	full_text += "Em troca, cobrarei $150 por dia durante os proximos 20 dias.\n\n"
+	full_text += "Pega ou larga. Se disser nao e falir, o problema e seu."
+
+	btn_accept.text = "[ ACEITAR EMPRESTIMO ]"
+	btn_accept.visible = true
+	btn_reject.text = "[ RECUSAR E DESLIGAR ]"
+	btn_reject.visible = true
+
+	_type_next_char(false)
+
+
+func _on_accept_pressed() -> void:
+	if current_mode == "PROPOSAL":
+		contract_accepted.emit(offered_reward)
+		visible = false
+		call_closed.emit()
+	elif current_mode == "FISCAL":
+		fiscal_choice_made.emit(true, offered_reward) 
+		visible = false
+		call_closed.emit()
+	elif current_mode == "LOAN_SHARK":
+		if GameManager.has_method("accept_loan_shark"):
+			GameManager.accept_loan_shark()
+		visible = false
+		call_closed.emit()
+
+func _on_reject_pressed() -> void:
+	if current_mode == "PROPOSAL":
+		contract_rejected.emit()
+		visible = false
+		call_closed.emit()
+	elif current_mode == "FISCAL":
+		fiscal_choice_made.emit(false, offered_reward) 
+		visible = false
+		call_closed.emit()
+	elif current_mode == "LOAN_SHARK":
+		if GameManager.has_method("reject_loan_shark"):
+			GameManager.reject_loan_shark()
+		visible = false
+		call_closed.emit()
