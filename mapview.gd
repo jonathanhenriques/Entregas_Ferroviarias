@@ -2,6 +2,10 @@ extends Node2D
 
 var ui_layer: CanvasLayer
 
+# === NOVAS VARIÁVEIS DA FASE 4 ===
+var status_panel: ColorRect
+var status_vbox: VBoxContainer
+
 const TILE_SIZE: int = 32
 # Grelha restaurada para 2/3 da tela (40 colunas * 32px = 1280px)
 var grid_width: int = 40  
@@ -92,6 +96,7 @@ func _ready() -> void:
 	_validate_saved_routes()
 	_generate_biomes()
 	_setup_ui()
+	_setup_status_panel() # <--- NOVA CHAMADA AQUI
 	
 	confirmed_routes = GameManager.saved_routes.duplicate()
 	
@@ -101,8 +106,12 @@ func _ready() -> void:
 	visibility_changed.connect(_on_visibility_changed)
 	GameManager.package_queue_updated.connect(_on_queue_updated)
 	GameManager.strike_received.connect(_on_strike_received)
+	GameManager.contracts_updated.connect(_update_status_panel) # <--- NOVA CONEXÃO
 	
 	_on_queue_updated(GameManager.package_queue.size())
+	_update_status_panel()
+
+
 
 func _validate_saved_routes() -> void:
 	var valid_routes = []
@@ -123,6 +132,7 @@ func _on_visibility_changed() -> void:
 		confirmed_routes = GameManager.saved_routes.duplicate()
 		_check_disasters()
 		_update_network_status()
+		_update_status_panel() # <--- ATUALIZA O STATUS AO ABRIR O MAPA
 		
 		if not GameManager.pending_blueprint.is_empty():
 			btn_edit_mode.text = "[ PLANTA PENDENTE ]"
@@ -136,6 +146,8 @@ func _on_visibility_changed() -> void:
 		if GameManager.pendent_strike_warning != "":
 			_show_strike_warning(GameManager.pendent_strike_warning)
 			GameManager.pendent_strike_warning = ""
+
+
 
 func _check_disasters() -> void:
 	if not GameManager.pending_disaster_check: return
@@ -1673,3 +1685,92 @@ func _draw_city(cell: Vector2i, color: Color, name: String) -> void:
 	var default_font = ThemeDB.fallback_font
 	var text_size = default_font.get_string_size(name, HORIZONTAL_ALIGNMENT_CENTER, -1, 14)
 	draw_string(default_font, center + Vector2(-text_size.x / 2.0, 30), name, HORIZONTAL_ALIGNMENT_CENTER, -1, 14, Color(0.1, 0.1, 0.15))
+	
+	
+	# === FASE 4: PAINEL DE STATUS DA MALHA ===
+
+func _setup_status_panel() -> void:
+	status_panel = ColorRect.new()
+	status_panel.color = Color(0.1, 0.1, 0.15, 0.85)
+	status_panel.size = Vector2(280, 110)
+	status_panel.position = Vector2(20, 20) # Canto superior esquerdo do mapa
+	ui_layer.add_child(status_panel)
+	
+	var border = ReferenceRect.new()
+	border.set_anchors_preset(Control.PRESET_FULL_RECT)
+	border.border_color = Color(0.4, 0.5, 0.6)
+	border.border_width = 2
+	status_panel.add_child(border)
+	
+	var title = Label.new()
+	title.text = "STATUS DA MALHA FERROVIARIA"
+	title.add_theme_font_size_override("font_size", 14)
+	title.add_theme_color_override("font_color", Color.WHITE)
+	title.position = Vector2(10, 10)
+	status_panel.add_child(title)
+	
+	status_vbox = VBoxContainer.new()
+	status_vbox.position = Vector2(10, 35)
+	status_vbox.size = Vector2(260, 70)
+	status_panel.add_child(status_vbox)
+
+func _update_status_panel() -> void:
+	if not is_instance_valid(status_vbox): return
+	for child in status_vbox.get_children():
+		child.queue_free()
+		
+	var routes_to_check = [
+		{"id": "Azul-Vermelha", "name": "Azul <-> Vermelha"},
+		{"id": "Azul-Verde", "name": "Azul <-> Verde"},
+		{"id": "Vermelha-Verde", "name": "Vermelha <-> Verde"}
+	]
+	
+	for r in routes_to_check:
+		var rid = r["id"]
+		var rname = r["name"]
+		var status_text = ""
+		var color = Color.GRAY
+		
+		var is_built = rid in GameManager.network_connections
+		var is_constructing = GameManager.routes_under_construction.get(rid, 0) > 0
+		var is_broken = false
+		if is_built:
+			var stats = GameManager.network_stats.get(rid, {})
+			is_broken = stats.get("is_broken", false)
+			
+		if is_constructing:
+			status_text = "Interditada (Em Obras)"
+			color = Color.CRIMSON
+		elif is_broken:
+			status_text = "Interditada (Falha na Via)"
+			color = Color.CRIMSON
+		elif not is_built:
+			status_text = "Inexistente"
+			color = Color.DIM_GRAY
+		else:
+			var active_trains_count = 0
+			for c in GameManager.active_contracts:
+				if c["route_id"] == rid and GameManager.is_contract_operating(c):
+					active_trains_count += 1
+					
+			if active_trains_count > 0:
+				status_text = "Operacional (" + str(active_trains_count) + " Trem(s))"
+				color = Color.LIME_GREEN
+			else:
+				status_text = "Ociosa (Sem Contratos)"
+				color = Color.GOLD
+				
+		var hbox = HBoxContainer.new()
+		var icon = ColorRect.new()
+		icon.custom_minimum_size = Vector2(12, 12)
+		icon.color = color
+		icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		
+		var lbl = Label.new()
+		lbl.text = " " + rname + ": " + status_text
+		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.add_theme_color_override("font_color", Color.WHITE)
+		
+		hbox.add_child(icon)
+		hbox.add_child(lbl)
+		status_vbox.add_child(hbox)
