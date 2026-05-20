@@ -44,6 +44,14 @@ var boss_package_intro_done: bool = false
 var pending_boss_package_call: bool = false		
 
 
+# === NOVAS VARIÁVEIS DA FASE 1 (ECONOMIA E AGIOTA) ===
+var packages_generated_today: int = 0
+var has_loan_shark: bool = false
+var loan_shark_days_left: int = 0
+var pending_shark_call: bool = false
+var shark_declined: bool = false
+var last_audit_day: int = -99
+
 var daily_gang_toll: int = 0
 var daily_crew_cost: int = 0
 var daily_lobby_cost: int = 0
@@ -92,19 +100,27 @@ var pending_blueprint: Dictionary = {}
 
 func _process(delta: float) -> void:
 	if current_day > 0 and money > -9999: 
-		# Bloqueia a chegada de encomendas se não houver rota pronta
+		# FASE 1: Limite de falência movido para -$2000
+		if money <= -2000:
+			trigger_bankruptcy()
+			return
+			
+		# FASE 1: Gatilho do Agiota (Aparece ao chegar a -$1500)
+		if money <= -1500 and not has_loan_shark and not pending_shark_call and not shark_declined:
+			pending_shark_call = true
+			
 		if not has_ready_route(): return
 		
-		# Aciona a ligação do chefe assim que a primeira rota ficar pronta
 		if not boss_package_intro_done and not pending_boss_package_call:
 			pending_boss_package_call = true
 			
-		# O tempo só corre se o chefe já tiver avisado
 		if boss_package_intro_done:
 			package_timer += delta
 			if package_timer >= PACKAGE_INTERVAL:
 				package_timer = 0.0
 				_generate_package()
+
+
 
 # NOVA FUNÇÃO DE VALIDAÇÃO GERAL
 func has_ready_route() -> bool:
@@ -159,47 +175,6 @@ func get_daily_income() -> int:
 			t += c["reward"]
 	return t
 
-func reset_game() -> void:
-	var lvl = LevelData.LEVELS[current_level]
-	money = lvl["budget"]
-	current_day = 1
-	daily_maintenance = 0
-	daily_gang_toll = 0
-	daily_crew_cost = 0
-	daily_lobby_cost = 0
-	active_contracts.clear()
-	network_connections.clear()
-	network_stats.clear()
-	company_cooldowns.clear()
-	daily_urgencies.clear()
-	saved_routes.clear()
-	routes_under_construction.clear()
-	pendent_angry_call = false
-	intro_played = false 
-	today_broken_contracts = 0
-	today_penalties = 0
-	pending_radio_event = false
-	
-	maint_pct_infra = 1.0
-	maint_pct_tracks = 1.0
-	maint_pct_env = 1.0
-	maint_pct_sec = 1.0
-	maint_pct_crew = 1.0
-	maint_pct_lobby = 1.0
-	
-	tile_data.clear()
-	broken_tiles.clear()
-	pending_disaster_check = false
-	pending_blueprint.clear()
-	pending_fiscal_event.clear()
-	
-	package_queue.clear()
-	strikes = 0
-	pendent_strike_warning = ""
-	package_timer = 0.0
-	
-	_generate_daily_generics()
-	save_game()
 
 func end_day(upfront_income: int = 0) -> void:
 	money += upfront_income
@@ -210,7 +185,16 @@ func end_day(upfront_income: int = 0) -> void:
 	money -= daily_crew_cost
 	money -= daily_lobby_cost
 	
-	# Progresso das Obras
+	# FASE 1: Cobrança dos juros do Agiota ($150 por dia durante 20 dias)
+	if has_loan_shark:
+		money -= 150 
+		loan_shark_days_left -= 1
+		if loan_shark_days_left <= 0:
+			has_loan_shark = false 
+			
+	# FASE 1: Reset do limite diário de encomendas
+	packages_generated_today = 0
+	
 	var new_ruc = {}
 	var ruc_keys = routes_under_construction.keys()
 	for i in range(ruc_keys.size()):
@@ -223,13 +207,11 @@ func end_day(upfront_income: int = 0) -> void:
 	for c in active_contracts:
 		var contract_failed = false
 		
-		# Verificação de rotas pendentes para o contrato
 		if c.has("pending_route_days"):
 			var is_ready = is_contract_route_ready(c)
 			if is_ready:
 				c.erase("pending_route_days")
 			else:
-				# CORREÇÃO LÓGICA: Se a rota já estiver sendo construída, o prazo do contrato CONGELA
 				var rid = c["route_id"]
 				var is_building = (routes_under_construction.get(rid, 0) > 0)
 				
@@ -249,7 +231,7 @@ func end_day(upfront_income: int = 0) -> void:
 				c["days_left"] -= 1
 				if c["days_left"] > 0: keep.append(c)
 			else:
-				keep.append(c) # Mantém na lista se estiver pendente/em obras
+				keep.append(c) 
 			
 	active_contracts = keep
 	
@@ -289,7 +271,7 @@ func end_day(upfront_income: int = 0) -> void:
 	for p in package_queue:
 		p["days_in_queue"] += 1
 		if p["true_category"] == "Perecivel" and p["days_in_queue"] >= 2:
-			add_strike("O cliente denunciou a empresa porque a carga de " + p["declared_item"] + " estragou na esteira!")
+			add_strike("A carga de " + p["declared_item"] + " apodreceu na sua triagem!")
 		else:
 			keep_queue.append(p)
 	package_queue = keep_queue
@@ -299,14 +281,20 @@ func end_day(upfront_income: int = 0) -> void:
 	current_day += 1
 	save_game() 
 	
-	if money < 0: trigger_bankruptcy()
+	if money <= -2000: trigger_bankruptcy()
 	elif money >= LevelData.LEVELS[current_level]["goal"]: trigger_victory()
 
 
-
 # FUNÇÕES DA ESTAÇÃO DE TRIAGEM
+func get_daily_package_limit() -> int:
+	if current_day <= 2: return 3
+	if current_day <= 5: return 5
+	return 8
+
 func _generate_package() -> void:
-	if package_queue.size() >= 10: return # Limite da fila (Pátio lotado)
+	# FASE 1: Limite diário de encomendas respeitado
+	if packages_generated_today >= get_daily_package_limit(): return
+	if package_queue.size() >= 10: return 
 	
 	var categories = ["Cartas", "Perecivel", "Valioso"]
 	var cat = categories.pick_random()
@@ -328,6 +316,9 @@ func _generate_package() -> void:
 		true_stamp = "Selo Azul"
 
 	base_weight = snapped(base_weight, 0.1)
+	
+	# Recompensa base do pacote
+	var base_reward = randi_range(30, 70)
 
 	var pkg = {
 		"id": randi(),
@@ -341,25 +332,30 @@ func _generate_package() -> void:
 		"declared_weight": base_weight,
 		"stamp_used": true_stamp,
 		"days_in_queue": 0,
-		"reward": randi_range(20, 60)
+		"base_reward": base_reward,
+		"reward": base_reward # Temporário até alterarmos o mapview.gd
 	}
 
-	# SORTEIO DE FRAUDE
+	# FASE 1: Trava de aprendizado - ZERO fraude nos 3 primeiros dias
 	var fraud_chance = 0.35
 	if cat == "Cartas": fraud_chance = 0.10
+	if current_day <= 3: fraud_chance = 0.0 
 
 	if randf() < fraud_chance:
 		var f_type = randi() % 3
 		if f_type == 0:
-			pkg["true_weight"] = snapped(base_weight + randf_range(10.0, 40.0), 0.1) # Mentiu o peso
+			pkg["true_weight"] = snapped(base_weight + randf_range(10.0, 40.0), 0.1) 
 		elif f_type == 1:
-			pkg["stamp_used"] = "Selo Branco" # Usou o selo mais barato
+			pkg["stamp_used"] = "Selo Branco" 
 		elif f_type == 2:
-			pkg["is_contraband"] = true # Ilegal
+			pkg["is_contraband"] = true 
 			pkg["true_weight"] = snapped(base_weight + randf_range(15.0, 25.0), 0.1)
 
+	packages_generated_today += 1
 	package_queue.append(pkg)
 	package_queue_updated.emit(package_queue.size())
+
+
 
 func add_strike(reason: String) -> void:
 	strikes += 1
@@ -371,7 +367,10 @@ func add_strike(reason: String) -> void:
 		pendent_strike_warning = "O Ministério dos Transportes aplicou uma multa de $500 devido a repetidas ocorrencias no seu posto de triagem!"
 
 func _roll_fiscal_audit() -> void:
+	# FASE 1: Cooldown de 3 dias para o Fiscal não destruir a empresa
+	if current_day - last_audit_day < 3: return 
 	if randf() > 0.3: return 
+	
 	var running_contracts = []
 	for c in active_contracts:
 		if is_contract_operating(c): running_contracts.append(c)
@@ -396,6 +395,7 @@ func _roll_fiscal_audit() -> void:
 				fine = 1500
 
 	if has_violation:
+		last_audit_day = current_day # Registra o dia da auditoria para o cooldown
 		var can_bribe = (maint_pct_lobby >= 0.7)
 		var bribe_cost = int(fine * 0.15) 
 		pending_fiscal_event = {
@@ -403,6 +403,24 @@ func _roll_fiscal_audit() -> void:
 			"can_bribe": can_bribe, "bribe_cost": bribe_cost,
 			"contract_name": target["company_name"]
 		}
+
+# FASE 1: A Nova Punição Inteligente (Custo de Frete) que ligaremos na Fase 4
+func process_package_approval(pkg: Dictionary) -> void:
+	var cost_per_kg = 0.5 # A empresa gasta 50 centavos por cada Kg real despachado
+	var net_profit = pkg["base_reward"] - (pkg["true_weight"] * cost_per_kg)
+	money += int(net_profit)
+
+# FASE 1: Lógica do Agiota
+func accept_loan_shark() -> void:
+	has_loan_shark = true
+	loan_shark_days_left = 20
+	# Limpa o saldo negativo atual (ex: -1500 vira 0) e adiciona +1500 para respirar
+	money += abs(money) + 1500 
+
+func reject_loan_shark() -> void:
+	shark_declined = true
+
+
 
 func _generate_daily_generics() -> void:
 	daily_generic_companies.clear()
@@ -416,14 +434,23 @@ func _generate_daily_generics() -> void:
 	]
 	var r = possible_routes.pick_random()
 	var tp = t.pick_random()
+	
+	# FASE 1: Os contratos diários agora se ajustam aos seus custos!
+	var daily_costs = daily_maintenance + BASE_COST + daily_crew_cost + daily_lobby_cost + daily_gang_toll
+	var min_reward = int(daily_costs * 0.8) # Paga pelo menos 80% do seu custo fixo do dia
+	if min_reward < 80: min_reward = 80
+	
 	var comp = {
 		"name": n.pick_random() + " (Diario)", "type": tp, 
-		"base_reward": randi_range(80, 160), "phone": "555-" + str(randi_range(1000, 9999)), 
+		"base_reward": randi_range(min_reward, min_reward + 80), 
+		"phone": "555-" + str(randi_range(1000, 9999)), 
 		"cargo": cg.pick_random(), "route_id": r["id"], "route_name": r["n"]
 	}
 	if tp == "Expresso": comp["max_dist"] = 35 
 	daily_generic_companies.append(comp)
 	_roll_daily_urgencies()
+
+
 
 func _roll_daily_urgencies() -> void:
 	daily_urgencies.clear()
@@ -451,9 +478,70 @@ func trigger_victory() -> void:
 
 func has_save() -> bool: return FileAccess.file_exists(SAVE_PATH)
 
+
+func reset_game() -> void:
+	var lvl = LevelData.LEVELS[current_level]
+	money = lvl["budget"]
+	current_day = 1
+	daily_maintenance = 0
+	daily_gang_toll = 0
+	daily_crew_cost = 0
+	daily_lobby_cost = 0
+	active_contracts.clear()
+	network_connections.clear()
+	network_stats.clear()
+	company_cooldowns.clear()
+	daily_urgencies.clear()
+	saved_routes.clear()
+	routes_under_construction.clear()
+	pendent_angry_call = false
+	intro_played = false 
+	today_broken_contracts = 0
+	today_penalties = 0
+	pending_radio_event = false
+	
+	maint_pct_infra = 1.0
+	maint_pct_tracks = 1.0
+	maint_pct_env = 1.0
+	maint_pct_sec = 1.0
+	maint_pct_crew = 1.0
+	maint_pct_lobby = 1.0
+	
+	tile_data.clear()
+	broken_tiles.clear()
+	pending_disaster_check = false
+	pending_blueprint.clear()
+	pending_fiscal_event.clear()
+	
+	package_queue.clear()
+	strikes = 0
+	pendent_strike_warning = ""
+	package_timer = 0.0
+	
+	# Reset Fase 1
+	packages_generated_today = 0
+	has_loan_shark = false
+	loan_shark_days_left = 0
+	pending_shark_call = false
+	shark_declined = false
+	last_audit_day = -99
+	boss_package_intro_done = false
+	pending_boss_package_call = false
+	
+	_generate_daily_generics()
+	save_game()
+
+
 func save_game() -> void:
 	var data = {
+		"packages_generated_today": packages_generated_today,
+		"has_loan_shark": has_loan_shark,
+		"loan_shark_days_left": loan_shark_days_left,
+		"pending_shark_call": pending_shark_call,
+		"shark_declined": shark_declined,
+		"last_audit_day": last_audit_day,
 		"boss_package_intro_done": boss_package_intro_done,
+		"pending_boss_package_call": pending_boss_package_call,
 		"money": money, "current_day": current_day,
 		"daily_maintenance": daily_maintenance, "daily_gang_toll": daily_gang_toll,
 		"daily_crew_cost": daily_crew_cost, "daily_lobby_cost": daily_lobby_cost,
@@ -481,7 +569,15 @@ func load_game() -> bool:
 	file.close()
 	
 	if data:
+		packages_generated_today = data.get("packages_generated_today", 0)
+		has_loan_shark = data.get("has_loan_shark", false)
+		loan_shark_days_left = data.get("loan_shark_days_left", 0)
+		pending_shark_call = data.get("pending_shark_call", false)
+		shark_declined = data.get("shark_declined", false)
+		last_audit_day = data.get("last_audit_day", -99)
 		boss_package_intro_done = data.get("boss_package_intro_done", false)
+		pending_boss_package_call = data.get("pending_boss_package_call", false)
+		
 		money = data.get("money", 1500)
 		current_day = data.get("current_day", 1)
 		daily_maintenance = data.get("daily_maintenance", 0)
@@ -520,7 +616,6 @@ func load_game() -> bool:
 		contracts_updated.emit()
 		return true
 	return false
-
 
 
 func _routes_to_array(routes: Array) -> Array:
