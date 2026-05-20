@@ -11,6 +11,15 @@ var diretrizes_bar: ProgressBar
 
 var companies_vbox: VBoxContainer
 
+# === NOVAS VARIÁVEIS DA FASE 3 ===
+var current_agenda_contacts: Array = []
+var current_agenda_page: int = 0
+var btn_prev_page: Button
+var btn_next_page: Button
+var lbl_page: Label
+
+var calendar_rect: ColorRect
+
 var folder_rect: ColorRect
 var folder_title: Label
 var folder_route: Label
@@ -254,7 +263,7 @@ func _setup_ui() -> void:
 	pad_extension.color = Color(0.35, 0.4, 0.45)
 	pad_extension.size = Vector2(140, 180)
 	pad_extension.position = Vector2(40, 600)
-	pad_extension.visible = false # ADICIONE ESTA LINHA AQUI!
+	pad_extension.visible = false 
 	ui_layer.add_child(pad_extension)
 	
 	var pad_clip_ext = ColorRect.new()
@@ -273,21 +282,7 @@ func _setup_ui() -> void:
 	pad_extension.mouse_filter = Control.MOUSE_FILTER_STOP
 	pad_extension.gui_input.connect(_on_pad_extension_input)
 
-	# NOVO: DICA DO CHEFE SOBRE CARIMBOS
-	var hint_note = ColorRect.new()
-	hint_note.color = Color(0.95, 0.95, 0.6)
-	hint_note.size = Vector2(220, 100)
-	hint_note.position = Vector2(250, 40)
-	ui_layer.add_child(hint_note)
-	
-	var hint_lbl = Label.new()
-	hint_lbl.text = "DICA: Arraste o Carimbo e a Caneta para cima dos documentos para assinar e validar!"
-	hint_lbl.add_theme_color_override("font_color", Color.BLACK)
-	hint_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	hint_lbl.size = Vector2(200, 80)
-	hint_lbl.position = Vector2(10, 10)
-	hint_note.add_child(hint_lbl)
-
+	# FASE 3: FICHÁRIO DE CLIENTES (COM PAGINAÇÃO)
 	agenda_rect = ColorRect.new()
 	agenda_rect.color = Color(0.85, 0.8, 0.6) 
 	agenda_rect.size = Vector2(300, 400)
@@ -309,9 +304,29 @@ func _setup_ui() -> void:
 	
 	companies_vbox = VBoxContainer.new()
 	companies_vbox.position = Vector2(40, 60)
-	companies_vbox.size = Vector2(240, 320)
+	companies_vbox.size = Vector2(240, 280)
 	companies_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	agenda_rect.add_child(companies_vbox)
+
+	btn_prev_page = Button.new()
+	btn_prev_page.text = "<- Pag"
+	btn_prev_page.size = Vector2(60, 30)
+	btn_prev_page.position = Vector2(40, 350)
+	btn_prev_page.pressed.connect(_on_prev_page_pressed)
+	agenda_rect.add_child(btn_prev_page)
+	
+	btn_next_page = Button.new()
+	btn_next_page.text = "Pag ->"
+	btn_next_page.size = Vector2(60, 30)
+	btn_next_page.position = Vector2(220, 350)
+	btn_next_page.pressed.connect(_on_next_page_pressed)
+	agenda_rect.add_child(btn_next_page)
+	
+	lbl_page = Label.new()
+	lbl_page.text = "Pag. 1"
+	lbl_page.add_theme_color_override("font_color", Color.BLACK)
+	lbl_page.position = Vector2(135, 355)
+	agenda_rect.add_child(lbl_page)
 
 	clipboard_rect = ColorRect.new()
 	clipboard_rect.color = Color(0.95, 0.95, 0.9) 
@@ -360,6 +375,7 @@ func _setup_ui() -> void:
 	contracts_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	active_paper_rect.add_child(contracts_vbox)
 
+	# FASE 3: PASTA DE CONTRATOS COM PAPÉIS SOBREPOSTOS
 	folder_rect = ColorRect.new()
 	folder_rect.color = Color(0.8, 0.65, 0.4) 
 	folder_rect.size = Vector2(440, 480)
@@ -395,43 +411,43 @@ func _setup_ui() -> void:
 
 	doc_standard = ColorRect.new()
 	doc_standard.color = Color(0.95, 0.95, 0.95)
-	doc_standard.size = Vector2(190, 380)
-	doc_standard.position = Vector2(20, 80)
-	doc_standard.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	doc_standard.size = Vector2(380, 420)
+	doc_standard.position = Vector2(20, 40)
 	folder_rect.add_child(doc_standard)
+	doc_standard.gui_input.connect(_on_doc_input.bind(doc_standard)) # Permite trazer pra frente
 	
 	std_label = Label.new()
-	std_label.position = Vector2(10, 10)
-	std_label.size = Vector2(170, 300)
+	std_label.position = Vector2(20, 20)
+	std_label.size = Vector2(340, 330)
 	std_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	std_label.add_theme_color_override("font_color", Color.BLACK)
 	doc_standard.add_child(std_label)
 	
 	btn_call_std = Button.new()
 	btn_call_std.text = "PREPARAR CONTRATO"
-	btn_call_std.position = Vector2(10, 330)
-	btn_call_std.size = Vector2(170, 40)
+	btn_call_std.position = Vector2(20, 360)
+	btn_call_std.size = Vector2(340, 40)
 	btn_call_std.pressed.connect(_on_call_standard_pressed)
 	doc_standard.add_child(btn_call_std)
 
 	doc_urgent = ColorRect.new()
 	doc_urgent.color = Color(0.95, 0.85, 0.85)
-	doc_urgent.size = Vector2(190, 380)
-	doc_urgent.position = Vector2(230, 80)
-	doc_urgent.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	doc_urgent.size = Vector2(380, 420)
+	doc_urgent.position = Vector2(40, 50) # Deslocado para dar efeito de pilha
 	folder_rect.add_child(doc_urgent)
+	doc_urgent.gui_input.connect(_on_doc_input.bind(doc_urgent)) # Permite trazer pra frente
 	
 	urg_label = Label.new()
-	urg_label.position = Vector2(10, 10)
-	urg_label.size = Vector2(170, 300)
+	urg_label.position = Vector2(20, 20)
+	urg_label.size = Vector2(340, 330)
 	urg_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	urg_label.add_theme_color_override("font_color", Color.DARK_RED)
 	doc_urgent.add_child(urg_label)
 	
 	btn_call_urg = Button.new()
 	btn_call_urg.text = "PREPARAR URGENCIA"
-	btn_call_urg.position = Vector2(10, 330)
-	btn_call_urg.size = Vector2(170, 40)
+	btn_call_urg.position = Vector2(20, 360)
+	btn_call_urg.size = Vector2(340, 40)
 	btn_call_urg.pressed.connect(_on_call_urgent_pressed)
 	doc_urgent.add_child(btn_call_urg)
 
@@ -517,6 +533,20 @@ func _setup_ui() -> void:
 	task_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	task_pad_rect.add_child(task_vbox)
 
+	# FASE 3: CALENDÁRIO FÍSICO NA MESA
+	calendar_rect = ColorRect.new()
+	calendar_rect.color = Color(0.9, 0.9, 0.9)
+	calendar_rect.size = Vector2(220, 160)
+	calendar_rect.position = Vector2(100, 620)
+	ui_layer.add_child(calendar_rect)
+	_make_draggable(calendar_rect, "panel")
+	
+	var cal_clip = ColorRect.new()
+	cal_clip.name = "clip"
+	cal_clip.color = Color(0.2, 0.2, 0.2)
+	cal_clip.size = Vector2(100, 15)
+	cal_clip.position = Vector2(60, 0)
+	calendar_rect.add_child(cal_clip)
 
 
 
@@ -1098,52 +1128,87 @@ func _update_diretrizes() -> void:
 		diretrizes_bar.value = a
 
 func _load_agenda_contacts() -> void:
-	for child in companies_vbox.get_children(): 
+	if current_agenda_contacts.is_empty():
+		var all_c = []
+		
+		# Filtra apenas dicionários válidos para evitar crashes
+		for c in GameManager.daily_generic_companies: 
+			if typeof(c) == TYPE_DICTIONARY: all_c.append(c)
+		for c in GameManager.daily_urgencies: 
+			if typeof(c) == TYPE_DICTIONARY: all_c.append(c)
+			
+		# SOLUÇÃO GAME DESIGN: Contrato Garantido no Dia 1
+		if GameManager.current_day == 1 and not GameManager.is_first_route_built:
+			var tutorial_contract = {
+				"name": "Prefeitura Local (Tutorial)",
+				"type": "Ganha-Pao",
+				"phone": "555-0001",
+				"cargo": "Materiais de Construcao",
+				"route_id": "Azul-Vermelha",
+				"route_name": "Azul <-> Vermelha",
+				"base_reward": 150
+			}
+			all_c.append(tutorial_contract)
+		
+		var fakes = ["Madeireira Sul", "Minas de Carvao", "Tecelagem Fina", "Armazens Gerais", "Importadora X", "Silos do Porto", "Fazenda Velha", "Aco & Ferro Ltda"]
+		for i in range(12): 
+			all_c.append({
+				"name": fakes.pick_random() + " (Inativo)",
+				"type": "Falso",
+				"phone": "555-" + str(randi_range(1000, 9999)),
+				"cargo": "N/A", "route_name": "N/A", "base_reward": 0
+			})
+			
+		all_c.shuffle()
+		
+		# Garante que o contrato do Tutorial fique na primeira página (índice 0)
+		if GameManager.current_day == 1 and not GameManager.is_first_route_built:
+			for i in range(all_c.size()):
+				if all_c[i].get("name") == "Prefeitura Local (Tutorial)":
+					var temp = all_c[0]
+					all_c[0] = all_c[i]
+					all_c[i] = temp
+					break
+					
+		current_agenda_contacts = all_c
+		current_agenda_page = 0
+		
+	_render_agenda_page()
+
+
+
+
+func _render_agenda_page() -> void:
+	for child in companies_vbox.get_children():
 		child.queue_free()
 		
-	var companies = LevelData.LEVELS[GameManager.current_level]["companies"].duplicate(true)
-	companies.append_array(GameManager.daily_generic_companies)
+	var items_per_page = 4
+	var start_idx = current_agenda_page * items_per_page
+	var end_idx = min(start_idx + items_per_page, current_agenda_contacts.size())
 	
-	for i in range(companies.size()):
-		var c_data = companies[i]
-		var c_name = c_data["name"]
+	for i in range(start_idx, end_idx):
+		var c = current_agenda_contacts[i]
+		
+		# Prevenção rigorosa de erro de String
+		if typeof(c) != TYPE_DICTIONARY:
+			continue
+			
 		var btn = Button.new()
 		
-		var is_daily = "(Diario)" in c_name
-		if GameManager.company_cooldowns.has(c_name) and GameManager.company_cooldowns[c_name] > 0 and not (is_daily and GameManager.current_day == 1):
-			btn.text = c_name + " (" + str(GameManager.company_cooldowns[c_name]) + "d)"
+		if c.get("type", "Falso") == "Falso":
+			btn.text = c.get("name", "Desconhecido") + "\nTel: " + c.get("phone", "000")
 			btn.disabled = true
-			btn.add_theme_color_override("font_color", Color.INDIAN_RED)
 		else:
-			var has_active = false
-			for contract in GameManager.active_contracts:
-				if contract.has("company_name") and contract["company_name"] == c_name: 
-					has_active = true
-					
-			var has_pending = false
-			for p in spawned_papers:
-				if is_instance_valid(p) and p.get_meta("is_extension", false) == false and p.get_meta("is_blueprint", false) == false and p.has_meta("company_data") and p.get_meta("company_data")["name"] == c_name:
-					has_pending = true
-					
-			if has_active: 
-				btn.text = c_name + " (EM CURSO)"
-				btn.disabled = true
-				btn.add_theme_color_override("font_color", Color.DIM_GRAY)
-			else:
-				if has_pending:
-					btn.text = c_name + " (AGUARDANDO)"
-					btn.disabled = true
-					btn.add_theme_color_override("font_color", Color.DIM_GRAY)
-				else:
-					if GameManager.daily_urgencies.has(c_name): 
-						btn.text = c_name + " [!]"
-						btn.add_theme_color_override("font_color", Color.DARK_RED)
-					else: 
-						btn.text = c_name
-					btn.pressed.connect(_on_company_selected.bind(c_data))
-				
-		btn.custom_minimum_size = Vector2(200, 30)
+			var txt = c.get("name", "Empresa") + " (" + c.get("type", "") + ")\n"
+			txt += "Tel: " + c.get("phone", "000") + " | Paga: $" + str(c.get("base_reward", 0))
+			btn.text = txt
+			btn.pressed.connect(_on_company_selected.bind(c))
+			
+		btn.custom_minimum_size = Vector2(240, 60)
 		companies_vbox.add_child(btn)
+		
+	lbl_page.text = "Pag. " + str(current_agenda_page + 1)
+
 
 func _on_company_selected(data: Dictionary) -> void:
 	selected_company_data = data
@@ -1453,6 +1518,11 @@ func _update_active_contracts_text() -> void:
 			var st = ""
 			var cl = Label.new()
 			
+			# Usamos .get() com valores padrão para evitar erros caso a chave falte
+			var cargo_name = c.get("cargo", "Carga Geral")
+			var route_name = c.get("route_name", "Desconhecida")
+			var days_left = c.get("days_left", 0)
+			
 			if c.has("pending_route_days"):
 				st = "[AGUARDANDO VIA: " + str(c["pending_route_days"]) + "d]"
 				cl.add_theme_color_override("font_color", Color.DARK_GOLDENROD)
@@ -1461,17 +1531,18 @@ func _update_active_contracts_text() -> void:
 					if c.get("is_urgent", false):
 						st = "[PAGO]"
 					else:
-						st = "(+$" + str(c["reward"]) + ")"
+						st = "(+$" + str(c.get("reward", 0)) + ")"
 					cl.add_theme_color_override("font_color", Color.DARK_SLATE_GRAY)
 				else:
 					cl.add_theme_color_override("font_color", Color.INDIAN_RED)
-					if GameManager.routes_under_construction.get(c["route_id"], 0) > 0:
-						st = "[OBRAS: " + str(GameManager.routes_under_construction[c["route_id"]]) + "d]"
+					var rid = c.get("route_id", "")
+					if GameManager.routes_under_construction.get(rid, 0) > 0:
+						st = "[OBRAS: " + str(GameManager.routes_under_construction[rid]) + "d]"
 					else:
-						if not (c["route_id"] in GameManager.network_connections): 
+						if not (rid in GameManager.network_connections): 
 							st = "[SEM ROTA]"
 						else: 
-							var stats = GameManager.network_stats.get(c["route_id"], {})
+							var stats = GameManager.network_stats.get(rid, {})
 							if stats.get("is_broken", false):
 								st = "[VIA DESTRUIDA]"
 							else:
@@ -1490,7 +1561,7 @@ func _update_active_contracts_text() -> void:
 											else:
 												st = "[PARADO: ILEGAL]"
 									
-			cl.text = "T" + str(i + 1) + ": " + c["cargo"] + "\n" + c["route_name"] + " " + st + "\n" + str(c["days_left"]) + "d"
+			cl.text = "T" + str(i + 1) + ": " + cargo_name + "\n" + route_name + " " + st + "\n" + str(days_left) + "d"
 			cl.custom_minimum_size = Vector2(230, 0)
 			hbox.add_child(cl)
 			
@@ -1500,6 +1571,9 @@ func _update_active_contracts_text() -> void:
 			hbox.add_child(b)
 			contracts_vbox.add_child(hbox)
 			i += 1
+
+
+
 
 func _update_report_text() -> void:
 	var inc = GameManager.get_daily_income()
@@ -1521,148 +1595,180 @@ func _update_report_text() -> void:
 	btn_next_day.disabled = false
 	btn_next_day.text = "Processar Saidas e Finalizar Dia"
 
-# NOVO: A Lógica Completa de Aprovação da Planta (Sem Fundos e Aprovação Oficial)
-func _on_next_day_pressed() -> void: 
-	var new_c_count = 0
-	var rej_c_count = 0
-	var ext_c_count = 0
-	var blueprint_cost = 0
-	pending_upfront_income = 0
+func _on_next_day_pressed() -> void:
+	if phone_cutscene and phone_cutscene.visible: return
+	if GameManager.pendent_angry_call: return
 	
-	var keep_papers = []
-	
-	for paper in spawned_papers:
-		if not is_instance_valid(paper): continue
+	var has_operating = false
+	var has_building = false
+	for c in GameManager.active_contracts:
+		if GameManager.is_contract_operating(c): has_operating = true
+		if GameManager.routes_under_construction.get(c["route_id"], 0) > 0: has_building = true
 		
-		var center = paper.get_global_rect().get_center()
-		var trash_center = trash_rect.global_position + trash_rect.size / 2.0
-		var outbox_center = outbox_rect.global_position + outbox_rect.size / 2.0
+	var income = 0
+	var ext_c = 0
+	var bp_cost = 0
+	var new_c = 0
+	var rej_c = 0
+
+	for p in spawned_papers:
+		if not is_instance_valid(p): continue
 		
-		if center.distance_to(trash_center) < 160:
-			if paper.get_meta("is_blueprint", false) == true:
-				GameManager.pending_blueprint.clear()
-			paper.queue_free()
-			continue
+		# Conta rejeições
+		if p.has_meta("action") and p.get_meta("action") == "reject":
+			rej_c += 1
 			
-		if outbox_rect.get_global_rect().grow(100).has_point(center):
-			var action = paper.get_meta("action", "")
-			
-			if paper.get_meta("is_blueprint", false) == true:
-				var bp = GameManager.pending_blueprint
-				if action == "approve":
-					var t_cost = bp.get("total_cost", 0)
-					if GameManager.money >= t_cost:
-						blueprint_cost += t_cost
-						GameManager.money -= t_cost
-						
-						for d in bp.get("deleted_paths", []):
-							for idx in range(GameManager.saved_routes.size() - 1, -1, -1):
-								if _are_routes_equal(GameManager.saved_routes[idx], d):
-									GameManager.saved_routes.remove_at(idx)
-							for cell in d:
-								if GameManager.broken_tiles.has(cell):
-									GameManager.broken_tiles.erase(cell)
-									
-						for r_cell in bp.get("repair_tiles", []):
-							if GameManager.broken_tiles.has(r_cell):
-								GameManager.broken_tiles.erase(r_cell)
-							if not GameManager.tile_data.has(r_cell):
-								GameManager.tile_data[r_cell] = {"h": 1.0, "t": "tracks"}
-							else:
-								GameManager.tile_data[r_cell]["h"] = 1.0
-								
-						for p_arr in bp.get("draft_paths", []):
-							GameManager.saved_routes.append(p_arr.duplicate())
-							for cell in p_arr:
-								if not GameManager.tile_data.has(cell):
-									GameManager.tile_data[cell] = {"h": 1.0, "t": "tracks"}
-								else:
-									GameManager.tile_data[cell]["h"] = 1.0
-									
-						for rid in bp.get("routes_to_cooldown", []):
-							GameManager.routes_under_construction[rid] = 3
-							
-						GameManager.pending_blueprint.clear()
-						paper.queue_free()
-						
-						# CORREÇÃO VITAL: Avisar o mapa invisível para atualizar as conexões imediatamente!
-						var main_node = get_parent()
-						if main_node.has_node("MapView"):
-							main_node.get_node("MapView")._update_network_status()
-							
-						continue
-					else:
-						paper.set_meta("action", "")
-						if paper.has_meta("node_approve"):
-							var old = paper.get_meta("node_approve")
-							if is_instance_valid(old): old.queue_free()
-							paper.remove_meta("node_approve")
-							
-						var mark = Label.new()
-						mark.text = "SEM FUNDOS"
-						mark.add_theme_font_size_override("font_size", 36)
-						mark.add_theme_color_override("font_color", Color(0.8, 0.1, 0.1, 0.8))
-						mark.rotation_degrees = randf_range(-15.0, 15.0)
-						mark.position = Vector2(40, 200)
-						paper.get_node("content").add_child(mark)
-						
-						var tw = create_tween().set_parallel(true)
-						tw.tween_property(paper, "global_position", Vector2(700, 300), 0.3)
-						tw.tween_property(paper, "scale", Vector2(1,1), 0.3)
-						
-						keep_papers.append(paper)
-						continue
-				elif action == "reject":
-					GameManager.pending_blueprint.clear()
-					paper.queue_free()
-					continue
-			
-			elif paper.get_meta("is_extension", false) == true:
-				if action == "approve":
-					var sel_idx = paper.get_meta("selected_idx", -1)
-					if sel_idx >= 0 and sel_idx < GameManager.active_contracts.size():
-						var c = GameManager.active_contracts[sel_idx]
-						c["days_left"] += 3
-						c["reward"] = int(c["reward"] * 0.7)
-						ext_c_count += 1
-				paper.queue_free()
-				continue
-			else:
-				var c_data = paper.get_meta("company_data")
-				var is_urg = paper.get_meta("is_urgent")
-				var rew = paper.get_meta("reward")
-				var is_risk = paper.get_meta("is_risk")
-				
-				if action == "approve":
-					new_c_count += 1
-					var new_c = {"company_name": c_data["name"], "type": c_data["type"], "cargo": c_data["cargo"], "route_id": c_data["route_id"], "route_name": c_data["route_name"], "reward": rew, "days_left": randi_range(5, 10), "is_urgent": false}
-					if is_urg:
-						pending_upfront_income += rew
-						new_c["cargo"] = "[URG] " + c_data["cargo"]
-						new_c["reward"] = 0
-						new_c["days_left"] = 1
-						new_c["is_urgent"] = true
-					if c_data.has("max_dist"): 
-						new_c["max_dist"] = c_data["max_dist"]
-					if is_risk:
-						new_c["pending_route_days"] = 3
-					GameManager.active_contracts.append(new_c)
+		# Processa a Extensão de Prazo
+		if p.has_meta("is_extension") and p.get_meta("is_extension"):
+			if p.has_meta("action") and p.get_meta("action") == "approve":
+				ext_c += 1
+				var s_idx = p.get_meta("selected_idx", -1)
+				if s_idx >= 0 and s_idx < GameManager.active_contracts.size():
+					GameManager.active_contracts[s_idx]["days_left"] += 3
+					GameManager.money -= 200 
 					
-				if action == "reject":
-					rej_c_count += 1
-					GameManager.company_cooldowns[c_data["name"]] = 3
+		# Processa a Planta de Obras
+		elif p.has_meta("is_blueprint") and p.get_meta("is_blueprint"):
+			if p.has_meta("action") and p.get_meta("action") == "approve":
+				var bp = GameManager.pending_blueprint
+				var cd = bp.get("routes_to_cooldown", [])
+				var r_desc = bp.get("route_description", "")
 				
-				paper.queue_free()
-				continue
+				bp_cost += bp.get("total_cost", 0)
+				GameManager.money -= bp.get("total_cost", 0)
+				
+				for route_id in cd:
+					GameManager.company_cooldowns[route_id] = 5
+					var base_days = 3
+					if r_desc.find("Azul") != -1 and r_desc.find("Vermelha") != -1: base_days = 2
+					GameManager.routes_under_construction[route_id] = base_days
+					
+				GameManager.saved_routes.append_array(bp.get("draft_paths", []))
+				var keep_routes = []
+				for old_r in GameManager.saved_routes:
+					var is_del = false
+					for del_r in bp.get("deleted_paths", []):
+						if _are_routes_equal(old_r, del_r): is_del = true
+					if not is_del: keep_routes.append(old_r)
+				GameManager.saved_routes = keep_routes
+				
+				var new_broken = []
+				for bt in GameManager.broken_tiles:
+					if not bp.get("repair_tiles", []).has(bt): new_broken.append(bt)
+				GameManager.broken_tiles = new_broken
+				GameManager.pending_blueprint.clear()
+				
+		# Processa os Contratos de Carga
+		elif p.has_meta("action") and p.get_meta("action") == "approve":
+			new_c += 1
+			var c_data = p.get_meta("company_data")
+			var is_urg = p.get_meta("is_urgent")
+			var reward = p.get_meta("reward")
+			var is_risk = p.get_meta("is_risk")
 			
-		keep_papers.append(paper)
+			var new_contract = {
+				"company_name": c_data["name"],
+				"route_id": c_data["route_id"],
+				"type": c_data["type"],
+				"reward": reward
+			}
 			
-	spawned_papers = keep_papers
-	GameManager.contracts_updated.emit()
+			if is_urg:
+				new_contract["is_urgent"] = true
+				income += reward 
+				new_contract["days_left"] = 1
+				GameManager.active_contracts.append(new_contract)
+			else:
+				new_contract["days_left"] = randi_range(5, 10)
+				GameManager.active_contracts.append(new_contract)
+				
+			if is_risk:
+				new_contract["pending_route_days"] = 3
+				
+			GameManager.company_cooldowns[c_data["route_id"]] = 4
+
+	for p in spawned_papers:
+		if is_instance_valid(p): p.queue_free()
+	spawned_papers.clear()
 	
-	_start_eod_animation(new_c_count, rej_c_count, ext_c_count, blueprint_cost)
+	current_agenda_contacts.clear()
+	current_agenda_page = 0
+	
+	# Restaura a chamada do Painel de Resumo!
+	pending_upfront_income = income
+	_start_eod_animation(new_c, rej_c, ext_c, bp_cost)
+	
+	
+	
+func _on_visibility_changed() -> void:
+	if ui_layer: 
+		ui_layer.visible = visible
+	if visible:
+		var active_papers = []
+		for p in spawned_papers:
+			if is_instance_valid(p):
+				active_papers.append(p)
+		spawned_papers = active_papers
 
-
+		_load_agenda_contacts()
+		_update_report_text()
+		_update_diretrizes()
+		_update_task_pad()
+		_update_calendar() # FASE 3: Garante que o calendário desenha as datas!
+		folder_rect.visible = false 
+		
+		_on_organize_pressed()
+		
+		var has_bp = false
+		var has_tut1 = false
+		var has_tut2 = false
+		var has_ext_note = false
+		
+		for p in spawned_papers:
+			if p.has_meta("is_blueprint") and p.get_meta("is_blueprint"): has_bp = true
+			if p.has_meta("is_tutorial_1"): has_tut1 = true
+			if p.has_meta("is_tutorial_2"): has_tut2 = true
+			if p.has_meta("is_ext_note"): has_ext_note = true
+				
+		if not GameManager.pending_blueprint.is_empty() and not has_bp:
+			_spawn_blueprint_form()
+			
+		if GameManager.current_day == 1 and not GameManager.is_first_route_built and not has_tut1:
+			_spawn_tutorial_paper(1)
+			
+		if GameManager.boss_package_intro_done and not has_tut2 and GameManager.current_day <= 3:
+			_spawn_tutorial_paper(2)
+			
+		var needs_extension = false
+		for c in GameManager.active_contracts:
+			if not c.has("pending_route_days") and c["days_left"] == 1:
+				needs_extension = true
+				
+		if is_instance_valid(pad_extension):
+			pad_extension.visible = needs_extension
+			
+		if needs_extension and not has_ext_note:
+			_spawn_extension_warning_note()
+		
+		if GameManager.broken_tiles.size() > 0:
+			GameManager.pending_radio_event = true
+		
+		if GameManager.pendent_angry_call: 
+			GameManager.pendent_angry_call = false
+			phone_cutscene.start_angry_call()
+		elif not GameManager.pending_fiscal_event.is_empty():
+			phone_cutscene.start_fiscal_audit(GameManager.pending_fiscal_event)
+		elif GameManager.pending_boss_package_call and not GameManager.boss_package_intro_done:
+			GameManager.pending_boss_package_call = false
+			GameManager.boss_package_intro_done = true
+			phone_cutscene.start_boss_package_call()
+		elif GameManager.pending_shark_call and not GameManager.shark_declined and not GameManager.has_loan_shark:
+			GameManager.pending_shark_call = false
+			if phone_cutscene.has_method("start_loan_shark_call"):
+				phone_cutscene.start_loan_shark_call()
+		elif not GameManager.intro_played:
+			GameManager.intro_played = true
+			phone_cutscene.start_boss_intro()
 
 
 func _are_routes_equal(r1: Array, r2: Array) -> bool:
@@ -1781,6 +1887,11 @@ func _add_eod_line(left: String, right: String, color: Color, is_title: bool) ->
 func _on_eod_sleep_pressed() -> void:
 	eod_layer.visible = false
 	GameManager.end_day(pending_upfront_income)
+	_update_calendar()
+	_on_organize_pressed()
+
+
+
 
 func _on_eod_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
@@ -1804,78 +1915,6 @@ func _on_day_changed(_v) -> void:
 	_update_active_contracts_text()
 	_load_agenda_contacts() 
 	_update_task_pad()
-
-func _on_visibility_changed() -> void:
-	if ui_layer: 
-		ui_layer.visible = visible
-	if visible:
-		var active_papers = []
-		for p in spawned_papers:
-			if is_instance_valid(p):
-				active_papers.append(p)
-		spawned_papers = active_papers
-
-		_load_agenda_contacts()
-		_update_report_text()
-		_update_diretrizes()
-		_update_task_pad()
-		folder_rect.visible = false 
-		
-		_on_organize_pressed()
-		
-		var has_bp = false
-		var has_tut1 = false
-		var has_tut2 = false
-		var has_ext_note = false
-		
-		for p in spawned_papers:
-			if p.has_meta("is_blueprint") and p.get_meta("is_blueprint"): has_bp = true
-			if p.has_meta("is_tutorial_1"): has_tut1 = true
-			if p.has_meta("is_tutorial_2"): has_tut2 = true
-			if p.has_meta("is_ext_note"): has_ext_note = true
-				
-		if not GameManager.pending_blueprint.is_empty() and not has_bp:
-			_spawn_blueprint_form()
-			
-		# FASE 2: TUTORIAL DINÂMICO DE INÍCIO
-		if GameManager.current_day == 1 and not GameManager.is_first_route_built and not has_tut1:
-			_spawn_tutorial_paper(1)
-			
-		if GameManager.boss_package_intro_done and not has_tut2 and GameManager.current_day <= 3:
-			_spawn_tutorial_paper(2)
-			
-		# FASE 2: FORMULÁRIO DE EXTENSÃO INTELIGENTE
-		var needs_extension = false
-		for c in GameManager.active_contracts:
-			if not c.has("pending_route_days") and c["days_left"] == 1:
-				needs_extension = true
-				
-		if is_instance_valid(pad_extension):
-			pad_extension.visible = needs_extension
-			
-		if needs_extension and not has_ext_note:
-			_spawn_extension_warning_note()
-		
-		if GameManager.broken_tiles.size() > 0:
-			GameManager.pending_radio_event = true
-		
-		# HIERARQUIA DE TELEFONEMAS
-		if GameManager.pendent_angry_call: 
-			GameManager.pendent_angry_call = false
-			phone_cutscene.start_angry_call()
-		elif not GameManager.pending_fiscal_event.is_empty():
-			phone_cutscene.start_fiscal_audit(GameManager.pending_fiscal_event)
-		elif GameManager.pending_boss_package_call and not GameManager.boss_package_intro_done:
-			GameManager.pending_boss_package_call = false
-			GameManager.boss_package_intro_done = true
-			phone_cutscene.start_boss_package_call()
-		elif GameManager.pending_shark_call and not GameManager.shark_declined and not GameManager.has_loan_shark:
-			GameManager.pending_shark_call = false
-			if phone_cutscene.has_method("start_loan_shark_call"):
-				phone_cutscene.start_loan_shark_call()
-		elif not GameManager.intro_played:
-			GameManager.intro_played = true
-			phone_cutscene.start_boss_intro()
 
 func _on_back_map_pressed() -> void: 
 	get_parent().go_to_map()
@@ -1957,3 +1996,76 @@ func _spawn_extension_warning_note() -> void:
 	_make_draggable(note, "paper")
 	ui_layer.add_child(note)
 	spawned_papers.append(note)
+
+
+
+# === FASE 3: LÓGICA DO FICHÁRIO E CALENDÁRIO ===
+
+func _on_doc_input(event: InputEvent, doc: ColorRect) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		doc.get_parent().move_child(doc, doc.get_parent().get_child_count() - 1)
+
+func _on_prev_page_pressed() -> void:
+	if current_agenda_page > 0:
+		current_agenda_page -= 1
+		_render_agenda_page()
+
+func _on_next_page_pressed() -> void:
+	var max_pages = ceil(current_agenda_contacts.size() / 4.0) - 1
+	if current_agenda_page < max_pages:
+		current_agenda_page += 1
+		_render_agenda_page()
+
+func _update_calendar() -> void:
+	for child in calendar_rect.get_children():
+		if child.name != "clip": child.queue_free() 
+		
+	var title = Label.new()
+	title.text = "CALENDARIO (Dia " + str(GameManager.current_day) + ")"
+	title.add_theme_color_override("font_color", Color.BLACK)
+	title.add_theme_font_size_override("font_size", 12)
+	title.position = Vector2(10, 20)
+	calendar_rect.add_child(title)
+	
+	var grid = GridContainer.new()
+	grid.columns = 5
+	grid.position = Vector2(10, 45)
+	grid.add_theme_constant_override("h_separation", 8)
+	grid.add_theme_constant_override("v_separation", 8)
+	calendar_rect.add_child(grid)
+	
+	for i in range(1, 16): 
+		var day_box = ColorRect.new()
+		day_box.custom_minimum_size = Vector2(32, 24)
+		day_box.color = Color.WHITE if i != GameManager.current_day else Color(0.9, 0.4, 0.4)
+		
+		var border = ReferenceRect.new()
+		border.set_anchors_preset(Control.PRESET_FULL_RECT)
+		border.border_color = Color.BLACK
+		border.border_width = 1
+		day_box.add_child(border)
+		
+		var lbl = Label.new()
+		lbl.text = str(i)
+		lbl.add_theme_color_override("font_color", Color.BLACK)
+		lbl.add_theme_font_size_override("font_size", 10)
+		lbl.position = Vector2(2, 2)
+		day_box.add_child(lbl)
+		
+		var has_event = false
+		for c in GameManager.active_contracts:
+			if c.has("pending_route_days") and (GameManager.current_day + c["pending_route_days"] == i): has_event = true
+			elif not c.has("pending_route_days") and (GameManager.current_day + c["days_left"] == i): has_event = true
+		
+		for r in GameManager.routes_under_construction.keys():
+			var days_left = GameManager.routes_under_construction[r]
+			if GameManager.current_day + days_left == i: has_event = true
+		
+		if has_event and i != GameManager.current_day:
+			var ex = Label.new()
+			ex.text = "X"
+			ex.add_theme_color_override("font_color", Color.RED)
+			ex.position = Vector2(12, 4)
+			day_box.add_child(ex)
+			
+		grid.add_child(day_box)
