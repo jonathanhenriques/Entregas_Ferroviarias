@@ -203,21 +203,16 @@ func _generate_biomes() -> void:
 
 			if char == "F": 
 				biome_map[cell] = Biome.FOREST
-			else:
-				if char == "M": 
-					biome_map[cell] = Biome.MOUNTAIN
-				else:
-					if char == "R": 
-						biome_map[cell] = Biome.RIVER
-					else:
-						if char == "A": 
-							city_a = cell
-						else:
-							if char == "B": 
-								city_b = cell
-							else:
-								if char == "C": 
-									city_c = cell
+			elif char == "M": 
+				biome_map[cell] = Biome.MOUNTAIN
+			elif char == "R": 
+				biome_map[cell] = Biome.RIVER
+			elif char == "A": 
+				city_a = cell
+			elif char == "B": 
+				city_b = cell
+			elif char == "C": 
+				city_c = cell
 
 	if level_info.has("gang_layout"):
 		var g_layout = level_info["gang_layout"]
@@ -228,15 +223,17 @@ func _generate_biomes() -> void:
 				if cell.x >= grid_width or cell.y >= grid_height or cell.x < 0 or cell.y < 0: continue
 				if row[x] == "G": gang_map[cell] = true
 
+
+
 func _setup_ui() -> void:
 	ui_layer = CanvasLayer.new()
 	add_child(ui_layer)
 
-	var map_limit_x = grid_width * TILE_SIZE 
-	var right_panel_width = 1920 - map_limit_x 
+	var map_limit_x = grid_width * TILE_SIZE # 1280px
+	var right_panel_width = 1920 - map_limit_x # 640px
 	
 	# ==========================================================
-	# 1. ESTAÇÃO DE TRIAGEM (Quadrante Direito) - INTACTA
+	# 1. ESTAÇÃO DE TRIAGEM (Quadrante Topo-Direito, Parede/Fundo)
 	# ==========================================================
 	inspection_bg = ColorRect.new()
 	inspection_bg.color = Color(0.12, 0.14, 0.16)
@@ -256,13 +253,6 @@ func _setup_ui() -> void:
 	lbl_queue_count.add_theme_color_override("font_color", Color(0.8, 0.8, 0.3))
 	lbl_queue_count.position = Vector2(400, 20)
 	inspection_bg.add_child(lbl_queue_count)
-
-	lbl_timer = Label.new()
-	lbl_timer.text = "PARTIDA EM: 00:00"
-	lbl_timer.add_theme_font_size_override("font_size", 20)
-	lbl_timer.add_theme_color_override("font_color", Color(0.9, 0.2, 0.2))
-	lbl_timer.position = Vector2(400, 50)
-	inspection_bg.add_child(lbl_timer)
 
 	var scale_base = ColorRect.new()
 	scale_base.color = Color(0.7, 0.75, 0.7)
@@ -347,6 +337,9 @@ func _setup_ui() -> void:
 	lbl_strike_warning.visible = false
 	inspection_bg.add_child(lbl_strike_warning)
 
+	# ==========================================================
+	# 2. A MESA DO DIRETOR (Base do Painel 1/3)
+	# ==========================================================
 	desk_bg = ColorRect.new()
 	desk_bg.color = Color(0.4, 0.28, 0.2) 
 	desk_bg.size = Vector2(right_panel_width, 730)
@@ -445,20 +438,14 @@ func _setup_ui() -> void:
 	manual_bg.add_child(man_text)
 
 	# ==========================================================
-	# 2. NOVO HUD DO MAPA (MENU INFERIOR E LEGENDA)
+	# 3. HUD DO MAPA (Legenda + Botões + Popups restritos à direita)
 	# ==========================================================
-	panel_overlay = ColorRect.new()
-	panel_overlay.color = Color(0, 0, 0, 0.8) 
-	panel_overlay.size = Vector2(1920 - map_limit_x, 1080)
-	panel_overlay.position = Vector2(map_limit_x, 0)
-	panel_overlay.visible = false
-	ui_layer.add_child(panel_overlay)
 	
-	# LEGENDA DOS BIOMAS
+	# ---> A LEGENDA DOS BIOMAS RESTAURADA (Canto inferior esquerdo) <---
 	var legend_bg = ColorRect.new()
-	legend_bg.color = Color(0.95, 0.95, 0.95, 0.85)
+	legend_bg.color = Color(0.95, 0.95, 0.95, 0.9)
 	legend_bg.size = Vector2(140, 140)
-	legend_bg.position = Vector2(20, 140) 
+	legend_bg.position = Vector2(20, 1080 - 140 - 20) # Canto inferior esquerdo do mapa
 	ui_layer.add_child(legend_bg)
 	
 	var leg_vbox = VBoxContainer.new()
@@ -467,11 +454,11 @@ func _setup_ui() -> void:
 	legend_bg.add_child(leg_vbox)
 	
 	var leg_items = [
-		{"name": "Planicie", "color": Color(0.95, 0.95, 0.92)},
-		{"name": "Floresta", "color": Color(0.75, 0.88, 0.75)},
-		{"name": "Rio", "color": Color(0.65, 0.85, 0.95)},
-		{"name": "Montanha", "color": Color(0.85, 0.82, 0.78)},
-		{"name": "Gangues", "color": Color(0.9, 0.4, 0.4, 0.4)}
+		{"name": "Planicie", "color": Color(0.8, 0.9, 0.4)},
+		{"name": "Floresta", "color": Color(0.2, 0.6, 0.2)},
+		{"name": "Rio", "color": Color(0.2, 0.4, 0.8)},
+		{"name": "Montanha", "color": Color(0.6, 0.5, 0.4)},
+		{"name": "Gangues", "color": Color(0.9, 0.2, 0.2, 0.3)}
 	]
 	for item in leg_items:
 		var hb = HBoxContainer.new()
@@ -486,47 +473,51 @@ func _setup_ui() -> void:
 		hb.add_child(l)
 		leg_vbox.add_child(hb)
 
-	# BARRA INFERIOR (BOTTOM BAR)
-	var bottom_bar = ColorRect.new()
-	bottom_bar.color = Color(0.1, 0.1, 0.12, 0.95)
-	bottom_bar.size = Vector2(map_limit_x, 70)
-	bottom_bar.position = Vector2(0, 1080 - 70)
-	ui_layer.add_child(bottom_bar)
-	
-	var map_hbox = HBoxContainer.new()
-	map_hbox.position = Vector2(20, 10)
-	map_hbox.size = Vector2(map_limit_x - 40, 50)
-	map_hbox.add_theme_constant_override("separation", 20)
-	bottom_bar.add_child(map_hbox)
 
+	# ---> ESCURECIMENTO (Overlay cobrindo APENAS a tela de pesagem à direita) <---
+	panel_overlay = ColorRect.new()
+	panel_overlay.color = Color(0, 0, 0, 0.8) 
+	panel_overlay.size = Vector2(right_panel_width, 1080) 
+	panel_overlay.position = Vector2(map_limit_x, 0)
+	panel_overlay.visible = false
+	ui_layer.add_child(panel_overlay)
+
+
+	# ---> BOTÕES DO MAPA (Canto inferior direito do mapa) <---
+	var ui_area_width = 250
+	var btn_x = map_limit_x - ui_area_width - 20 
+	var start_y = (grid_height * TILE_SIZE) - 200 
+	
 	btn_go_desk = Button.new()
-	btn_go_desk.text = "<- IR PARA ESCRITORIO"
-	btn_go_desk.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn_go_desk.text = "<- Ir para Escritorio"
+	btn_go_desk.position = Vector2(btn_x, start_y)
+	btn_go_desk.size = Vector2(ui_area_width, 40)
 	btn_go_desk.pressed.connect(_on_go_desk_pressed)
-	map_hbox.add_child(btn_go_desk)
+	ui_layer.add_child(btn_go_desk)
 	
 	btn_edit_mode = Button.new()
-	btn_edit_mode.text = "[ ⚠️ OBRAS ]"
+	btn_edit_mode.text = "[ MODO OBRAS ]"
+	btn_edit_mode.position = Vector2(btn_x, start_y + 50)
+	btn_edit_mode.size = Vector2(ui_area_width, 40)
 	btn_edit_mode.add_theme_color_override("font_color", Color.YELLOW)
-	btn_edit_mode.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	btn_edit_mode.pressed.connect(_on_edit_mode_pressed)
-	map_hbox.add_child(btn_edit_mode)
+	ui_layer.add_child(btn_edit_mode)
 
 	btn_maint = Button.new()
-	btn_maint.text = "[ 📖 ORCAMENTO ]"
+	btn_maint.text = "[/!\\ ] Orcamento"
+	btn_maint.position = Vector2(btn_x, start_y + 100)
+	btn_maint.size = Vector2(ui_area_width, 40)
 	btn_maint.add_theme_color_override("font_color", Color.ORANGE)
-	btn_maint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	btn_maint.pressed.connect(_on_btn_maint_pressed)
-	map_hbox.add_child(btn_maint)
+	ui_layer.add_child(btn_maint)
 
-	# ==========================================================
-	# 3. PAINÉIS DE POPUP (OBRAS E MANUTENÇÃO)
-	# ==========================================================
+
+	# ---> POPUPS DE OBRAS E ORÇAMENTO (Centralizados sobre a tela de pesagem à direita) <---
 	var right_center_x = map_limit_x + (right_panel_width / 2.0)
 
 	edit_panel = ColorRect.new()
 	edit_panel.color = Color(0.1, 0.1, 0.15, 0.95)
-	edit_panel.position = Vector2(right_center_x - 170, 200) 
+	edit_panel.position = Vector2(right_center_x - 170, 200)
 	edit_panel.size = Vector2(340, 560) 
 	edit_panel.visible = false
 	ui_layer.add_child(edit_panel)
@@ -1288,144 +1279,118 @@ func _bfs_get_path_array(start_node: Vector2i, target_node: Vector2i, valid_tile
 				queue.push_back(new_path)
 	return []
 
-func _is_cell_occupied_by_track(cell: Vector2i) -> bool:
-	for route in confirmed_routes:
-		if cell in route: return true
-	if cell in tentative_path: return true
-	for draft in draft_paths:
-		if cell in draft: return true
-	if not GameManager.pending_blueprint.is_empty():
-		for draft in GameManager.pending_blueprint.get("draft_paths", []):
-			if cell in draft: return true
-	return false
 
 func _draw() -> void:
-	var default_font = ThemeDB.fallback_font
-	
-	# 1. BIOMAS E FUNDO (Cores sólidas minimalistas)
 	for x in range(grid_width):
 		for y in range(grid_height):
 			var cell = Vector2i(x, y)
-			var rect = Rect2(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE)
 			var b = biome_map.get(cell, Biome.PLAIN)
-			
-			var bg_color = Color(0.95, 0.95, 0.92) # Planície (Bege muito claro)
-			if b == Biome.FOREST: bg_color = Color(0.75, 0.88, 0.75) # Verde suave
-			elif b == Biome.MOUNTAIN: bg_color = Color(0.85, 0.82, 0.78) # Cinza/Castanho suave
-			elif b == Biome.RIVER: bg_color = Color(0.65, 0.85, 0.95) # Azul suave
-			
-			draw_rect(rect, bg_color)
-			
-			# Área de Gangues (Subtil sobreposição avermelhada)
-			if gang_map.has(cell):
-				draw_rect(rect, Color(0.9, 0.4, 0.4, 0.25))
+			var bg_color = BIOME_DATA[b]["color"]
+			if b == Biome.FOREST: bg_color = BIOME_DATA[Biome.PLAIN]["color"]
+			draw_rect(Rect2(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE), bg_color)
+			if b == Biome.FOREST and not _is_cell_occupied_by_track(cell):
+				var p1 = Vector2(x * TILE_SIZE + 16, y * TILE_SIZE + 6)
+				var p2 = Vector2(x * TILE_SIZE + 6, y * TILE_SIZE + 26)
+				var p3 = Vector2(x * TILE_SIZE + 26, y * TILE_SIZE + 26)
+				draw_polygon(PackedVector2Array([p1, p2, p3]), [Color(0.15, 0.4, 0.15)])
+
+	for cell in gang_map.keys():
+		draw_rect(Rect2(cell.x * TILE_SIZE, cell.y * TILE_SIZE, TILE_SIZE, TILE_SIZE), Color(0.8, 0.1, 0.1, 0.4))
+
+	for x in range(grid_width + 1):
+		draw_line(Vector2(x * TILE_SIZE, 0), Vector2(x * TILE_SIZE, grid_height * TILE_SIZE), Color(0, 0, 0, 0.1), 1.0)
+	for y in range(grid_height + 1):
+		draw_line(Vector2(0, y * TILE_SIZE), Vector2(grid_width * TILE_SIZE, y * TILE_SIZE), Color(0, 0, 0, 0.1), 1.0)
+
+	var valid_built = {}
+	for r in confirmed_routes:
+		for c in r: valid_built[c] = true
+	if city_a != Vector2i(-1, -1): valid_built[city_a] = true
+	if city_b != Vector2i(-1, -1): valid_built[city_b] = true
+	if city_c != Vector2i(-1, -1): valid_built[city_c] = true
+	
+	var path_ab = []
+	var path_ac = []
+	var path_bc = []
+	if city_a != Vector2i(-1, -1) and city_b != Vector2i(-1, -1): path_ab = _bfs_get_path_array(city_a, city_b, valid_built)
+	if city_a != Vector2i(-1, -1) and city_c != Vector2i(-1, -1): path_ac = _bfs_get_path_array(city_a, city_c, valid_built)
+	if city_b != Vector2i(-1, -1) and city_c != Vector2i(-1, -1): path_bc = _bfs_get_path_array(city_b, city_c, valid_built)
+
+	var const_cells = {}
+	if GameManager.routes_under_construction.get("Azul-Vermelha", 0) > 0:
+		for c in path_ab: const_cells[c] = GameManager.routes_under_construction["Azul-Vermelha"]
+	if GameManager.routes_under_construction.get("Azul-Verde", 0) > 0:
+		for c in path_ac: const_cells[c] = GameManager.routes_under_construction["Azul-Verde"]
+	if GameManager.routes_under_construction.get("Vermelha-Verde", 0) > 0:
+		for c in path_bc: const_cells[c] = GameManager.routes_under_construction["Vermelha-Verde"]
+
+	var drawn_texts = {}
+	for route in confirmed_routes: 
+		var is_del = deleted_paths.has(route)
+		if not GameManager.pending_blueprint.is_empty():
+			for d in GameManager.pending_blueprint.get("deleted_paths", []):
+				if _are_routes_equal(route, d): is_del = true
+
+		var route_is_const = false
+		var max_d = 0
+		for cell in route:
+			if const_cells.has(cell):
+				route_is_const = true
+				if const_cells[cell] > max_d: max_d = const_cells[cell]
 				
-			# Grelha Subtil (Para manter a jogabilidade de construção precisa)
-			draw_rect(rect, Color(0.0, 0.0, 0.0, 0.04), false, 1.0)
-			
-	# 2. DESMATAÇÃO VISUAL (Madeira/Terra cortada na floresta)
-	var built_cells = {}
-	for r in confirmed_routes:
-		for c in r: built_cells[c] = true
-	for p in draft_paths:
-		for c in p: built_cells[c] = true
-		
-	for cell in built_cells.keys():
-		if biome_map.get(cell) == Biome.FOREST:
-			var center = _get_center(cell)
-			# Círculo castanho simbolizando a terra aberta na floresta
-			draw_circle(center, TILE_SIZE * 0.35, Color(0.55, 0.4, 0.3))
+		_draw_custom_track(route, false, route_is_const, is_del) 
+		if route_is_const and not is_del and route.size() > 2:
+			var mid = route[route.size() / 2]
+			var px = mid.x * TILE_SIZE + 16
+			var py = mid.y * TILE_SIZE + 16
+			var mid_str = str(mid.x) + "_" + str(mid.y)
+			if not drawn_texts.has(mid_str):
+				drawn_texts[mid_str] = true
+				draw_rect(Rect2(px - 50, py - 12, 100, 24), Color(0.1, 0.1, 0.1, 0.9))
+				draw_string(ThemeDB.fallback_font, Vector2(px - 45, py + 4), "[ OBRAS: " + str(max_d) + "d ]", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color.ORANGE)
+	
+	for draft in draft_paths: _draw_custom_track(draft, true, false, false)
+	_draw_custom_track(tentative_path, true, false, false)
 
-	# 3. CARRIS (Linhas vetoriais grossas e contínuas)
-	for r in confirmed_routes:
-		if deleted_paths.has(r): continue
-		_draw_vector_path(r, Color(0.2, 0.2, 0.22), 8.0) # Carril Padrão
-		
-	for p in draft_paths:
-		_draw_vector_path(p, Color(0.2, 0.6, 0.8, 0.85), 8.0) # Carril em Rascunho (Azul)
-		
-	if tentative_path.size() > 0:
-		_draw_vector_path(tentative_path, Color(0.8, 0.8, 0.2, 0.8), 6.0) # Traçando (Amarelo)
-		
-	for p in deleted_paths:
-		_draw_vector_path(p, Color(0.9, 0.2, 0.2, 0.6), 6.0) # Rota a ser demolida
-		
-	# 4. MANUTENÇÃO E FALHAS
-	for cell in repair_tiles:
-		draw_circle(_get_center(cell), TILE_SIZE * 0.4, Color(0.9, 0.8, 0.2, 0.6))
-		
+	if not GameManager.pending_blueprint.is_empty():
+		for draft in GameManager.pending_blueprint.get("draft_paths", []):
+			_draw_custom_track(draft, true, false, false)
+			if draft.size() > 2:
+				var mid = draft[draft.size() / 2]
+				var px = mid.x * TILE_SIZE + 16
+				var py = mid.y * TILE_SIZE + 16
+				var mid_str = "plan_" + str(mid.x) + "_" + str(mid.y)
+				if not drawn_texts.has(mid_str):
+					drawn_texts[mid_str] = true
+					draw_rect(Rect2(px - 75, py - 12, 150, 24), Color(0.1, 0.2, 0.4, 0.9))
+					draw_string(ThemeDB.fallback_font, Vector2(px - 70, py + 4), "[ AGUARDANDO APROV. ]", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color.SKY_BLUE)
+					
+		for cell in GameManager.pending_blueprint.get("repair_tiles", []):
+			draw_arc(Vector2(cell.x * TILE_SIZE + 16, cell.y * TILE_SIZE + 16), 18.0, 0, TAU, 16, Color.SKY_BLUE, 3.0)
+
+	if city_a != Vector2i(-1, -1): draw_rect(Rect2(city_a.x * TILE_SIZE, city_a.y * TILE_SIZE, TILE_SIZE, TILE_SIZE), Color.DODGER_BLUE)
+	if city_b != Vector2i(-1, -1): draw_rect(Rect2(city_b.x * TILE_SIZE, city_b.y * TILE_SIZE, TILE_SIZE, TILE_SIZE), Color.CRIMSON)
+	if city_c != Vector2i(-1, -1): draw_rect(Rect2(city_c.x * TILE_SIZE, city_c.y * TILE_SIZE, TILE_SIZE, TILE_SIZE), Color.FOREST_GREEN)
+	
+	if has_method("_draw_trains"):
+		_draw_trains()
+	
 	for cell in GameManager.broken_tiles:
-		var center = _get_center(cell)
-		draw_circle(center, TILE_SIZE * 0.4, Color(0.9, 0.2, 0.2, 0.7))
-		draw_string(default_font, center + Vector2(-6, 6), "X", HORIZONTAL_ALIGNMENT_CENTER, -1, 16, Color.WHITE)
-
-	# 5. CIDADES (Nomes e Ícones Minimalistas)
-	if city_a != Vector2i(-1, -1):
-		_draw_city(city_a, Color(0.2, 0.4, 0.8), "Cidade A (Azul)")
-	if city_b != Vector2i(-1, -1):
-		_draw_city(city_b, Color(0.8, 0.2, 0.2), "Cidade B (Vermelha)")
-	if city_c != Vector2i(-1, -1):
-		_draw_city(city_c, Color(0.2, 0.7, 0.3), "Cidade C (Verde)")
-
-
-
-
-
-func _get_track_color(b: int, is_preview: bool, is_construction: bool, is_deleted: bool = false) -> Color:
-	if is_deleted: return Color(0.8, 0.2, 0.2, 0.7) 
-	if is_preview: return Color.YELLOW
-	if is_construction: return Color(0.9, 0.7, 0.1) 
-	if b == Biome.RIVER: return Color.SADDLE_BROWN 
-	if b == Biome.MOUNTAIN: return Color.DARK_SLATE_GRAY 
-	return Color.BLACK
-
-func _draw_custom_track(path: Array, is_preview: bool, is_const: bool, is_deleted: bool = false) -> void:
-	if path.size() == 0: return
-	if path.size() == 1:
-		draw_circle(Vector2(path[0].x * 32 + 16, path[0].y * 32 + 16), 5.0, _get_track_color(biome_map.get(path[0], Biome.PLAIN), is_preview, is_const, is_deleted))
-		return
-	for cell in path:
+		var px = cell.x * TILE_SIZE + 16
+		var py = cell.y * TILE_SIZE + 16
 		if biome_map.get(cell, Biome.PLAIN) == Biome.FOREST:
-			draw_circle(Vector2(cell.x * 32 + 10, cell.y * 32 + 10), 5.0, Color(0.85, 0.75, 0.55))
-			draw_circle(Vector2(cell.x * 32 + 10, cell.y * 32 + 10), 2.0, Color(0.7, 0.6, 0.4))
-	for i in range(path.size() - 1):
-		var p1_cell = path[i]
-		var p2_cell = path[i+1]
-		var b1 = biome_map.get(p1_cell, Biome.PLAIN)
-		var b2 = biome_map.get(p2_cell, Biome.PLAIN)
-		var segment_biome = Biome.PLAIN
-		if b1 == Biome.MOUNTAIN or b2 == Biome.MOUNTAIN: segment_biome = Biome.MOUNTAIN
+			draw_circle(Vector2(px, py), 14.0, Color(0.8, 0.2, 0.0))
+			draw_circle(Vector2(px, py - 4), 8.0, Color(0.9, 0.6, 0.1))
 		else:
-			if b1 == Biome.RIVER or b2 == Biome.RIVER: segment_biome = Biome.RIVER
-			else:
-				if b1 == Biome.FOREST or b2 == Biome.FOREST: segment_biome = Biome.FOREST
-		
-		var line_color = _get_track_color(segment_biome, is_preview, is_const, is_deleted)
-		var line_width = 3.0
-		if segment_biome == Biome.MOUNTAIN:
-			line_width = 7.0
-			
-		var p1 = Vector2(p1_cell.x * 32 + 16, p1_cell.y * 32 + 16)
-		var p2 = Vector2(p2_cell.x * 32 + 16, p2_cell.y * 32 + 16)
-		draw_line(p1, p2, line_color, line_width)
-		
-		if segment_biome != Biome.MOUNTAIN:
-			var dir = (p2 - p1).normalized()
-			var normal = Vector2(-dir.y, dir.x)
-			var spacing = 10.0
-			if segment_biome == Biome.RIVER:
-				spacing = 5.0
-			var num_ties = int(p1.distance_to(p2) / spacing)
-			var tie_color = line_color
-			if segment_biome == Biome.RIVER and not is_preview:
-				tie_color = Color(0.3, 0.2, 0.1)
-			else:
-				if is_const and not is_deleted:
-					tie_color = Color.BLACK
-			
-			for j in range(1, num_ties + 1):
-				var tie_center = p1 + dir * (j * spacing)
-				draw_line(tie_center - normal * 5.0, tie_center + normal * 5.0, tie_color, 2.0)
+			draw_line(Vector2(px - 14, py - 14), Vector2(px + 14, py + 14), Color.RED, 4.0)
+			draw_line(Vector2(px + 14, py - 14), Vector2(px - 14, py + 14), Color.RED, 4.0)
+		if repair_tiles.has(cell):
+			draw_arc(Vector2(px, py), 18.0, 0, TAU, 16, Color.YELLOW, 3.0)
+
+	# Fundo preto sob a UI
+	var panel_x = grid_width * TILE_SIZE
+	draw_rect(Rect2(panel_x, 0, 1920 - panel_x, 1088), Color.BLACK)
+
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not visible: return
@@ -1774,3 +1739,80 @@ func _update_status_panel() -> void:
 		hbox.add_child(icon)
 		hbox.add_child(lbl)
 		status_vbox.add_child(hbox)
+		
+		
+func _draw_classic_city(cell: Vector2i, color: Color, name: String) -> void:
+	var rect = Rect2(cell.x * TILE_SIZE, cell.y * TILE_SIZE, TILE_SIZE, TILE_SIZE)
+	draw_rect(rect, color)
+	
+	var center = _get_center(cell)
+	draw_rect(Rect2(center.x - 6, center.y - 6, 12, 12), Color.WHITE)
+	
+	var default_font = ThemeDB.fallback_font
+	var text_size = default_font.get_string_size(name, HORIZONTAL_ALIGNMENT_CENTER, -1, 14)
+	draw_string(default_font, center + Vector2(-text_size.x / 2.0, 30), name, HORIZONTAL_ALIGNMENT_CENTER, -1, 14, Color(0.1, 0.1, 0.15))
+	
+	
+func _is_cell_occupied_by_track(cell: Vector2i) -> bool:
+	for route in confirmed_routes:
+		if cell in route: return true
+	if cell in tentative_path: return true
+	for draft in draft_paths:
+		if cell in draft: return true
+	if not GameManager.pending_blueprint.is_empty():
+		for draft in GameManager.pending_blueprint.get("draft_paths", []):
+			if cell in draft: return true
+	return false
+
+func _get_track_color(b: int, is_preview: bool, is_construction: bool, is_deleted: bool = false) -> Color:
+	if is_deleted: return Color(0.8, 0.2, 0.2, 0.7) 
+	if is_preview: return Color.YELLOW
+	if is_construction: return Color(0.9, 0.7, 0.1) 
+	if b == Biome.RIVER: return Color.SADDLE_BROWN 
+	if b == Biome.MOUNTAIN: return Color.DARK_SLATE_GRAY 
+	return Color.BLACK
+
+func _draw_custom_track(path: Array, is_preview: bool, is_const: bool, is_deleted: bool = false) -> void:
+	if path.size() == 0: return
+	if path.size() == 1:
+		draw_circle(Vector2(path[0].x * 32 + 16, path[0].y * 32 + 16), 5.0, _get_track_color(biome_map.get(path[0], Biome.PLAIN), is_preview, is_const, is_deleted))
+		return
+	for cell in path:
+		if biome_map.get(cell, Biome.PLAIN) == Biome.FOREST:
+			draw_circle(Vector2(cell.x * 32 + 10, cell.y * 32 + 10), 5.0, Color(0.85, 0.75, 0.55))
+			draw_circle(Vector2(cell.x * 32 + 10, cell.y * 32 + 10), 2.0, Color(0.7, 0.6, 0.4))
+	for i in range(path.size() - 1):
+		var p1_cell = path[i]
+		var p2_cell = path[i+1]
+		var b1 = biome_map.get(p1_cell, Biome.PLAIN)
+		var b2 = biome_map.get(p2_cell, Biome.PLAIN)
+		var segment_biome = Biome.PLAIN
+		if b1 == Biome.MOUNTAIN or b2 == Biome.MOUNTAIN: segment_biome = Biome.MOUNTAIN
+		elif b1 == Biome.RIVER or b2 == Biome.RIVER: segment_biome = Biome.RIVER
+		elif b1 == Biome.FOREST or b2 == Biome.FOREST: segment_biome = Biome.FOREST
+		
+		var line_color = _get_track_color(segment_biome, is_preview, is_const, is_deleted)
+		var line_width = 3.0
+		if segment_biome == Biome.MOUNTAIN:
+			line_width = 7.0
+			
+		var p1 = Vector2(p1_cell.x * 32 + 16, p1_cell.y * 32 + 16)
+		var p2 = Vector2(p2_cell.x * 32 + 16, p2_cell.y * 32 + 16)
+		draw_line(p1, p2, line_color, line_width)
+		
+		if segment_biome != Biome.MOUNTAIN:
+			var dir = (p2 - p1).normalized()
+			var normal = Vector2(-dir.y, dir.x)
+			var spacing = 10.0
+			if segment_biome == Biome.RIVER:
+				spacing = 5.0
+			var num_ties = int(p1.distance_to(p2) / spacing)
+			var tie_color = line_color
+			if segment_biome == Biome.RIVER and not is_preview:
+				tie_color = Color(0.3, 0.2, 0.1)
+			elif is_const and not is_deleted:
+				tie_color = Color.BLACK
+			
+			for j in range(1, num_ties + 1):
+				var tie_center = p1 + dir * (j * spacing)
+				draw_line(tie_center - normal * 5.0, tie_center + normal * 5.0, tie_color, 2.0)
