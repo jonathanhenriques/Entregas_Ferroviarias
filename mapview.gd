@@ -728,7 +728,6 @@ func _setup_popups(right_center_x: float) -> void:
 	btn_close_maint.pressed.connect(_on_btn_close_maint_pressed)
 	maint_panel.add_child(btn_close_maint)
 
-
 # === LÓGICA DA TRIAGEM ===
 
 func _clear_inspection_desk() -> void:
@@ -979,26 +978,33 @@ func _on_cancel_edit_pressed() -> void:
 
 
 func _on_confirm_edit_pressed() -> void:
-	var affected_tiles = {}
-	for d in deleted_paths:
-		for cell in d: affected_tiles[cell] = true
-	for r_cell in repair_tiles: affected_tiles[r_cell] = true
-	for p in draft_paths:
-		for cell in p: affected_tiles[cell] = true
-		
-	var built = {}
-	for route in confirmed_routes:
-		for cell in route: built[cell] = true
-	built[city_a] = true
-	built[city_b] = true
-	built[city_c] = true
+	if tentative_path.size() < 2: 
+		return
 	
-	var untouched = built.duplicate()
-	for bt in GameManager.broken_tiles: untouched.erase(bt)
-	for cell in affected_tiles.keys(): untouched.erase(cell)
+	var dist = tentative_path.size()
+	var forests = 0
+	var gangs = 0
 	
+	for cell in tentative_path:
+		var b = biome_map.get(cell, Biome.PLAIN)
+		if b == Biome.FOREST: 
+			forests += 1
+		if gang_map.has(cell): 
+			gangs += 1
+
 	var r_cd = []
 	var route_desc_string = ""
+	
+	var valid_built = {}
+	for route in confirmed_routes:
+		for cell in route: 
+			valid_built[cell] = true
+	valid_built[city_a] = true
+	valid_built[city_b] = true
+	valid_built[city_c] = true
+	var untouched = valid_built.duplicate()
+	for bt in GameManager.broken_tiles: 
+		untouched.erase(bt)
 	
 	if _bfs_shortest_dist(city_a, city_b, untouched, false, false) == -1: 
 		r_cd.append("Azul-Vermelha")
@@ -1009,33 +1015,28 @@ func _on_confirm_edit_pressed() -> void:
 	if _bfs_shortest_dist(city_b, city_c, untouched, false, false) == -1: 
 		r_cd.append("Vermelha-Verde")
 		route_desc_string += "Ligacao: Estacao Vermelha para Verde\n"
-		
-	if route_desc_string == "": route_desc_string = "Manutencao ou Demolicao da Malha"
 
 	GameManager.pending_blueprint = {
 		"draft_paths": draft_paths.duplicate(true),
-		"deleted_paths": deleted_paths.duplicate(true),
 		"repair_tiles": repair_tiles.duplicate(true),
+		"deleted_paths": deleted_paths.duplicate(true),
 		"net_cost": net_cost,
 		"tax_env": current_env_tax,
 		"tax_eng": current_eng_tax,
 		"tax_sec": current_sec_tax,
 		"total_cost": current_total_cost,
 		"routes_to_cooldown": r_cd,
-		"route_description": route_desc_string
+		"route_description": route_desc_string,
+		"dist": dist,
+		"forests": forests,
+		"gangs": gangs
 	}
 	
-	GameManager.save_game()
-	
-	# === CORREÇÃO DO BUG ===
-	# 1. Limpa o modo de edição visualmente
-	_on_cancel_edit_pressed() 
-	
-	# 2. Atualiza as rotas confirmadas a partir do estado atualizado do GameManager
-	confirmed_routes = GameManager.saved_routes.duplicate()
-	
-	# 3. Força um redesenho imediato para garantir que a planta gerada apareça
-	queue_redraw()
+	var event = InputEventMouseButton.new()
+	event.button_index = MOUSE_BUTTON_LEFT
+	event.pressed = true
+	_on_go_desk_pressed()
+
 
 
 

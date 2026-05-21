@@ -105,27 +105,30 @@ func _setup_visuals() -> void:
 	btn_close.pressed.connect(_on_close)
 	dialog_box.add_child(btn_close)
 
+	# LARGURA AUMENTADA E DISTRIBUÍDA PARA NÃO SOBREPOR
 	btn_opt_1 = Button.new()
-	btn_opt_1.text = "[ Pagar Pedagio ($150) ]"
-	btn_opt_1.size = Vector2(350, 50)
-	btn_opt_1.position = Vector2(50, 230)
+	btn_opt_1.text = "[ Opção 1 ]"
+	btn_opt_1.size = Vector2(420, 50)
+	btn_opt_1.position = Vector2(40, 230)
 	btn_opt_1.pressed.connect(_on_opt_1)
 	dialog_box.add_child(btn_opt_1)
 
 	btn_opt_2 = Button.new()
-	btn_opt_2.text = "[ Recuar (Atrasa a Carga) ]"
-	btn_opt_2.size = Vector2(350, 50)
-	btn_opt_2.position = Vector2(450, 230)
+	btn_opt_2.text = "[ Opção 2 ]"
+	btn_opt_2.size = Vector2(420, 50)
+	btn_opt_2.position = Vector2(480, 230)
 	btn_opt_2.pressed.connect(_on_opt_2)
 	dialog_box.add_child(btn_opt_2)
 	
 	btn_opt_3 = Button.new()
-	btn_opt_3.text = "[ Avancar a Forca (Risco) ]"
-	btn_opt_3.size = Vector2(350, 50)
-	btn_opt_3.position = Vector2(850, 230)
+	btn_opt_3.text = "[ Opção 3 ]"
+	btn_opt_3.size = Vector2(420, 50)
+	btn_opt_3.position = Vector2(920, 230)
 	btn_opt_3.add_theme_color_override("font_color", Color.INDIAN_RED)
 	btn_opt_3.pressed.connect(_on_opt_3)
 	dialog_box.add_child(btn_opt_3)
+
+
 
 func _input(event: InputEvent) -> void:
 	if visible:
@@ -143,16 +146,16 @@ func start_call(company_name: String, company_type: String, company_cargo: Strin
 	var mult = 1.0 + (dice * 0.1)
 	offered_reward = int(base_reward * mult)
 	
-	name_label.text = "[ TRANSMISSAO: " + company_name.to_upper() + " ]"
+	name_label.text = "[ TRANSMISSÃO: " + company_name.to_upper() + " ]"
 	
 	if is_urgent:
 		name_label.add_theme_color_override("font_color", Color.ORANGE)
-		full_text = "Alo? Pelo amor de Deus, sou da " + company_name + "!\n"
+		full_text = "Alô? Pelo amor de Deus, sou da " + company_name + "!\n"
 		full_text += "Temos um frete URGENTE de " + company_cargo + " [" + company_type + "] que precisa sair HOJE!\n"
-		full_text += "Pagamos $" + str(offered_reward) + " A VISTA na sua conta agora! Tem um trem livre?"
+		full_text += "Pagamos $" + str(offered_reward) + " À VISTA na sua conta agora! Tem um trem livre?"
 	else:
-		full_text = "Alo? Sou o representante da " + company_name + ".\n"
-		full_text += "Temos um frete padrao de " + company_cargo + " [" + company_type + "] parado aqui.\n"
+		full_text = "Alô? Sou o representante da " + company_name + ".\n"
+		full_text += "Temos um frete padrão de " + company_cargo + " [" + company_type + "] parado aqui.\n"
 		full_text += "Pagamos $" + str(offered_reward) + " por dia. Aceita os nossos termos?"
 
 	_type_next_char(true)
@@ -165,12 +168,12 @@ func start_risk_call(company_name: String, route_name: String, base_reward: int)
 	var mult = 1.0 + (dice * 0.1)
 	offered_reward = int(base_reward * mult)
 	
-	name_label.text = "[ TRANSMISSAO: " + company_name.to_upper() + " ]"
+	name_label.text = "[ TRANSMISSÃO: " + company_name.to_upper() + " ]"
 	name_label.add_theme_color_override("font_color", Color.GOLDENROD)
 	
-	full_text = "Vejo que a sua via para " + route_name + " nao esta pronta. O nosso frete e urgente.\n"
-	full_text += "Assino o contrato hoje, mas voce tem 3 dias para colocar esse trem nos trilhos levando minha carga.\n"
-	full_text += "Se falhar, os meus advogados destroem a sua empresa. Estamos entendidos?"
+	full_text = "Vejo que a sua via para " + route_name + " não está pronta. O nosso frete é urgente.\n"
+	full_text += "Assino o contrato hoje, mas você tem 3 dias para colocar esse trem nos trilhos levando a minha carga.\n"
+	full_text += "Se falhar, os meus advogados destruirão a sua empresa. Estamos entendidos?"
 	
 	_type_next_char(true)
 
@@ -178,31 +181,30 @@ func start_rejection_call(company_name: String, custom_reason: String = "") -> v
 	_reset_ui()
 	current_mode = "REJECT"
 	
-	name_label.text = "[ TRANSMISSAO: " + company_name.to_upper() + " ]"
+	name_label.text = "[ TRANSMISSÃO: " + company_name.to_upper() + " ]"
 	name_label.add_theme_color_override("font_color", Color.INDIAN_RED)
 	
 	if custom_reason == "":
-		full_text = "Voce esta de brincadeira comigo? Acabei de ver os relatorios dos fiscais...\n"
-		full_text += "A sua empresa NAO TEM infraestrutura construida nesta regiao!\n"
-		full_text += "Vou bloquear o seu numero. So ligue quando for profissional."
+		full_text = "Você está de brincadeira comigo? Acabei de ver os relatórios dos fiscais...\n"
+		full_text += "A sua empresa NÃO TEM infraestrutura construída nesta região!\n"
+		full_text += "Vou bloquear o seu número. Só ligue quando for profissional."
 	else:
-		full_text = "Avaliamos a sua rota e nao podemos fechar negocio!\n"
+		full_text = "Avaliamos a sua rota e não podemos fechar negócio!\n"
 		full_text += custom_reason + "\n"
-		full_text += "Refaca os trilhos e volte a ligar. Ate la, estao bloqueados."
+		full_text += "Refaça os trilhos e volte a ligar. Até lá, estão bloqueados."
 	
 	_type_next_char(false)
 
-# CORREÇÃO DO BUG DE TEXTO: Cliente agora relata o real motivo do cancelamento do Risco.
 func start_angry_call() -> void:
 	_reset_ui()
 	current_mode = "ANGRY"
 	
-	name_label.text = "[ TRANSMISSAO: CLIENTE FURIOSO ]"
+	name_label.text = "[ TRANSMISSÃO: CLIENTE FURIOSO ]"
 	name_label.add_theme_color_override("font_color", Color.RED)
 	
-	full_text = "VOCE ACHA QUE SOMOS PALHACOS? O nosso prazo estourou e o trem nao saiu do lugar!\n"
-	full_text += "A via nao atendeu as exigencias a tempo! Nao sei se foi atraso nas obras, buraco no trilho ou quebra das regras VIP e Ecologicas...\n"
-	full_text += "O contrato de risco esta rescindido e a multa ja foi debitada da sua conta!"
+	full_text = "VOCÊ ACHA QUE SOMOS PALHAÇOS? O nosso prazo estourou e o trem não saiu do lugar!\n"
+	full_text += "A via não atendeu às exigências a tempo! Não sei se foi atraso nas obras, buraco no trilho ou quebra das regras VIP e Ecológicas...\n"
+	full_text += "O contrato de risco está rescindido e a multa já foi debitada da sua conta!"
 	
 	_type_next_char(false)
 
@@ -210,13 +212,13 @@ func start_boss_intro() -> void:
 	_reset_ui()
 	current_mode = "INTRO"
 	
-	name_label.text = "[ TRANSMISSAO: BEAR (DIRETORIA) ]"
+	name_label.text = "[ TRANSMISSÃO: BEAR (DIRETORIA) ]"
 	name_label.add_theme_color_override("font_color", Color.LIGHT_GRAY)
 	
-	full_text = "Seu avo avisou que voce viria. Temos locomotivas enferrujadas e clientes isolados.\n\n"
-	full_text += "Preste atencao: neste mercado cruel, ninguem assina contrato sem ver trabalho feito.\n"
-	full_text += "Va ao mapa, construa a linha conectando as cidades e so depois ligue para os clientes.\n\n"
-	full_text += "O problema agora e seu."
+	full_text = "Seu avô avisou que você viria. Temos locomotivas enferrujadas e clientes isolados.\n\n"
+	full_text += "Preste atenção: neste mercado cruel, ninguém assina contrato sem ver trabalho feito.\n"
+	full_text += "Vá ao mapa, construa a linha conectando as cidades e só depois ligue para os clientes.\n\n"
+	full_text += "O problema agora é seu."
 	
 	_type_next_char(false)
 
@@ -225,12 +227,12 @@ func start_cancel_warning(company_name: String, idx: int) -> void:
 	current_mode = "CANCEL_WARNING"
 	pending_cancel_idx = idx
 	
-	name_label.text = "[ TRANSMISSAO: " + company_name.to_upper() + " ]"
+	name_label.text = "[ TRANSMISSÃO: " + company_name.to_upper() + " ]"
 	name_label.add_theme_color_override("font_color", Color.ORANGE)
 	
-	full_text = "Voce esta louco?! Quer quebrar o nosso contrato no meio da operacao?!\n\n"
-	full_text += "Se voce fizer isso, nossos advogados vao cobrar a multa de rescisao listada nos relatorios fiscais, "
-	full_text += "e nos NAO faremos negocios com a sua companhia por uma semana inteira!\n\n"
+	full_text = "Você está louco?! Quer quebrar o nosso contrato no meio da operação?!\n\n"
+	full_text += "Se você fizer isso, nossos advogados vão cobrar a multa de rescisão listada nos relatórios fiscais, "
+	full_text += "e nós NÃO faremos negócios com a sua companhia por uma semana inteira!\n\n"
 	full_text += "Tem certeza que quer recolher os trens e rasgar o contrato?!"
 	
 	_type_next_char(true)
@@ -238,27 +240,27 @@ func start_cancel_warning(company_name: String, idx: int) -> void:
 func start_badger_radio() -> void:
 	_reset_ui()
 	
-	name_label.text = "[ FREQUENCIA 104.2: MAQUINISTA BADGER ]"
+	name_label.text = "[ FREQUÊNCIA 104.2: MAQUINISTA BADGER ]"
 	name_label.add_theme_color_override("font_color", Color.SKY_BLUE)
 	
 	if GameManager.broken_tiles.size() > 0:
 		current_mode = "RADIO_DISASTER"
-		full_text = "ALERTA VERMELHO CHEFE! A via cedeu logo a frente do nosso trem!\n\n"
-		full_text += "A composicao esta parada e nao podemos avancar. Precisamos que o senhor entre no Mapa, "
-		full_text += "ative o Modo de Obras e reconstrua o trecho destruido imediatamente!\n\n"
-		full_text += "A carga vai apodrecer aqui se nao formos rapidos!"
+		full_text = "ALERTA VERMELHO, CHEFE! A via cedeu logo à frente do nosso trem!\n\n"
+		full_text += "A composição está parada e não podemos avançar. Precisamos que o senhor entre no Mapa, "
+		full_text += "ative o Modo de Obras e reconstrua o trecho destruído imediatamente!\n\n"
+		full_text += "A carga vai apodrecer aqui se não formos rápidos!"
 		
 		btn_opt_1.text = "[ Entendido. Preparando obras. ]"
 	else:
 		current_mode = "RADIO_EVENT"
-		full_text = "Chefe. Aqui e o Badger. Motoqueiros trancaram a linha na planicie de novo.\n\n"
-		full_text += "O povo das cidades ta esperando esses suprimentos pra comer hoje, mas se eu passar com o trem "
-		full_text += "por cima desses bandidos, eles vao atirar contra a caldeira. E se a gente recuar, a carga atrasa e a empresa perde moral.\n\n"
+		full_text = "Chefe. Aqui é o Badger. Motoqueiros trancaram a linha na planície de novo.\n\n"
+		full_text += "O povo das cidades tá esperando esses suprimentos pra comer hoje, mas se eu passar com o trem "
+		full_text += "por cima desses bandidos, eles vão atirar contra a caldeira. E se a gente recuar, a carga atrasa e a empresa perde moral.\n\n"
 		full_text += "Aguardo ordens, Chefe."
 		
-		btn_opt_1.text = "[ Pagar Pedagio ($150) ]"
+		btn_opt_1.text = "[ Pagar Pedágio ($150) ]"
 		btn_opt_2.text = "[ Recuar (Atrasa a Carga) ]"
-		btn_opt_3.text = "[ Avancar a Forca (Risco) ]"
+		btn_opt_3.text = "[ Avançar à Força (Risco) ]"
 		
 	_type_next_char(false)
 
@@ -309,7 +311,7 @@ func _show_buttons(is_negotiation: bool) -> void:
 				btn_reject.visible = true
 				if current_mode == "CANCEL_WARNING":
 					btn_accept.text = "ROMPER CONTRATO"
-					btn_reject.text = "VOLTAR ATRAS"
+					btn_reject.text = "VOLTAR ATRÁS"
 				else:
 					btn_accept.text = "ENVIAR PROPOSTA"
 					btn_reject.text = "DESLIGAR"
@@ -339,9 +341,9 @@ func _on_opt_1() -> void:
 	if current_mode == "FISCAL":
 		var bp = GameManager.pending_fiscal_event
 		if bp["can_bribe"]:
-			fiscal_choice_made.emit(true, bp["bribe_cost"]) # Escolheu Propina
+			fiscal_choice_made.emit(true, bp["bribe_cost"])
 		else:
-			fiscal_choice_made.emit(false, bp["fine"]) # Aceitou Multa
+			fiscal_choice_made.emit(false, bp["fine"])
 	else:
 		radio_choice_made.emit(0)
 
@@ -349,10 +351,9 @@ func _on_opt_2() -> void:
 	visible = false
 	if current_mode == "FISCAL":
 		var bp = GameManager.pending_fiscal_event
-		fiscal_choice_made.emit(false, bp["fine"]) # Escolheu a Multa Oficial ao invés da propina
+		fiscal_choice_made.emit(false, bp["fine"])
 	else:
 		radio_choice_made.emit(1)
-
 
 func _on_opt_3() -> void:
 	visible = false
@@ -362,60 +363,56 @@ func start_fiscal_audit(data: Dictionary) -> void:
 	_reset_ui()
 	current_mode = "FISCAL"
 	
-	name_label.text = "[ MINISTERIO DOS TRANSPORTES: AUDITORIA ]"
+	name_label.text = "[ MINISTÉRIO DOS TRANSPORTES: AUDITORIA ]"
 	name_label.add_theme_color_override("font_color", Color.ORANGE)
 	
-	full_text = "Atencao Diretor. Os nossos agentes pararam o seu comboio que serve a empresa " + data["contract_name"] + ".\n\n"
+	full_text = "Atenção, Diretor. Os nossos agentes pararam o seu trem que serve a empresa " + data["contract_name"] + ".\n\n"
 	full_text += data["reason"] + "\n\n"
 	
 	if data["can_bribe"]:
-		full_text += "Como a vossa empresa tem 'excelentes relacoes' com o Governo, podemos arquivar este relatorio por uma taxa administrativa de $" + str(data["bribe_cost"]) + ".\nO que me diz?"
+		full_text += "Como a sua empresa tem 'excelentes relações' com o Governo, podemos arquivar este relatório por uma taxa administrativa de $" + str(data["bribe_cost"]) + ".\nO que me diz?"
 		btn_opt_1.text = "[ Pagar Propina / Caixa 2 (-$" + str(data["bribe_cost"]) + ") ]"
 		btn_opt_2.text = "[ Recusar e Pagar Multa Oficial (-$" + str(data["fine"]) + ") ]"
 		btn_opt_1.visible = true
 		btn_opt_2.visible = true
 	else:
-		full_text += "A sua empresa nao possui aliados em Brasilia. O senhor sera autuado com o rigor maximo da lei.\nA multa de $" + str(data["fine"]) + " foi emitida."
+		full_text += "A sua empresa não possui aliados em Brasília. O senhor será autuado com o rigor máximo da lei.\nA multa de $" + str(data["fine"]) + " foi emitida."
 		btn_opt_1.text = "[ Aceitar Multa (-$" + str(data["fine"]) + ") ]"
 		btn_opt_1.visible = true
 	
 	_type_next_char(false)
 
-
 func start_boss_package_call() -> void:
 	_reset_ui()
 	current_mode = "INTRO" 
 	
-	name_label.text = "[ TRANSMISSAO: BEAR (DIRETORIA) ]"
+	name_label.text = "[ TRANSMISSÃO: BEAR (DIRETORIA) ]"
 	name_label.add_theme_color_override("font_color", Color.LIGHT_GRAY)
 	
-	full_text = "Diretor! Vi que a nossa primeira rota esta finalmente operando!\n\n"
-	full_text += "A partir de agora, os clientes comecarao a deixar encomendas avulsas na Estacao de Triagem.\n"
-	full_text += "Va ate la de vez em quando e valide os pacotes. Nao deixe a esteira acumular!"
+	full_text = "Diretor! Vi que a nossa primeira rota está finalmente operando!\n\n"
+	full_text += "A partir de agora, os clientes começarão a deixar encomendas avulsas na Estação de Triagem.\n"
+	full_text += "Vá até lá de vez em quando e valide os pacotes. Não deixe a esteira acumular!"
 	
 	_type_next_char(false)
-
-
 
 func start_loan_shark_call() -> void:
 	_reset_ui()
 	current_mode = "LOAN_SHARK"
 
-	name_label.text = "[ TRANSMISSAO DESCONHECIDA ]"
+	name_label.text = "[ TRANSMISSÃO DESCONHECIDA ]"
 	name_label.add_theme_color_override("font_color", Color.CRIMSON)
 
-	full_text = "Estou a ver que as coisas vao mal por ai, Diretor... Conta no vermelho, nao e?\n\n"
-	full_text += "Eu posso limpar a sua divida e deixar-lhe com $1500 na mao agora mesmo. "
-	full_text += "Em troca, cobrarei $150 por dia durante os proximos 20 dias.\n\n"
-	full_text += "Pega ou larga. Se disser nao e falir, o problema e seu."
+	full_text = "Estou vendo que as coisas vão mal por aí, Diretor... Conta no vermelho, não é?\n\n"
+	full_text += "Eu posso limpar a sua dívida e deixá-lo com $1500 na mão agora mesmo. "
+	full_text += "Em troca, cobrarei $150 por dia durante os próximos 20 dias.\n\n"
+	full_text += "Pega ou larga. Se disser não e falir, o problema é seu."
 
-	btn_accept.text = "[ ACEITAR EMPRESTIMO ]"
+	btn_accept.text = "[ ACEITAR EMPRÉSTIMO ]"
 	btn_accept.visible = true
 	btn_reject.text = "[ RECUSAR E DESLIGAR ]"
 	btn_reject.visible = true
 
 	_type_next_char(false)
-
 
 func _on_accept_pressed() -> void:
 	if current_mode == "PROPOSAL":

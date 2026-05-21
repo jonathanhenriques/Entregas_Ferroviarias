@@ -120,7 +120,6 @@ func _process(delta: float) -> void:
 		if not boss_package_intro_done and not pending_boss_package_call:
 			pending_boss_package_call = true
 			
-		# CORREÇÃO: Inicia o turno de encomendas na mesma hora em que o chefe desliga o telefone no Dia 2!
 		if boss_package_intro_done and not shift_active and packages_generated_today == 0:
 			shift_time_left = 120.0 + (get_daily_package_limit() * 10.0) 
 			shift_active = true
@@ -133,9 +132,56 @@ func _process(delta: float) -> void:
 			if shift_time_left <= 0:
 				shift_active = false
 				if package_queue.size() > 0:
-					if has_method("add_strike"): add_strike("O comboio partiu e " + str(package_queue.size()) + " encomendas ficaram na plataforma!")
+					if has_method("add_strike"): add_strike("O trem partiu e " + str(package_queue.size()) + " encomendas ficaram na plataforma!")
 					package_queue.clear()
 					package_queue_updated.emit(0)
+
+func add_strike(reason: String) -> void:
+	strikes += 1
+	strike_received.emit(strikes, reason)
+	if strikes >= 3:
+		money -= 500
+		today_penalties += 500
+		strikes = 0
+		pendent_strike_warning = "O Ministério dos Transportes aplicou uma multa de $500 devido a repetidas ocorrências no seu posto de triagem!"
+
+func _roll_fiscal_audit() -> void:
+	if current_day - last_audit_day < 3: return 
+	if randf() > 0.3: return 
+	
+	var running_contracts = []
+	for c in active_contracts:
+		if is_contract_operating(c): running_contracts.append(c)
+	if running_contracts.is_empty(): return
+	
+	var target = running_contracts.pick_random()
+	var rid = target["route_id"]
+	var has_violation = false
+	var violation_reason = ""
+	var fine = 0
+	
+	if maint_pct_infra < 0.5 or maint_pct_tracks < 0.5 or maint_pct_env < 0.5:
+		has_violation = true
+		violation_reason = "NEGLIGÊNCIA: O seu Orçamento de Manutenção está demasiadamente baixo. Os nossos fiscais relatam trilhos soltos e infraestrutura perigosa na sua malha!"
+		fine = 800
+	else:
+		if target.get("type", "") == "VIP":
+			var stats = network_stats.get(rid, {})
+			if stats.get("gangs", 0) > 0:
+				has_violation = true
+				violation_reason = "RISCO DE ESTADO: Detectamos um trem VIP a cruzar território dominado por gangues. Isto é um absurdo de segurança!"
+				fine = 1500
+
+	if has_violation:
+		last_audit_day = current_day 
+		var can_bribe = (maint_pct_lobby >= 0.7)
+		var bribe_cost = int(fine * 0.15) 
+		pending_fiscal_event = {
+			"reason": violation_reason, "fine": fine,
+			"can_bribe": can_bribe, "bribe_cost": bribe_cost,
+			"contract_name": target["company_name"]
+		}
+
 
 
 # NOVA FUNÇÃO DE VALIDAÇÃO GERAL
@@ -355,52 +401,6 @@ func _generate_package() -> void:
 	packages_generated_today += 1
 	package_queue.append(pkg)
 
-func add_strike(reason: String) -> void:
-	strikes += 1
-	strike_received.emit(strikes, reason)
-	if strikes >= 3:
-		money -= 500
-		today_penalties += 500
-		strikes = 0
-		pendent_strike_warning = "O Ministério dos Transportes aplicou uma multa de $500 devido a repetidas ocorrencias no seu posto de triagem!"
-
-func _roll_fiscal_audit() -> void:
-	# FASE 1: Cooldown de 3 dias para o Fiscal não destruir a empresa
-	if current_day - last_audit_day < 3: return 
-	if randf() > 0.3: return 
-	
-	var running_contracts = []
-	for c in active_contracts:
-		if is_contract_operating(c): running_contracts.append(c)
-	if running_contracts.is_empty(): return
-	
-	var target = running_contracts.pick_random()
-	var rid = target["route_id"]
-	var has_violation = false
-	var violation_reason = ""
-	var fine = 0
-	
-	if maint_pct_infra < 0.5 or maint_pct_tracks < 0.5 or maint_pct_env < 0.5:
-		has_violation = true
-		violation_reason = "NEGLIGENCIA: O vosso Orcamento de Manutencao esta demasiadamente baixo. Os nossos fiscais relatam carris soltos e infraestrutura perigosa na vossa malha!"
-		fine = 800
-	else:
-		if target.get("type", "") == "VIP":
-			var stats = network_stats.get(rid, {})
-			if stats.get("gangs", 0) > 0:
-				has_violation = true
-				violation_reason = "RISCO DE ESTADO: Detetamos um comboio VIP a cruzar territorio dominado por gangues. Isto e um absurdo de seguranca!"
-				fine = 1500
-
-	if has_violation:
-		last_audit_day = current_day # Registra o dia da auditoria para o cooldown
-		var can_bribe = (maint_pct_lobby >= 0.7)
-		var bribe_cost = int(fine * 0.15) 
-		pending_fiscal_event = {
-			"reason": violation_reason, "fine": fine,
-			"can_bribe": can_bribe, "bribe_cost": bribe_cost,
-			"contract_name": target["company_name"]
-		}
 
 # FASE 1: A Nova Punição Inteligente (Custo de Frete) que ligaremos na Fase 4
 func process_package_approval(pkg: Dictionary) -> void:
