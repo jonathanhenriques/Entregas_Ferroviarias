@@ -16,10 +16,11 @@ var letter_label: Label
 var letter_bg: ColorRect
 
 var intro_texts: Array[String] = [
-	"Para o meu neto.\n\nO tempo das nossas pequenas ferrovias acabou. Os grandes monopolios esmagaram quase tudo. A nossa velha companhia e uma das ultimas que ainda respira.",
-	"O meu tempo acabou, mas as cidades ainda precisam de nos. O Bear, o meu velho socio, vai precisar de ti para manter os trens a andar. Nao e um trabalho bonito, mas e vital.",
-	"Ele deixou os papeis na tua mesa.\n\nA partir de hoje, o peso dos trilhos e teu.\n\nBoa sorte."
+	"Para o meu neto.\n\nO tempo das nossas pequenas ferrovias acabou. Os grandes monopólios esmagaram quase tudo. A nossa velha companhia é uma das últimas que ainda respira.",
+	"O meu tempo acabou, mas as cidades ainda precisam de nós. O Bear, meu velho sócio, vai precisar de você para manter os trens rodando. Não é um trabalho bonito, mas é vital.",
+	"Ele deixou os papéis na sua mesa.\n\nA partir de hoje, o peso dos trilhos é seu.\n\nBoa sorte."
 ]
+
 var current_intro_page: int = 0
 var is_letter_typing: bool = false
 var letter_char_index: int = 0
@@ -51,7 +52,7 @@ func _setup_main_menu() -> void:
 	menu_layer.add_child(bg)
 	
 	var title = Label.new()
-	title.text = "CIA. DE ENTREGAS FERROVIARIAS"
+	title.text = "CIA. DE ENTREGAS FERROVIÁRIAS"
 	title.add_theme_font_size_override("font_size", 60)
 	title.add_theme_color_override("font_color", Color.GOLDENROD)
 	title.position = Vector2(0, 200)
@@ -88,6 +89,8 @@ func _setup_main_menu() -> void:
 	btn_quit.size = Vector2(400, 70)
 	btn_quit.pressed.connect(_on_btn_esc_quit_pressed)
 	menu_layer.add_child(btn_quit)
+
+
 
 func _setup_intro_letter() -> void:
 	letter_layer = CanvasLayer.new()
@@ -225,7 +228,7 @@ func _setup_esc_menu() -> void:
 	esc_layer.add_child(btn_esc_map)
 	
 	btn_esc_desk = Button.new()
-	btn_esc_desk.text = "VOLTAR A MESA"
+	btn_esc_desk.text = "VOLTAR À MESA"
 	btn_esc_desk.position = Vector2(start_x, start_y + 80)
 	btn_esc_desk.size = Vector2(menu_w, 60)
 	btn_esc_desk.pressed.connect(_on_btn_esc_desk_pressed)
@@ -240,6 +243,8 @@ func _setup_esc_menu() -> void:
 	esc_layer.add_child(btn_esc_quit)
 	
 	esc_layer.visible = false
+
+
 
 func _toggle_esc_menu() -> void:
 	if not is_instance_valid(esc_layer):

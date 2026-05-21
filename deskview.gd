@@ -190,7 +190,7 @@ func _setup_ui() -> void:
 	outbox_rect.add_child(outbox_border)
 	
 	var outbox_title = Label.new()
-	outbox_title.text = "BANDEJA DE SAIDA\n(Contratos Validados)"
+	outbox_title.text = "BANDEJA DE SAÍDA\n(Contratos Validados)"
 	outbox_title.add_theme_color_override("font_color", Color.WHITE)
 	outbox_title.position = Vector2(20, 20)
 	outbox_rect.add_child(outbox_title)
@@ -272,7 +272,7 @@ func _setup_ui() -> void:
 	pad_extension.add_child(pad_clip_ext)
 	
 	var pad_ext_lbl = Label.new()
-	pad_ext_lbl.text = "FORMS.\nEXTENSAO"
+	pad_ext_lbl.text = "FORM.\nEXTENSÃO"
 	pad_ext_lbl.add_theme_font_size_override("font_size", 14)
 	pad_ext_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	pad_ext_lbl.position = Vector2(0, 50)
@@ -282,17 +282,16 @@ func _setup_ui() -> void:
 	pad_extension.mouse_filter = Control.MOUSE_FILTER_STOP
 	pad_extension.gui_input.connect(_on_pad_extension_input)
 
-	# FASE 3: FICHÁRIO DE CLIENTES (COM PAGINAÇÃO)
 	agenda_rect = ColorRect.new()
 	agenda_rect.color = Color(0.85, 0.8, 0.6) 
-	agenda_rect.size = Vector2(300, 400)
+	agenda_rect.size = Vector2(340, 520) 
 	agenda_rect.position = Vector2(80, 200)
 	ui_layer.add_child(agenda_rect)
 	_make_draggable(agenda_rect, "panel")
 	
 	var lombada = ColorRect.new()
 	lombada.color = Color(0.1, 0.1, 0.1) 
-	lombada.size = Vector2(30, 400)
+	lombada.size = Vector2(30, 520)
 	lombada.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	agenda_rect.add_child(lombada)
 	
@@ -304,29 +303,29 @@ func _setup_ui() -> void:
 	
 	companies_vbox = VBoxContainer.new()
 	companies_vbox.position = Vector2(40, 60)
-	companies_vbox.size = Vector2(240, 280)
+	companies_vbox.size = Vector2(280, 380)
 	companies_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	agenda_rect.add_child(companies_vbox)
 
 	btn_prev_page = Button.new()
-	btn_prev_page.text = "<- Pag"
-	btn_prev_page.size = Vector2(60, 30)
-	btn_prev_page.position = Vector2(40, 350)
+	btn_prev_page.text = "<- Pág."
+	btn_prev_page.size = Vector2(80, 40)
+	btn_prev_page.position = Vector2(40, 460)
 	btn_prev_page.pressed.connect(_on_prev_page_pressed)
 	agenda_rect.add_child(btn_prev_page)
 	
+	lbl_page = Label.new()
+	lbl_page.text = "Pág. 1"
+	lbl_page.add_theme_color_override("font_color", Color.BLACK)
+	lbl_page.position = Vector2(145, 470)
+	agenda_rect.add_child(lbl_page)
+
 	btn_next_page = Button.new()
-	btn_next_page.text = "Pag ->"
-	btn_next_page.size = Vector2(60, 30)
-	btn_next_page.position = Vector2(220, 350)
+	btn_next_page.text = "Pág. ->"
+	btn_next_page.size = Vector2(80, 40)
+	btn_next_page.position = Vector2(240, 460)
 	btn_next_page.pressed.connect(_on_next_page_pressed)
 	agenda_rect.add_child(btn_next_page)
-	
-	lbl_page = Label.new()
-	lbl_page.text = "Pag. 1"
-	lbl_page.add_theme_color_override("font_color", Color.BLACK)
-	lbl_page.position = Vector2(135, 355)
-	agenda_rect.add_child(lbl_page)
 
 	clipboard_rect = ColorRect.new()
 	clipboard_rect.color = Color(0.95, 0.95, 0.9) 
@@ -350,7 +349,7 @@ func _setup_ui() -> void:
 	clipboard_rect.add_child(report_label)
 
 	btn_next_day = Button.new()
-	btn_next_day.text = "Processar Saidas e Finalizar Dia"
+	btn_next_day.text = "Processar Saídas e Finalizar Dia"
 	btn_next_day.position = Vector2(20, 340)
 	btn_next_day.size = Vector2(310, 40)
 	btn_next_day.pressed.connect(_on_next_day_pressed)
@@ -358,24 +357,23 @@ func _setup_ui() -> void:
 
 	active_paper_rect = ColorRect.new()
 	active_paper_rect.color = Color(0.85, 0.9, 0.95) 
-	active_paper_rect.size = Vector2(330, 400)
-	active_paper_rect.position = Vector2(1450, 550) 
+	active_paper_rect.size = Vector2(340, 520) 
+	active_paper_rect.position = Vector2(1450, 450) 
 	ui_layer.add_child(active_paper_rect)
 	_make_draggable(active_paper_rect, "panel")
 
 	var active_title = Label.new()
-	active_title.text = "FROTA: 3 LOCOMOTIVAS A CARVAO" 
+	active_title.text = "FROTA E CONTRATOS ATIVOS" 
 	active_title.add_theme_color_override("font_color", Color.BLACK)
 	active_title.position = Vector2(20, 20)
 	active_paper_rect.add_child(active_title)
 
 	contracts_vbox = VBoxContainer.new()
 	contracts_vbox.position = Vector2(20, 50)
-	contracts_vbox.size = Vector2(290, 330)
+	contracts_vbox.size = Vector2(300, 450) 
 	contracts_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	active_paper_rect.add_child(contracts_vbox)
 
-	# FASE 3: PASTA DE CONTRATOS COM PAPÉIS SOBREPOSTOS
 	folder_rect = ColorRect.new()
 	folder_rect.color = Color(0.8, 0.65, 0.4) 
 	folder_rect.size = Vector2(440, 480)
@@ -414,7 +412,7 @@ func _setup_ui() -> void:
 	doc_standard.size = Vector2(380, 420)
 	doc_standard.position = Vector2(20, 40)
 	folder_rect.add_child(doc_standard)
-	doc_standard.gui_input.connect(_on_doc_input.bind(doc_standard)) # Permite trazer pra frente
+	doc_standard.gui_input.connect(_on_doc_input.bind(doc_standard))
 	
 	std_label = Label.new()
 	std_label.position = Vector2(20, 20)
@@ -433,9 +431,9 @@ func _setup_ui() -> void:
 	doc_urgent = ColorRect.new()
 	doc_urgent.color = Color(0.95, 0.85, 0.85)
 	doc_urgent.size = Vector2(380, 420)
-	doc_urgent.position = Vector2(40, 50) # Deslocado para dar efeito de pilha
+	doc_urgent.position = Vector2(40, 50) 
 	folder_rect.add_child(doc_urgent)
-	doc_urgent.gui_input.connect(_on_doc_input.bind(doc_urgent)) # Permite trazer pra frente
+	doc_urgent.gui_input.connect(_on_doc_input.bind(doc_urgent))
 	
 	urg_label = Label.new()
 	urg_label.position = Vector2(20, 20)
@@ -445,9 +443,10 @@ func _setup_ui() -> void:
 	doc_urgent.add_child(urg_label)
 	
 	btn_call_urg = Button.new()
-	btn_call_urg.text = "PREPARAR URGENCIA"
+	btn_call_urg.text = "PREPARAR URGÊNCIA"
 	btn_call_urg.position = Vector2(20, 360)
 	btn_call_urg.size = Vector2(340, 40)
+	btn_call_urg.add_theme_color_override("font_color", Color.INDIAN_RED)
 	btn_call_urg.pressed.connect(_on_call_urgent_pressed)
 	doc_urgent.add_child(btn_call_urg)
 
@@ -497,7 +496,7 @@ func _setup_ui() -> void:
 	radio_rect.add_child(radio_speaker)
 	
 	var radio_lbl = Label.new()
-	radio_lbl.text = "RADIO PTT\nFREQ 104.2"
+	radio_lbl.text = "RÁDIO PTT\nFREQ 104.2"
 	radio_lbl.add_theme_color_override("font_color", Color.BLACK)
 	radio_lbl.position = Vector2(150, 20)
 	radio_rect.add_child(radio_lbl)
@@ -533,7 +532,6 @@ func _setup_ui() -> void:
 	task_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	task_pad_rect.add_child(task_vbox)
 
-	# FASE 3: CALENDÁRIO FÍSICO NA MESA
 	calendar_rect = ColorRect.new()
 	calendar_rect.color = Color(0.9, 0.9, 0.9)
 	calendar_rect.size = Vector2(220, 160)
@@ -609,7 +607,7 @@ func _spawn_extension_form() -> void:
 
 	var content_lbl = Label.new()
 	content_lbl.add_theme_color_override("font_color", Color.BLACK)
-	content_lbl.text = "REQUERIMENTO DE EXTENSAO\n\nSolicito +3 dias de prazo.\nCiente da multa de -30% no valor.\n\nContrato Alvo:"
+	content_lbl.text = "REQUERIMENTO DE EXTENSÃO\n\nSolicito +3 dias de prazo.\nCiente da multa de -30% no valor.\n\nContrato Alvo:"
 	content_lbl.position = Vector2(20, 20)
 	content.add_child(content_lbl)
 
@@ -664,6 +662,9 @@ func _spawn_extension_form() -> void:
 
 	ui_layer.add_child(paper)
 	spawned_papers.append(paper)
+
+
+
 
 func _add_ball_visual(paper: ColorRect) -> void:
 	var ball_visual = Panel.new()
@@ -1115,7 +1116,7 @@ func _update_diretrizes() -> void:
 	var m = lvl["goal"]
 	var a = GameManager.money
 	
-	diretrizes_label.text = "📌 DIRETRIZES DA REGIAO [" + lvl["name"] + "]  |  META: $" + str(m) + "  |  CAIXA: $" + str(a)
+	diretrizes_label.text = "📍 DIRETRIZES DA REGIÃO [" + lvl["name"] + "]  | META: $" + str(m) + "  |  CAIXA: $" + str(a)
 	
 	var fg = diretrizes_bar.get_theme_stylebox("fill") as StyleBoxFlat
 	if a < 0: 
@@ -1126,6 +1127,8 @@ func _update_diretrizes() -> void:
 		fg.bg_color = Color(0.2, 0.6, 0.2)
 		diretrizes_bar.max_value = m
 		diretrizes_bar.value = a
+
+
 
 func _load_agenda_contacts() -> void:
 	if current_agenda_contacts.is_empty():
@@ -1188,8 +1191,6 @@ func _render_agenda_page() -> void:
 	
 	for i in range(start_idx, end_idx):
 		var c = current_agenda_contacts[i]
-		
-		# Prevenção rigorosa de erro de String
 		if typeof(c) != TYPE_DICTIONARY:
 			continue
 			
@@ -1207,21 +1208,22 @@ func _render_agenda_page() -> void:
 		btn.custom_minimum_size = Vector2(240, 60)
 		companies_vbox.add_child(btn)
 		
-	lbl_page.text = "Pag. " + str(current_agenda_page + 1)
-
+	lbl_page.text = "Pág. " + str(current_agenda_page + 1)
+	btn_prev_page.text = "<- Pág."
+	btn_next_page.text = "Pág. ->"
 
 func _on_company_selected(data: Dictionary) -> void:
 	selected_company_data = data
 	folder_title.text = "CLIENTE: " + data["name"]
 	folder_route.text = "Exige Rota: " + data["route_name"]
 	
-	std_label.text = "CONTRATO PADRAO\n\nCarga: " + data["cargo"] + "\n\nDuracao: 5-10 dias\nPagamento: ~$" + str(data["base_reward"]) + "\n\nTEL: " + data["phone"]
+	std_label.text = "CONTRATO PADRÃO\n\nCarga: " + data["cargo"] + "\n\nDuração: 5-10 dias\nPagamento: ~$" + str(data["base_reward"]) + "\n\nTEL: " + data["phone"]
 	btn_call_std.text = "PREPARAR CONTRATO"
 	
 	if GameManager.daily_urgencies.has(data["name"]):
 		doc_urgent.visible = true
-		urg_label.text = "[!] URGENDA HOJE\n\nPAGAMENTO A VISTA:\n$" + str(GameManager.daily_urgencies[data["name"]]) + "\n\nOcupa trem por 1 dia."
-		btn_call_urg.text = "PREPARAR URGENCIA"
+		urg_label.text = "[!] URGÊNCIA HOJE\n\nPAGAMENTO À VISTA:\n$" + str(GameManager.daily_urgencies[data["name"]]) + "\n\nOcupa trem por 1 dia."
+		btn_call_urg.text = "PREPARAR URGÊNCIA"
 	else: 
 		doc_urgent.visible = false
 		
@@ -1229,6 +1231,9 @@ func _on_company_selected(data: Dictionary) -> void:
 	folder_rect.get_parent().move_child(folder_rect, -1)
 	folder_rect.rotation_degrees = 0
 	_clamp_to_screen(folder_rect)
+
+
+
 
 func _on_close_folder_pressed() -> void: 
 	folder_rect.visible = false
@@ -1368,17 +1373,17 @@ func _spawn_proposal_paper(c_data: Dictionary, is_urg: bool, reward: int) -> voi
 	text += "Rota Exigida: " + c_data["route_name"] + "\n\n"
 	
 	if is_urg:
-		text += "[ URGENCIA MAXIMA ]\nPagamento a vista: $" + str(reward) + "\nValidade: 1 dia\n"
+		text += "[ URGÊNCIA MÁXIMA ]\nPagamento à vista: $" + str(reward) + "\nValidade: 1 dia\n"
 	else:
-		text += "Contrato Padrao (5-10 dias)\nPagamento Diario: $" + str(reward) + "\n"
+		text += "Contrato Padrão (5-10 dias)\nPagamento Diário: $" + str(reward) + "\n"
 
-	var flav = "Termos padrao de logistica se aplicam. A Cia de Entregas Ferroviarias responsabiliza-se pela carga a partir do embarque."
+	var flav = "Termos padrão de logística se aplicam. A Cia. de Entregas Ferroviárias responsabiliza-se pela carga a partir do embarque."
 	text += "\nNota: " + flav + "\n\n"
 	
 	if pending_is_risk:
-		text += "[ATENCAO: CONTRATO DE RISCO]\nVia inexistente ou em obras.\nPrazo estrito: 3 dias para iniciar a operacao."
+		text += "[ATENÇÃO: CONTRATO DE RISCO]\nVia inexistente ou em obras.\nPrazo estrito: 3 dias para iniciar a operação."
 	else:
-		text += "(Aguarde validacao manual para Enviar)"
+		text += "(Aguarde validação manual para Enviar)"
 	
 	text_lbl.text = text
 	content.add_child(text_lbl)
@@ -1399,7 +1404,6 @@ func _spawn_proposal_paper(c_data: Dictionary, is_urg: bool, reward: int) -> voi
 	
 	_load_agenda_contacts()
 	
-	
 
 func _on_cutscene_rejected() -> void:
 	var is_daily = "(Diario)" in pending_company_data["name"]
@@ -1417,9 +1421,10 @@ func _on_cutscene_closed() -> void:
 func _on_cancel_dynamic(idx: int) -> void: 
 	var c = GameManager.active_contracts[idx]
 	if GameManager.routes_under_construction.get(c["route_id"], 0) > 0:
-		phone_cutscene.start_rejection_call("FISCALIZACAO", "O comboio esta retido na zona de obras! Impossivel resgatar a carga ou cancelar o contrato agora. Conclua as obras e espere a via libertar!")
+		phone_cutscene.start_rejection_call("FISCALIZAÇÃO", "O trem está retido na zona de obras! Impossível resgatar a carga ou cancelar o contrato agora. Conclua as obras e espere a via liberar!")
 		return
 	phone_cutscene.start_cancel_warning(c["company_name"], idx)
+
 
 func _on_cancel_confirmed(idx: int) -> void:
 	if idx >= 0 and idx < GameManager.active_contracts.size():
@@ -1507,7 +1512,7 @@ func _update_active_contracts_text() -> void:
 		
 	if GameManager.active_contracts.size() == 0:
 		var l = Label.new()
-		l.text = "\nPatio vazio."
+		l.text = "\nPátio vazio."
 		l.add_theme_color_override("font_color", Color.DIM_GRAY)
 		contracts_vbox.add_child(l)
 	else:
@@ -1518,7 +1523,6 @@ func _update_active_contracts_text() -> void:
 			var st = ""
 			var cl = Label.new()
 			
-			# Usamos .get() com valores padrão para evitar erros caso a chave falte
 			var cargo_name = c.get("cargo", "Carga Geral")
 			var route_name = c.get("route_name", "Desconhecida")
 			var days_left = c.get("days_left", 0)
@@ -1544,7 +1548,7 @@ func _update_active_contracts_text() -> void:
 						else: 
 							var stats = GameManager.network_stats.get(rid, {})
 							if stats.get("is_broken", false):
-								st = "[VIA DESTRUIDA]"
+								st = "[VIA DESTRUÍDA]"
 							else:
 								var tp = c.get("type", "")
 								if tp == "Expresso" and stats.get("dist", 999) > c.get("max_dist", 999):
@@ -1574,16 +1578,15 @@ func _update_active_contracts_text() -> void:
 
 
 
-
 func _update_report_text() -> void:
 	var inc = GameManager.get_daily_income()
 	var exp = GameManager.daily_maintenance + GameManager.BASE_COST + GameManager.daily_gang_toll + GameManager.daily_crew_cost + GameManager.daily_lobby_cost
 	var net = inc - exp
 	
-	var t = "RELATORIO ADMINISTRATIVO\n\nDia: " + str(GameManager.current_day) + "\nCaixa: $" + str(GameManager.money) + "\n\nReceita: +$" + str(inc) + "\nManutencao Via: -$" + str(GameManager.daily_maintenance) + "\nTaxas e Base: -$" + str(GameManager.BASE_COST)
+	var t = "RELATÓRIO ADMINISTRATIVO\n\nDia: " + str(GameManager.current_day) + "\nCaixa: $" + str(GameManager.money) + "\n\nReceita: +$" + str(inc) + "\nManutenção da Via: -$" + str(GameManager.daily_maintenance) + "\nTaxas e Base: -$" + str(GameManager.BASE_COST)
 	
 	if GameManager.daily_crew_cost > 0:
-		t += "\nSalarios (Equipa): -$" + str(GameManager.daily_crew_cost)
+		t += "\nSalários (Equipe): -$" + str(GameManager.daily_crew_cost)
 	if GameManager.daily_lobby_cost > 0:
 		t += "\nLobby/Estado: -$" + str(GameManager.daily_lobby_cost)
 	if GameManager.daily_gang_toll > 0: 
@@ -1593,7 +1596,9 @@ func _update_report_text() -> void:
 	report_label.text = t
 	
 	btn_next_day.disabled = false
-	btn_next_day.text = "Processar Saidas e Finalizar Dia"
+	btn_next_day.text = "Processar Saídas e Finalizar Dia"
+
+
 
 func _on_next_day_pressed() -> void:
 	if phone_cutscene and phone_cutscene.visible: return
@@ -1790,9 +1795,9 @@ func _start_eod_animation(new_c: int, rej_c: int, ext_c: int, bp_cost: int) -> v
 	var c_green = Color(0.2, 0.8, 0.2)
 	var c_red = Color(0.8, 0.2, 0.2)
 	
-	_add_eod_line("== BOLETIM DIARIO - DIA " + str(GameManager.current_day) + " ==", "", c_light, true)
+	_add_eod_line("== BOLETIM DIÁRIO - DIA " + str(GameManager.current_day) + " ==", "", c_light, true)
 	_add_eod_line("", "", c_light, false)
-	_add_eod_line("[ LOGISTICA ]", "", c_gray, false)
+	_add_eod_line("[ LOGÍSTICA ]", "", c_gray, false)
 	
 	var active_count = 0
 	for c in GameManager.active_contracts:
@@ -1809,11 +1814,11 @@ func _start_eod_animation(new_c: int, rej_c: int, ext_c: int, bp_cost: int) -> v
 		_add_eod_line("Multas Aplicadas Hoje", "-$" + str(GameManager.today_penalties), c_red, false)
 		
 	_add_eod_line("", "", c_light, false)
-	_add_eod_line("[ FINANCAS ]", "", c_gray, false)
+	_add_eod_line("[ FINANÇAS ]", "", c_gray, false)
 	_add_eod_line("Saldo Inicial", "$" + str(GameManager.money + bp_cost), c_light, false)
 	
 	if pending_upfront_income > 0:
-		_add_eod_line("Receitas a Vista", "+$" + str(pending_upfront_income), c_green, false)
+		_add_eod_line("Receitas à Vista", "+$" + str(pending_upfront_income), c_green, false)
 		
 	var inc = GameManager.get_daily_income()
 	if inc > 0:
@@ -1823,16 +1828,16 @@ func _start_eod_animation(new_c: int, rej_c: int, ext_c: int, bp_cost: int) -> v
 		_add_eod_line("Obras e Licenciamentos", "-$" + str(bp_cost), c_red, false)
 		
 	if GameManager.daily_maintenance > 0:
-		_add_eod_line("Manutencao da Via", "-$" + str(GameManager.daily_maintenance), c_red, false)
+		_add_eod_line("Manutenção da Via", "-$" + str(GameManager.daily_maintenance), c_red, false)
 		
 	_add_eod_line("Custos Base da Garagem", "-$" + str(GameManager.BASE_COST), c_red, false)
 	
 	if GameManager.daily_crew_cost > 0:
-		_add_eod_line("Salarios da Equipa", "-$" + str(GameManager.daily_crew_cost), c_red, false)
+		_add_eod_line("Salários da Equipe", "-$" + str(GameManager.daily_crew_cost), c_red, false)
 	if GameManager.daily_lobby_cost > 0:
 		_add_eod_line("Lobby Governamental", "-$" + str(GameManager.daily_lobby_cost), c_red, false)
 	if GameManager.daily_gang_toll > 0:
-		_add_eod_line("Extorsao (Gangues)", "-$" + str(GameManager.daily_gang_toll), c_red, false)
+		_add_eod_line("Extorsão (Gangues)", "-$" + str(GameManager.daily_gang_toll), c_red, false)
 		
 	_add_eod_line("-----------------------", "---------", c_gray, false)
 	
@@ -1847,6 +1852,9 @@ func _start_eod_animation(new_c: int, rej_c: int, ext_c: int, bp_cost: int) -> v
 		line.visible = false
 		
 	_play_eod_lines()
+
+
+
 
 func _play_eod_lines() -> void:
 	for line in eod_lines_container.get_children():
@@ -1960,10 +1968,10 @@ func _spawn_tutorial_paper(type: int) -> void:
 	lbl.size = paper.size - Vector2(40, 40)
 
 	if type == 1:
-		lbl.text = "DIRETRIZES DE OPERACAO - DIA 1\n\nBem-vindo a Diretoria.\n\nPASSOS PARA HOJE:\n1. Abra o 'Arquivo de Clientes'.\n2. Clique em 'Preparar Contrato' para a Rota Azul <-> Vermelha.\n3. Arraste a Caneta e o Carimbo para aprovar e mova o papel para a Bandeja de Saida.\n4. Va ao Mapa (<-), clique em Modo Obras e ligue as duas estacoes.\n5. Clique em Gerar Planta, assine a planta na mesa e finalize o dia!"
+		lbl.text = "DIRETRIZES DE OPERAÇÃO - DIA 1\n\nBem-vindo à Diretoria.\n\nPASSOS PARA HOJE:\n1. Abra o 'Arquivo de Clientes'.\n2. Clique em 'Preparar Contrato' para a Rota Azul <-> Vermelha.\n3. Arraste a Caneta e o Carimbo para aprovar e mova o papel para a Bandeja de Saída.\n4. Vá ao Mapa (<-), clique em Modo Obras e ligue as duas estações.\n5. Clique em Gerar Planta, assine a planta na mesa e finalize o dia!"
 		paper.set_meta("is_tutorial_1", true)
 	elif type == 2:
-		lbl.text = "DIRETRIZES DE TRIAGEM\n\nSua rota esta pronta! A partir de agora, pacotes chegarao na Estacao de Triagem.\n\n- Va para a Triagem e chame pacotes.\n- Verifique o peso na balanca.\n- Use o Raio-X se desconfiar.\n- Se o peso ou o selo estiverem errados, REJEITE.\n- Cuidado com o Temporizador! O trem parte em breve."
+		lbl.text = "DIRETRIZES DE TRIAGEM\n\nSua rota está pronta! A partir de agora, pacotes chegarão na Estação de Triagem.\n\n- Vá para a Triagem e chame pacotes.\n- Verifique o peso na balança.\n- Use o Raio-X se desconfiar.\n- Se o peso ou o selo estiverem errados, REJEITE.\n- Cuidado com o Temporizador! O trem parte em breve."
 		paper.set_meta("is_tutorial_2", true)
 
 	content.add_child(lbl)
@@ -1974,6 +1982,10 @@ func _spawn_tutorial_paper(type: int) -> void:
 	ui_layer.add_child(paper)
 	spawned_papers.append(paper)
 
+
+
+
+
 func _spawn_extension_warning_note() -> void:
 	var note = ColorRect.new()
 	note.color = Color(0.9, 0.5, 0.5)
@@ -1982,7 +1994,7 @@ func _spawn_extension_warning_note() -> void:
 	note.rotation_degrees = -5
 
 	var lbl = Label.new()
-	lbl.text = "AVISO DO CHEFE:\nUm dos nossos contratos vence amanha! Se nao renovarmos, o cliente processa-nos. Use o Formulario de Extensao (O bloco a esquerda)!"
+	lbl.text = "AVISO DO CHEFE:\nUm dos nossos contratos vence amanhã! Se não renovarmos, o cliente vai nos processar. Use o Formulário de Extensão (O bloco à esquerda)!"
 	lbl.add_theme_color_override("font_color", Color.BLACK)
 	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lbl.add_theme_font_size_override("font_size", 12)
@@ -1996,8 +2008,6 @@ func _spawn_extension_warning_note() -> void:
 	_make_draggable(note, "paper")
 	ui_layer.add_child(note)
 	spawned_papers.append(note)
-
-
 
 # === FASE 3: LÓGICA DO FICHÁRIO E CALENDÁRIO ===
 
@@ -2021,7 +2031,7 @@ func _update_calendar() -> void:
 		if child.name != "clip": child.queue_free() 
 		
 	var title = Label.new()
-	title.text = "CALENDARIO (Dia " + str(GameManager.current_day) + ")"
+	title.text = "CALENDÁRIO (Dia " + str(GameManager.current_day) + ")"
 	title.add_theme_color_override("font_color", Color.BLACK)
 	title.add_theme_font_size_override("font_size", 12)
 	title.position = Vector2(10, 20)

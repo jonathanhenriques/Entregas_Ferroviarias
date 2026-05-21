@@ -223,9 +223,6 @@ func _setup_ui() -> void:
 	var map_limit_x = grid_width * TILE_SIZE 
 	var right_panel_width = 1920 - map_limit_x 
 	
-	# ==========================================================
-	# 1. ESTAÇÃO DE TRIAGEM (Quadrante Topo-Direito)
-	# ==========================================================
 	inspection_bg = ColorRect.new()
 	inspection_bg.color = Color(0.12, 0.14, 0.16)
 	inspection_bg.size = Vector2(right_panel_width, 1080)
@@ -245,7 +242,6 @@ func _setup_ui() -> void:
 	lbl_queue_count.position = Vector2(400, 20)
 	inspection_bg.add_child(lbl_queue_count)
 
-	# NOVO: Relógio Digital do Temporizador
 	lbl_timer = Label.new()
 	lbl_timer.text = "PARTIDA EM: 00:00"
 	lbl_timer.add_theme_font_size_override("font_size", 20)
@@ -253,7 +249,6 @@ func _setup_ui() -> void:
 	lbl_timer.position = Vector2(400, 50)
 	inspection_bg.add_child(lbl_timer)
 
-	# Balança Analógica 
 	var scale_base = ColorRect.new()
 	scale_base.color = Color(0.7, 0.75, 0.7)
 	scale_base.size = Vector2(160, 130)
@@ -293,7 +288,6 @@ func _setup_ui() -> void:
 	lbl_scale_digital.size = Vector2(140, 30)
 	scale_circle.add_child(lbl_scale_digital)
 
-	# Esteira HORIZONTAL
 	var conveyor = ColorRect.new()
 	conveyor.color = Color(0.10, 0.11, 0.12)
 	conveyor.size = Vector2(640, 160)
@@ -338,9 +332,6 @@ func _setup_ui() -> void:
 	lbl_strike_warning.visible = false
 	inspection_bg.add_child(lbl_strike_warning)
 
-	# ==========================================================
-	# 2. A MESA DO DIRETOR (Base do Painel 1/3)
-	# ==========================================================
 	desk_bg = ColorRect.new()
 	desk_bg.color = Color(0.4, 0.28, 0.2) 
 	desk_bg.size = Vector2(right_panel_width, 730)
@@ -425,22 +416,19 @@ func _setup_ui() -> void:
 	desk_bg.add_child(manual_bg)
 
 	var man_title = Label.new()
-	man_title.text = "MANUAL DE FISCALIZACAO"
+	man_title.text = "MANUAL DE FISCALIZAÇÃO"
 	man_title.add_theme_color_override("font_color", Color.BLACK)
 	man_title.position = Vector2(10, 20)
 	manual_bg.add_child(man_title)
 
 	var man_text = Label.new()
-	man_text.text = "- CARTAS: Selo Branco.\n\n- PERECIVEIS: Selo Verde.\n\n- VALIOSOS: Selo Azul.\n\n* Atencao ao Peso Real!\n* Use Raio-X em Valiosos para\nevitar contrabando d'armas."
+	man_text.text = "- CARTAS: Selo Branco.\n\n- PERECÍVEIS: Selo Verde.\n\n- VALIOSOS: Selo Azul.\n\n* Atenção ao Peso Real!\n* Use Raio-X em Valiosos para\nevitar contrabando de armas."
 	man_text.add_theme_color_override("font_color", Color.DARK_SLATE_GRAY)
 	man_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	man_text.size = Vector2(240, 300)
 	man_text.position = Vector2(10, 60)
 	manual_bg.add_child(man_text)
 
-	# ==========================================================
-	# 3. HUD DO MAPA E ESCURECIMENTO
-	# ==========================================================
 	panel_overlay = ColorRect.new()
 	panel_overlay.color = Color(0, 0, 0, 0.8) 
 	panel_overlay.size = Vector2(1920 - map_limit_x, 1080)
@@ -453,7 +441,7 @@ func _setup_ui() -> void:
 	var start_y = (grid_height * TILE_SIZE) - 200 
 	
 	btn_go_desk = Button.new()
-	btn_go_desk.text = "<- Ir para Escritorio"
+	btn_go_desk.text = "<- Ir para o Escritório"
 	btn_go_desk.position = Vector2(btn_x, start_y)
 	btn_go_desk.size = Vector2(ui_area_width, 40)
 	btn_go_desk.pressed.connect(_on_go_desk_pressed)
@@ -468,7 +456,7 @@ func _setup_ui() -> void:
 	ui_layer.add_child(btn_edit_mode)
 
 	btn_maint = Button.new()
-	btn_maint.text = "[/!\\] Orcamento"
+	btn_maint.text = "[/!\\] Orçamento"
 	btn_maint.position = Vector2(btn_x, start_y + 100)
 	btn_maint.size = Vector2(ui_area_width, 40)
 	btn_maint.add_theme_color_override("font_color", Color.ORANGE)
@@ -527,13 +515,13 @@ func _setup_ui() -> void:
 	maint_panel.add_child(border_maint)
 
 	var lbl_mtitle = Label.new()
-	lbl_mtitle.text = "LIVRO DE MANUTENCAO DA MALHA"
+	lbl_mtitle.text = "LIVRO DE MANUTENÇÃO DA MALHA"
 	lbl_mtitle.position = Vector2(20, 20)
 	lbl_mtitle.add_theme_color_override("font_color", Color.ORANGE)
 	maint_panel.add_child(lbl_mtitle)
 
 	var lbl_i = Label.new()
-	lbl_i.text = "Infra Pesada (Pontes/Tuneis)"
+	lbl_i.text = "Infra Pesada (Pontes/Túneis)"
 	lbl_i.position = Vector2(20, 60)
 	maint_panel.add_child(lbl_i)
 	sld_infra = HSlider.new()
@@ -549,7 +537,7 @@ func _setup_ui() -> void:
 	maint_panel.add_child(lbl_infra_val)
 
 	var lbl_t = Label.new()
-	lbl_t.text = "Carris (Velocidade/Quebra)"
+	lbl_t.text = "Trilhos (Velocidade/Quebras)"
 	lbl_t.position = Vector2(20, 115)
 	maint_panel.add_child(lbl_t)
 	sld_tracks = HSlider.new()
@@ -565,7 +553,7 @@ func _setup_ui() -> void:
 	maint_panel.add_child(lbl_tracks_val)
 
 	var lbl_e = Label.new()
-	lbl_e.text = "Controlo Ambiental (Incendios)"
+	lbl_e.text = "Controle Ambiental (Incêndios)"
 	lbl_e.position = Vector2(20, 170)
 	maint_panel.add_child(lbl_e)
 	sld_env = HSlider.new()
@@ -581,7 +569,7 @@ func _setup_ui() -> void:
 	maint_panel.add_child(lbl_env_val)
 
 	var lbl_s = Label.new()
-	lbl_s.text = "Seguranca (Patrulha de Gangues)"
+	lbl_s.text = "Segurança (Patrulha de Gangues)"
 	lbl_s.position = Vector2(20, 225)
 	maint_panel.add_child(lbl_s)
 	sld_sec = HSlider.new()
@@ -597,7 +585,7 @@ func _setup_ui() -> void:
 	maint_panel.add_child(lbl_sec_val)
 
 	var lbl_c = Label.new()
-	lbl_c.text = "Salarios da Equipa"
+	lbl_c.text = "Salários da Equipe"
 	lbl_c.position = Vector2(20, 280)
 	maint_panel.add_child(lbl_c)
 	sld_crew = HSlider.new()
@@ -613,7 +601,7 @@ func _setup_ui() -> void:
 	maint_panel.add_child(lbl_crew_val)
 
 	var lbl_l = Label.new()
-	lbl_l.text = "Relacoes Governamentais (Lobby)"
+	lbl_l.text = "Relações Governamentais (Lobby)"
 	lbl_l.position = Vector2(20, 335)
 	maint_panel.add_child(lbl_l)
 	sld_lobby = HSlider.new()
@@ -636,7 +624,6 @@ func _setup_ui() -> void:
 	maint_panel.add_child(btn_close_maint)
 
 	_clear_inspection_desk()
-
 
 
 
@@ -916,15 +903,15 @@ func _on_confirm_edit_pressed() -> void:
 	
 	if _bfs_shortest_dist(city_a, city_b, untouched, false, false) == -1: 
 		r_cd.append("Azul-Vermelha")
-		route_desc_string += "Ligacao: Estacao Azul para Vermelha\n"
+		route_desc_string += "Ligação: Estação Azul para Vermelha\n"
 	if _bfs_shortest_dist(city_a, city_c, untouched, false, false) == -1: 
 		r_cd.append("Azul-Verde")
-		route_desc_string += "Ligacao: Estacao Azul para Verde\n"
+		route_desc_string += "Ligação: Estação Azul para Verde\n"
 	if _bfs_shortest_dist(city_b, city_c, untouched, false, false) == -1: 
 		r_cd.append("Vermelha-Verde")
-		route_desc_string += "Ligacao: Estacao Vermelha para Verde\n"
+		route_desc_string += "Ligação: Estação Vermelha para Verde\n"
 		
-	if route_desc_string == "": route_desc_string = "Manutencao ou Demolicao da Malha"
+	if route_desc_string == "": route_desc_string = "Manutenção ou Demolição da Malha"
 
 	GameManager.pending_blueprint = {
 		"draft_paths": draft_paths.duplicate(true),
@@ -940,17 +927,9 @@ func _on_confirm_edit_pressed() -> void:
 	}
 	
 	GameManager.save_game()
-	
-	# === CORREÇÃO DO BUG ===
-	# 1. Limpa o modo de edição visualmente
 	_on_cancel_edit_pressed() 
-	
-	# 2. Atualiza as rotas confirmadas a partir do estado atualizado do GameManager
 	confirmed_routes = GameManager.saved_routes.duplicate()
-	
-	# 3. Força um redesenho imediato para garantir que a planta gerada apareça
 	queue_redraw()
-
 
 
 func _on_btn_maint_pressed() -> void:
@@ -1014,7 +993,6 @@ func _update_edit_panel() -> void:
 	if has_gangs: current_sec_tax = 200
 	current_total_cost = net_cost + current_env_tax + current_eng_tax + current_sec_tax
 
-	# CORREÇÃO DE CONEXÃO: Analisa os rascunhos E as rotas já existentes validando o tile da cidade
 	var temp_valid = {}
 	for r in confirmed_routes:
 		if not deleted_paths.has(r):
@@ -1022,7 +1000,6 @@ func _update_edit_panel() -> void:
 	for r in draft_paths:
 		for cell in r: temp_valid[cell] = true
 		
-	# Adiciona as cidades para o BFS conseguir encontra-las
 	if city_a != Vector2i(-1, -1): temp_valid[city_a] = true
 	if city_b != Vector2i(-1, -1): temp_valid[city_b] = true
 	if city_c != Vector2i(-1, -1): temp_valid[city_c] = true
@@ -1047,56 +1024,54 @@ func _update_edit_panel() -> void:
 
 	var is_valid = true
 	var t = "== PROJETO DE ENGENHARIA ==\n\n"
-	t += "[ DETALHES DA OBRA ]\nDistancia Construcao: " + str(dist_total) + " km\n"
-	if tunnel_count > 0: t += "- Tuneis: " + str(tunnel_count) + "\n"
+	t += "[ DETALHES DA OBRA ]\nDistância de Construção: " + str(dist_total) + " km\n"
+	if tunnel_count > 0: t += "- Túneis: " + str(tunnel_count) + "\n"
 	if bridge_count > 0: t += "- Pontes: " + str(bridge_count) + "\n"
 	if forest_count > 0: t += "- Desmatamento: " + str(forest_count) + "\n"
 	if repair_tiles.size() > 0: t += "Reparos Solicitados: " + str(repair_tiles.size()) + "\n"
 	
 	t += "\n[ TAXAS GOVERNAMENTAIS ]\n"
-	if current_env_tax > 0: t += "Licenca Ambiental: $" + str(current_env_tax) + "\n"
-	if current_eng_tax > 0: t += "Licenca de Engenharia: $" + str(current_eng_tax) + "\n"
+	if current_env_tax > 0: t += "Licença Ambiental: $" + str(current_env_tax) + "\n"
+	if current_eng_tax > 0: t += "Licença de Engenharia: $" + str(current_eng_tax) + "\n"
 	if current_sec_tax > 0: t += "Taxa Seg. Armada: $" + str(current_sec_tax) + "\n"
 	if current_env_tax == 0 and current_eng_tax == 0 and current_sec_tax == 0: t += "Isento de taxas especiais.\n"
 
 	t += "\n[ FINANCEIRO ]\n"
 	if build_cost > 0: t += "Novas Obras: $" + str(build_cost) + "\n"
 	if repair_cost > 0: t += "Custos de Reparo: $" + str(repair_cost) + "\n"
-	if refund_val > 0: t += "Reembolso Demolicao: +$" + str(refund_val) + "\n"
+	if refund_val > 0: t += "Reembolso por Demolição: +$" + str(refund_val) + "\n"
 	t += "---------------------------\nCUSTO TOTAL DO PROJETO: $" + str(current_total_cost) + "\n"
 	
 	if draft_paths.size() > 0 or deleted_paths.size() > 0 or repair_tiles.size() > 0:
 		if not has_conn and draft_paths.size() > 0:
 			is_valid = false
-			t += "\n[ ERRO: Rota desenhada nao toca nas estacoes! ]"
+			t += "\n[ ERRO: Rota desenhada não toca nas estações! ]"
 		else:
 			if routes_created_msg != "":
-				t += "\n[ CONEXOES ASSEGURADAS ]" + routes_created_msg + "\n"
+				t += "\n[ CONEXÕES ASSEGURADAS ]" + routes_created_msg + "\n"
 				
 		if current_total_cost > GameManager.money:
 			is_valid = false
 			t += "\n[ ERRO: Fundos Insuficientes! ]"
 	else:
 		is_valid = false
-		t += "\nNenhuma alteracao projetada."
+		t += "\nNenhuma alteração projetada."
 
 	edit_info.text = t
 	btn_confirm.disabled = not is_valid
 
 
 
-
 func _process(delta: float) -> void:
 	if not visible: return
 	
-	# ATUALIZA O RELÓGIO DA TRIAGEM
 	if is_instance_valid(lbl_timer):
 		if GameManager.shift_active and GameManager.boss_package_intro_done:
 			var m = int(GameManager.shift_time_left) / 60
 			var s = int(GameManager.shift_time_left) % 60
 			lbl_timer.text = "PARTIDA EM: %02d:%02d" % [m, s]
 		else:
-			lbl_timer.text = "AGUARDANDO COMBOIO"
+			lbl_timer.text = "AGUARDANDO TREM"
 	
 	var needs_redraw = false
 	for i in range(GameManager.active_contracts.size()):
@@ -1122,7 +1097,6 @@ func _process(delta: float) -> void:
 			needs_redraw = true
 
 	if needs_redraw: queue_redraw()
-
 
 
 func _spawn_train(contract_index: int, contract: Dictionary) -> void:
