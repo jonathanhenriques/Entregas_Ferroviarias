@@ -903,16 +903,41 @@ func _on_confirm_edit_pressed() -> void:
 	
 	if _bfs_shortest_dist(city_a, city_b, untouched, false, false) == -1: 
 		r_cd.append("Azul-Vermelha")
-		route_desc_string += "Ligação: Estação Azul para Vermelha\n"
+		route_desc_string += "Ligacao: Estacao Azul para Vermelha\n"
 	if _bfs_shortest_dist(city_a, city_c, untouched, false, false) == -1: 
 		r_cd.append("Azul-Verde")
-		route_desc_string += "Ligação: Estação Azul para Verde\n"
+		route_desc_string += "Ligacao: Estacao Azul para Verde\n"
 	if _bfs_shortest_dist(city_b, city_c, untouched, false, false) == -1: 
 		r_cd.append("Vermelha-Verde")
-		route_desc_string += "Ligação: Estação Vermelha para Verde\n"
+		route_desc_string += "Ligacao: Estacao Vermelha para Verde\n"
 		
-	if route_desc_string == "": route_desc_string = "Manutenção ou Demolição da Malha"
+	if route_desc_string == "": route_desc_string = "Manutencao ou Demolicao da Malha"
 
+	var dist = 0
+	var forests = 0
+	var gangs = 0
+	var tunnels = 0
+	var bridges = 0
+
+	for path in draft_paths:
+		for cell in path:
+			dist += 1
+			var b = biome_map.get(cell, Biome.PLAIN)
+			if b == Biome.FOREST: forests += 1
+			if b == Biome.MOUNTAIN: tunnels += 1
+			if b == Biome.RIVER: bridges += 1
+			if gang_map.has(cell): gangs += 1
+
+	var is_demolition = (deleted_paths.size() > 0 and draft_paths.size() == 0)
+	var is_new_build = draft_paths.size() > 0
+	var proj_type = "Manutencao Geral"
+	if is_new_build: proj_type = "Nova Construcao"
+	if is_demolition: proj_type = "Demolicao de Via"
+	
+	var est_days = int((dist * 15) / 30.0) + 1 
+	if is_demolition: est_days = 1
+
+	# CORREÇÃO FASE 3: Usando as variáveis exatas que existem no v89.txt
 	GameManager.pending_blueprint = {
 		"draft_paths": draft_paths.duplicate(true),
 		"deleted_paths": deleted_paths.duplicate(true),
@@ -923,13 +948,21 @@ func _on_confirm_edit_pressed() -> void:
 		"tax_sec": current_sec_tax,
 		"total_cost": current_total_cost,
 		"routes_to_cooldown": r_cd,
-		"route_description": route_desc_string
+		"route_description": route_desc_string,
+		"dist": dist,
+		"forests": forests,
+		"gangs": gangs,
+		"tunnels": tunnels,
+		"bridges": bridges,
+		"proj_type": proj_type,
+		"est_days": est_days
 	}
 	
 	GameManager.save_game()
 	_on_cancel_edit_pressed() 
 	confirmed_routes = GameManager.saved_routes.duplicate()
 	queue_redraw()
+
 
 
 func _on_btn_maint_pressed() -> void:

@@ -424,9 +424,10 @@ func reject_loan_shark() -> void:
 
 func _generate_daily_generics() -> void:
 	daily_generic_companies.clear()
-	var n = ["Comerciante Local", "Fazendeiro Independente", "Cooperativa Agricola"]
+	var bases = ["Siderurgica", "Agropecuaria", "Mineracao", "Industrias Quimicas", "Logistica", "Construtora"]
+	var suffixes = ["Vale do Aco", "Nova Safra", "Atlas", "Apex", "Global", "Horizonte"]
 	var t = ["Ganha-Pao", "Expresso"]
-	var cg = ["Suprimentos", "Materiais", "Maquinario", "Gado"]
+	var cg = ["Bobinas de Aco", "Fertilizantes", "Minerio de Ferro", "Pecas Usinadas", "Cimento", "Madeira Bruta"]
 	var possible_routes = [
 		{"id": "Azul-Vermelha", "n": "Azul <-> Vermelha"}, 
 		{"id": "Azul-Verde", "n": "Azul <-> Verde"}, 
@@ -435,21 +436,24 @@ func _generate_daily_generics() -> void:
 	var r = possible_routes.pick_random()
 	var tp = t.pick_random()
 	
-	# FASE 1: Os contratos diários agora se ajustam aos seus custos!
 	var daily_costs = daily_maintenance + BASE_COST + daily_crew_cost + daily_lobby_cost + daily_gang_toll
-	var min_reward = int(daily_costs * 0.8) # Paga pelo menos 80% do seu custo fixo do dia
+	var min_reward = int(daily_costs * 0.8) 
 	if min_reward < 80: min_reward = 80
 	
 	var comp = {
-		"name": n.pick_random() + " (Diario)", "type": tp, 
+		"name": bases.pick_random() + " " + suffixes.pick_random() + " (Diario)", 
+		"type": tp, 
 		"base_reward": randi_range(min_reward, min_reward + 80), 
 		"phone": "555-" + str(randi_range(1000, 9999)), 
-		"cargo": cg.pick_random(), "route_id": r["id"], "route_name": r["n"]
+		"cargo": cg.pick_random(),
+		"weight": randi_range(500, 15000),
+		"duration": randi_range(5, 10),
+		"route_id": r["id"], 
+		"route_name": r["n"]
 	}
 	if tp == "Expresso": comp["max_dist"] = 35 
 	daily_generic_companies.append(comp)
 	_roll_daily_urgencies()
-
 
 
 func _roll_daily_urgencies() -> void:
