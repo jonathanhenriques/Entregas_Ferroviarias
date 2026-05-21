@@ -2,9 +2,18 @@ extends Node2D
 
 var ui_layer: CanvasLayer
 
+signal desk_requested # <--- ADICIONE ESTA LINHA AQUI!
+
+# (Abaixo continuam as suas outras variáveis: var grid_width, var grid_height...)
 # === NOVAS VARIÁVEIS DA FASE 4 ===
 var status_panel: ColorRect
 var status_vbox: VBoxContainer
+
+var net_cost: int = 0
+var tax_env: int = 0
+var tax_eng: int = 0
+var tax_sec: int = 0
+var total_cost: int = 0
 
 var pen_base: ColorRect
 var pen_visual: ColorRect
@@ -73,7 +82,6 @@ var edit_panel: ColorRect
 var edit_info: Label
 var btn_confirm: Button
 var btn_cancel: Button
-var net_cost: int = 0
 var net_maint: int = 0
 var current_env_tax: int = 0
 var current_eng_tax: int = 0
@@ -97,24 +105,19 @@ var lbl_lobby_val: Label
 var btn_close_maint: Button
 
 func _ready() -> void:
-	_validate_saved_routes()
+	randomize()
 	_generate_biomes()
 	_setup_ui()
-	_setup_status_panel() # <--- NOVA CHAMADA AQUI
 	
-	confirmed_routes = GameManager.saved_routes.duplicate()
-	
-	_check_disasters()
-	_update_network_status()
-	
+	# Solução Definitiva: O próprio Godot avisará a UI quando o Mapa for aberto ou fechado
 	visibility_changed.connect(_on_visibility_changed)
-	GameManager.package_queue_updated.connect(_on_queue_updated)
-	GameManager.strike_received.connect(_on_strike_received)
-	GameManager.contracts_updated.connect(_update_status_panel) # <--- NOVA CONEXÃO
-	
-	_on_queue_updated(GameManager.package_queue.size())
-	_update_status_panel()
 
+func _on_visibility_changed() -> void:
+	if is_instance_valid(ui_layer):
+		ui_layer.visible = visible # A UI segue o estado exato do Mapa
+		if visible:
+			# Sempre que o mapa for aberto, garantimos que os popups estejam fechados
+			_reset_ui_state()
 
 
 func _validate_saved_routes() -> void:
@@ -129,27 +132,6 @@ func _validate_saved_routes() -> void:
 			valid_routes.append(route)
 	GameManager.saved_routes = valid_routes
 
-func _on_visibility_changed() -> void:
-	if ui_layer:
-		ui_layer.visible = visible
-	if visible:
-		confirmed_routes = GameManager.saved_routes.duplicate()
-		_check_disasters()
-		_update_network_status()
-		_update_status_panel() # <--- ATUALIZA O STATUS AO ABRIR O MAPA
-		
-		if not GameManager.pending_blueprint.is_empty():
-			btn_edit_mode.text = "[ PLANTA PENDENTE ]"
-			btn_edit_mode.disabled = true
-			btn_edit_mode.add_theme_color_override("font_color", Color.ORANGE)
-		else:
-			btn_edit_mode.text = "[ MODO OBRAS ]"
-			btn_edit_mode.disabled = false
-			btn_edit_mode.add_theme_color_override("font_color", Color.YELLOW)
-			
-		if GameManager.pendent_strike_warning != "":
-			_show_strike_warning(GameManager.pendent_strike_warning)
-			GameManager.pendent_strike_warning = ""
 
 
 
@@ -939,10 +921,6 @@ func _on_sld_lobby_changed(val: float) -> void:
 	GameManager.update_actual_maintenance()
 	_sync_maint_ui()
 
-func _on_go_desk_pressed() -> void:
-	var main_node = get_parent()
-	if main_node.has_method("go_to_desk"):
-		main_node.go_to_desk()
 
 func _on_edit_mode_pressed() -> void:
 	is_edit_mode = true
@@ -974,57 +952,73 @@ func _on_cancel_edit_pressed() -> void:
 	tentative_path.clear()
 	repair_tiles.clear()
 	queue_redraw()
-
+	_reset_ui_state() # ESCONDE O HUD SE CANCELAR
+	_on_go_desk_pressed()
 
 
 func _on_confirm_edit_pressed() -> void:
-	if tentative_path.size() < 2: 
+	# 1. Salva a rota
+	if tentative_path.size() >= 2:
+		draft_paths.append(tentative_path.duplicate())
+		
+	if draft_paths.size() == 0 and repair_tiles.size() == 0 and deleted_paths.size() == 0:
 		return
 	
+	# Mantido do v82
 	var dist = tentative_path.size()
 	var forests = 0
 	var gangs = 0
 	
 	for cell in tentative_path:
 		var b = biome_map.get(cell, Biome.PLAIN)
-		if b == Biome.FOREST: 
+		
+		if b == Biome.FOREST:
 			forests += 1
-		if gang_map.has(cell): 
+			
+		if gang_map.has(cell):
 			gangs += 1
 
+	# Mantido do v82
 	var r_cd = []
 	var route_desc_string = ""
 	
 	var valid_built = {}
+	
 	for route in confirmed_routes:
-		for cell in route: 
+		for cell in route:
 			valid_built[cell] = true
+			
 	valid_built[city_a] = true
 	valid_built[city_b] = true
 	valid_built[city_c] = true
+	
 	var untouched = valid_built.duplicate()
-	for bt in GameManager.broken_tiles: 
+	
+	for bt in GameManager.broken_tiles:
 		untouched.erase(bt)
 	
-	if _bfs_shortest_dist(city_a, city_b, untouched, false, false) == -1: 
+	if _bfs_shortest_dist(city_a, city_b, untouched, false, false) == -1:
 		r_cd.append("Azul-Vermelha")
-		route_desc_string += "Ligacao: Estacao Azul para Vermelha\n"
-	if _bfs_shortest_dist(city_a, city_c, untouched, false, false) == -1: 
+		route_desc_string += "Ligação: Estação Azul para Vermelha\n"
+		
+	if _bfs_shortest_dist(city_a, city_c, untouched, false, false) == -1:
 		r_cd.append("Azul-Verde")
-		route_desc_string += "Ligacao: Estacao Azul para Verde\n"
-	if _bfs_shortest_dist(city_b, city_c, untouched, false, false) == -1: 
+		route_desc_string += "Ligação: Estação Azul para Verde\n"
+		
+	if _bfs_shortest_dist(city_b, city_c, untouched, false, false) == -1:
 		r_cd.append("Vermelha-Verde")
-		route_desc_string += "Ligacao: Estacao Vermelha para Verde\n"
+		route_desc_string += "Ligação: Estação Vermelha para Verde\n"
 
+	# Atualiza o estado global
 	GameManager.pending_blueprint = {
 		"draft_paths": draft_paths.duplicate(true),
 		"repair_tiles": repair_tiles.duplicate(true),
 		"deleted_paths": deleted_paths.duplicate(true),
 		"net_cost": net_cost,
-		"tax_env": current_env_tax,
-		"tax_eng": current_eng_tax,
-		"tax_sec": current_sec_tax,
-		"total_cost": current_total_cost,
+		"tax_env": tax_env,
+		"tax_eng": tax_eng,
+		"tax_sec": tax_sec,
+		"total_cost": total_cost,
 		"routes_to_cooldown": r_cd,
 		"route_description": route_desc_string,
 		"dist": dist,
@@ -1032,11 +1026,11 @@ func _on_confirm_edit_pressed() -> void:
 		"gangs": gangs
 	}
 	
-	var event = InputEventMouseButton.new()
-	event.button_index = MOUSE_BUTTON_LEFT
-	event.pressed = true
+	# LIMPEZA E TRANSIÇÃO
+	tentative_path.clear()
+	queue_redraw()
+	_reset_ui_state() # ESCONDE O HUD
 	_on_go_desk_pressed()
-
 
 
 
@@ -1837,8 +1831,15 @@ func _update_edit_info() -> void:
 		return
 		
 	var dist = tentative_path.size()
-	var km_total = dist * 15 # Cada bloco equivale a 15km
-	var cost = 0
+	var km_total = dist * 15 
+	
+	# Reset das variáveis globais da classe
+	net_cost = 0
+	tax_env = 0
+	tax_eng = 0
+	tax_sec = 0
+	total_cost = 0
+	
 	var forests = 0
 	var mountains = 0
 	var rivers = 0
@@ -1847,12 +1848,17 @@ func _update_edit_info() -> void:
 	for cell in tentative_path:
 		var b = biome_map.get(cell, Biome.PLAIN)
 		if b == Biome.FOREST: forests += 1
-		elif b == Biome.MOUNTAIN: mountains += 1
-		elif b == Biome.RIVER: rivers += 1
+		if b == Biome.MOUNTAIN: mountains += 1
+		if b == Biome.RIVER: rivers += 1
 		if gang_map.has(cell): gangs += 1
-		cost += GameManager.COSTS[b]
+			
+		net_cost += GameManager.COSTS[b]
 		
-	# Cálculo de Manutenção Estimada Diária
+	tax_env = forests * 50
+	tax_eng = (mountains + rivers) * 100
+	tax_sec = gangs * 75
+	total_cost = net_cost + tax_env + tax_eng + tax_sec
+	
 	var maint_cost = dist * 25
 	
 	btn_confirm.disabled = false
@@ -1860,25 +1866,27 @@ func _update_edit_info() -> void:
 	var relatorio = "[ PROJETO DE ENGENHARIA ]\n\n"
 	relatorio += "► ESPECIFICAÇÕES DA VIA\n"
 	relatorio += "Extensão Total: " + str(km_total) + " km\n"
-	relatorio += "Orçamento de Obras: $" + str(cost) + "\n"
-	relatorio += "Custo de Manutenção (Est.): $" + str(maint_cost) + "/dia\n\n"
+	relatorio += "Orçamento Base: $" + str(net_cost) + "\n"
+	relatorio += "Custo Total (c/ taxas): $" + str(total_cost) + "\n"
+	relatorio += "Manutenção Diária: $" + str(maint_cost) + "\n\n"
 	
-	relatorio += "► OBRAS DE ARTE (INFRAESTRUTURA)\n"
-	relatorio += "Pontes Requeridas (Rios): " + str(rivers) + "\n"
-	relatorio += "Túneis Escavados (Montanhas): " + str(mountains) + "\n\n"
+	relatorio += "► OBRAS DE ARTE\n"
+	relatorio += "Pontes: " + str(rivers) + " | Túneis: " + str(mountains) + "\n\n"
 	
 	relatorio += "► AVALIAÇÃO DE RISCO\n"
 	if forests > 0:
-		relatorio += "Ambiental: ALERTA. " + str(forests * 10) + " hectares desmatados. Risco altíssimo de multas do Ibama local.\n"
+		relatorio += "Ambiental: ALERTA (" + str(forests) + " zonas florestais afetadas).\n"
 	else:
-		relatorio += "Ambiental: Impacto mínimo. Via aprovada.\n"
+		relatorio += "Ambiental: Impacto mínimo.\n"
 		
 	if gangs > 0:
-		relatorio += "Segurança: ROTA CRÍTICA! " + str(gangs) + " áreas de risco interceptadas. Probabilidade de sabotagem e saques.\n"
+		relatorio += "Segurança: ROTA CRÍTICA (" + str(gangs) + " áreas sob domínio de gangues).\n"
 	else:
-		relatorio += "Segurança: Área patrulhada. Baixo risco de ataques.\n"
+		relatorio += "Segurança: Baixo risco.\n"
 		
 	edit_info.text = relatorio
+
+
 
 
 # ==========================================================
@@ -1963,3 +1971,21 @@ func _process(delta: float) -> void:
 
 	if needs_redraw: 
 		queue_redraw()
+
+
+func _reset_ui_state() -> void:
+	# Função focada estritamente no seu único trabalho: fechar os popups flutuantes.
+	if is_instance_valid(edit_panel): edit_panel.visible = false
+	if is_instance_valid(maint_panel): maint_panel.visible = false
+	if is_instance_valid(panel_overlay): panel_overlay.visible = false
+
+func _on_go_desk_pressed() -> void:
+	is_edit_mode = false
+	if is_instance_valid(btn_edit_mode):
+		btn_edit_mode.text = "[ MODO DE OBRAS ]"
+		btn_edit_mode.add_theme_color_override("font_color", Color.YELLOW)
+	tentative_path.clear()
+	queue_redraw()
+	
+	visible = false # Isso agora esconde o mapa E a interface de forma automática e limpa!
+	desk_requested.emit()
