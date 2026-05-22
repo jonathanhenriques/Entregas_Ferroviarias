@@ -25,6 +25,17 @@ var btn_opt_3: Button
 var silhouette_body: ColorRect
 var silhouette_head: ColorRect
 
+
+var character_portrait: TextureRect
+
+var tex_bear: Texture2D = preload("res://bear,chefe_v01.png")
+var tex_badger: Texture2D = preload("res://maquinista,texugo_v01.png")
+var tex_fiscal: Texture2D = preload("res://fiscal,garca_v01.png")
+
+# --- NOVO: IMAGENS DOS CLIENTES ALEATÓRIOS ---
+var tex_client_1: Texture2D = preload("res://cliente_01.png")
+var tex_client_2: Texture2D = preload("res://cliente_02.png")
+
 var full_text: String = ""
 var char_index: int = 0
 var offered_reward: int = 0
@@ -46,17 +57,14 @@ func _setup_visuals() -> void:
 	overlay.mouse_filter = Control.MOUSE_FILTER_STOP 
 	add_child(overlay)
 
-	silhouette_body = ColorRect.new()
-	silhouette_body.color = Color(0, 0, 0, 1)
-	silhouette_body.size = Vector2(600, 750)
-	silhouette_body.position = Vector2(100, 330)
-	add_child(silhouette_body)
-	
-	silhouette_head = ColorRect.new()
-	silhouette_head.color = Color(0, 0, 0, 1)
-	silhouette_head.size = Vector2(180, 210)
-	silhouette_head.position = Vector2(310, 150)
-	add_child(silhouette_head)
+	# --- NOVO RETRATO DO PERSONAGEM (Substitui os antigos ColorRects) ---
+	character_portrait = TextureRect.new()
+	character_portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	character_portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	# Aumentamos o tamanho e a posição Y para cobrir desde a cabeça até a base da tela
+	character_portrait.size = Vector2(600, 800)
+	character_portrait.position = Vector2(100, 150) 
+	add_child(character_portrait)
 
 	dialog_box = ColorRect.new()
 	dialog_box.color = Color(0.05, 0.05, 0.15, 0.9) 
@@ -137,6 +145,10 @@ func _input(event: InputEvent) -> void:
 
 func start_call(company_name: String, company_type: String, company_cargo: String, base_reward: int, is_urgent: bool = false) -> void:
 	_reset_ui()
+	# --- NOVO: Sorteia um cliente ---
+	var arts = [tex_client_1, tex_client_2]
+	character_portrait.texture = arts.pick_random()
+	
 	current_mode = "CALL"
 	
 	var dice = randi_range(1, 6)
@@ -159,6 +171,10 @@ func start_call(company_name: String, company_type: String, company_cargo: Strin
 
 func start_risk_call(company_name: String, route_name: String, base_reward: int, wait_days: int) -> void:
 	_reset_ui()
+	# --- NOVO: Sorteia um cliente ---
+	var arts = [tex_client_1, tex_client_2]
+	character_portrait.texture = arts.pick_random()
+	
 	current_mode = "RISK_CALL"
 	
 	var dice = randi_range(1, 6)
@@ -179,6 +195,10 @@ func start_risk_call(company_name: String, route_name: String, base_reward: int,
 
 func start_rejection_call(company_name: String, custom_reason: String = "") -> void:
 	_reset_ui()
+	# --- NOVO: Sorteia um cliente ---
+	var arts = [tex_client_1, tex_client_2]
+	character_portrait.texture = arts.pick_random()
+	
 	current_mode = "REJECT"
 	
 	name_label.text = "[ TRANSMISSÃO: " + company_name.to_upper() + " ]"
@@ -197,6 +217,10 @@ func start_rejection_call(company_name: String, custom_reason: String = "") -> v
 
 func start_angry_call() -> void:
 	_reset_ui()
+	# --- NOVO: Sorteia um cliente ---
+	var arts = [tex_client_1, tex_client_2]
+	character_portrait.texture = arts.pick_random()
+	
 	current_mode = "ANGRY"
 	
 	name_label.text = "[ TRANSMISSÃO: CLIENTE FURIOSO ]"
@@ -224,6 +248,10 @@ func start_boss_intro() -> void:
 
 func start_cancel_warning(company_name: String, idx: int) -> void:
 	_reset_ui()
+	# --- NOVO: Sorteia um cliente ---
+	var arts = [tex_client_1, tex_client_2]
+	character_portrait.texture = arts.pick_random()
+	
 	current_mode = "CANCEL_WARNING"
 	pending_cancel_idx = idx
 	
@@ -239,6 +267,11 @@ func start_cancel_warning(company_name: String, idx: int) -> void:
 
 func start_badger_radio() -> void:
 	_reset_ui()
+	# --- NOVO: Troca para a arte do Maquinista
+	character_portrait.texture = tex_badger
+	
+	name_label.text = "[ FREQUÊNCIA 104.2: MAQUINISTA BADGER ]"
+	name_label.add_theme_color_override("font_color", Color.SKY_BLUE)
 	
 	name_label.text = "[ FREQUÊNCIA 104.2: MAQUINISTA BADGER ]"
 	name_label.add_theme_color_override("font_color", Color.SKY_BLUE)
@@ -279,6 +312,8 @@ func _reset_ui() -> void:
 	btn_opt_3.visible = false
 	
 	name_label.add_theme_color_override("font_color", Color.YELLOW)
+	# --- NOVO: Define a arte do Urso como o padrão ao iniciar qualquer chamada
+	character_portrait.texture = tex_bear
 
 func _type_next_char(is_negotiation: bool) -> void:
 	if fast_forward:
@@ -362,6 +397,9 @@ func _on_opt_3() -> void:
 func start_fiscal_audit(data: Dictionary) -> void:
 	_reset_ui()
 	current_mode = "FISCAL"
+	
+	# --- NOVO: Troca para a arte do Fiscal
+	character_portrait.texture = tex_fiscal
 	
 	name_label.text = "[ MINISTÉRIO DOS TRANSPORTES: AUDITORIA ]"
 	name_label.add_theme_color_override("font_color", Color.ORANGE)
