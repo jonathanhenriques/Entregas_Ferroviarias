@@ -351,36 +351,81 @@ func _setup_ui() -> void:
 	desk_border.border_width = 8
 	desk_bg.add_child(desk_border)
 
+	
+	# --- ESTILOS VISUAIS PARA OS BOTÕES INDUSTRIAIS ---
+	var panel_btn_normal = StyleBoxFlat.new()
+	panel_btn_normal.bg_color = Color(0.25, 0.25, 0.28)
+	panel_btn_normal.border_width_bottom = 6
+	panel_btn_normal.border_color = Color(0.1, 0.1, 0.12)
+	panel_btn_normal.corner_radius_top_left = 8
+	panel_btn_normal.corner_radius_top_right = 8
+	panel_btn_normal.corner_radius_bottom_left = 8
+	panel_btn_normal.corner_radius_bottom_right = 8
+	
+	var panel_btn_pressed = StyleBoxFlat.new()
+	panel_btn_pressed.bg_color = Color(0.2, 0.2, 0.22)
+	panel_btn_pressed.border_width_bottom = 2
+	panel_btn_pressed.border_color = Color(0.1, 0.1, 0.12)
+	panel_btn_pressed.corner_radius_top_left = 8
+	panel_btn_pressed.corner_radius_top_right = 8
+	panel_btn_pressed.corner_radius_bottom_left = 8
+	panel_btn_pressed.corner_radius_bottom_right = 8
+
 	btn_lever = Button.new()
 	btn_lever.text = "[ CHUTA ALAVANCA ]\nChamar Encomenda"
-	btn_lever.size = Vector2(160, 60)
-	btn_lever.position = Vector2(40, 40)
+	btn_lever.size = Vector2(180, 70)
+	btn_lever.position = Vector2(30, 30)
+	btn_lever.add_theme_stylebox_override("normal", panel_btn_normal)
+	btn_lever.add_theme_stylebox_override("pressed", panel_btn_pressed)
+	btn_lever.add_theme_color_override("font_color", Color.WHITE)
 	btn_lever.pressed.connect(_on_btn_lever_pressed)
 	desk_bg.add_child(btn_lever)
 
 	btn_xray = Button.new()
 	btn_xray.text = "[ LIGAR RAIO-X ]\nCusto: $15"
-	btn_xray.size = Vector2(160, 60)
-	btn_xray.position = Vector2(240, 40)
-	btn_xray.add_theme_color_override("font_color", Color(0.3, 0.9, 0.3))
+	btn_xray.size = Vector2(180, 70)
+	btn_xray.position = Vector2(230, 30)
+	var xray_btn_normal = panel_btn_normal.duplicate()
+	xray_btn_normal.bg_color = Color(0.2, 0.35, 0.2)
+	xray_btn_normal.border_color = Color(0.05, 0.15, 0.05)
+	var xray_btn_pressed = panel_btn_pressed.duplicate()
+	xray_btn_pressed.bg_color = Color(0.15, 0.25, 0.15)
+	btn_xray.add_theme_stylebox_override("normal", xray_btn_normal)
+	btn_xray.add_theme_stylebox_override("pressed", xray_btn_pressed)
+	btn_xray.add_theme_color_override("font_color", Color(0.7, 1.0, 0.7))
 	btn_xray.pressed.connect(_on_btn_xray_pressed)
 	desk_bg.add_child(btn_xray)
 
 	btn_approve_pkg = Button.new()
 	btn_approve_pkg.text = "[ CARREGAR NO TREM ]\n(Validado)"
-	btn_approve_pkg.size = Vector2(200, 60)
-	btn_approve_pkg.position = Vector2(40, 120) 
-	btn_approve_pkg.add_theme_color_override("font_color", Color(0.2, 0.7, 0.2))
+	btn_approve_pkg.size = Vector2(220, 70)
+	btn_approve_pkg.position = Vector2(30, 120) 
+	var app_btn_normal = panel_btn_normal.duplicate()
+	app_btn_normal.bg_color = Color(0.15, 0.4, 0.15)
+	app_btn_normal.border_color = Color(0.05, 0.2, 0.05)
+	var app_btn_pressed = panel_btn_pressed.duplicate()
+	app_btn_pressed.bg_color = Color(0.1, 0.3, 0.1)
+	btn_approve_pkg.add_theme_stylebox_override("normal", app_btn_normal)
+	btn_approve_pkg.add_theme_stylebox_override("pressed", app_btn_pressed)
+	btn_approve_pkg.add_theme_color_override("font_color", Color.WHITE)
 	btn_approve_pkg.pressed.connect(_on_approve_pkg_pressed)
 	desk_bg.add_child(btn_approve_pkg)
 	
 	btn_reject_pkg = Button.new()
 	btn_reject_pkg.text = "[ DEVOLVER REMETENTE ]\n(Fraude)"
-	btn_reject_pkg.size = Vector2(200, 60)
-	btn_reject_pkg.position = Vector2(260, 120) 
-	btn_reject_pkg.add_theme_color_override("font_color", Color(0.8, 0.2, 0.2))
+	btn_reject_pkg.size = Vector2(220, 70)
+	btn_reject_pkg.position = Vector2(270, 120) 
+	var rej_btn_normal = panel_btn_normal.duplicate()
+	rej_btn_normal.bg_color = Color(0.6, 0.2, 0.2)
+	rej_btn_normal.border_color = Color(0.3, 0.05, 0.05)
+	var rej_btn_pressed = panel_btn_pressed.duplicate()
+	rej_btn_pressed.bg_color = Color(0.4, 0.15, 0.15)
+	btn_reject_pkg.add_theme_stylebox_override("normal", rej_btn_normal)
+	btn_reject_pkg.add_theme_stylebox_override("pressed", rej_btn_pressed)
+	btn_reject_pkg.add_theme_color_override("font_color", Color.WHITE)
 	btn_reject_pkg.pressed.connect(_on_reject_pkg_pressed)
 	desk_bg.add_child(btn_reject_pkg)
+	
 
 	var clipboard_bg = ColorRect.new()
 	clipboard_bg.color = Color(0.85, 0.8, 0.65)

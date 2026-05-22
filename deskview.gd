@@ -196,30 +196,61 @@ func _setup_ui() -> void:
 	pen_tip.polygon = PackedVector2Array([ Vector2(0, 110), Vector2(12, 110), Vector2(6, 125) ])
 	tool_pen.add_child(pen_tip)
 
+	# --- CARIMBOS (Agora com visual de pegador) ---
 	stamp_reject = ColorRect.new()
-	stamp_reject.color = Color(0.6, 0.2, 0.2)
+	stamp_reject.color = Color.TRANSPARENT # Base invisível para segurar as partes
 	stamp_reject.size = Vector2(70, 90)
 	stamp_reject.position = Vector2(600, 120)
 	ui_layer.add_child(stamp_reject)
 	_make_draggable(stamp_reject, "tool_reject")
 	
+	var reject_base = ColorRect.new()
+	reject_base.color = Color(0.6, 0.2, 0.2)
+	reject_base.size = Vector2(70, 30)
+	reject_base.position = Vector2(0, 60)
+	reject_base.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stamp_reject.add_child(reject_base)
+	
+	var reject_handle = ColorRect.new()
+	reject_handle.color = Color(0.3, 0.1, 0.1)
+	reject_handle.size = Vector2(24, 60)
+	reject_handle.position = Vector2(23, 0)
+	reject_handle.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stamp_reject.add_child(reject_handle)
+	
 	var lbl_r = Label.new()
 	lbl_r.text = "REJEITAR"
 	lbl_r.add_theme_font_size_override("font_size", 12)
-	lbl_r.position = Vector2(5, 40)
+	lbl_r.add_theme_color_override("font_color", Color.WHITE)
+	lbl_r.position = Vector2(5, 65)
 	stamp_reject.add_child(lbl_r)
 
 	stamp_cia = ColorRect.new()
-	stamp_cia.color = Color(0.2, 0.3, 0.5)
+	stamp_cia.color = Color.TRANSPARENT
 	stamp_cia.size = Vector2(70, 90)
 	stamp_cia.position = Vector2(720, 120)
 	ui_layer.add_child(stamp_cia)
 	_make_draggable(stamp_cia, "tool_cia")
 	
+	var cia_base = ColorRect.new()
+	cia_base.color = Color(0.2, 0.3, 0.5)
+	cia_base.size = Vector2(70, 30)
+	cia_base.position = Vector2(0, 60)
+	cia_base.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stamp_cia.add_child(cia_base)
+	
+	var cia_handle = ColorRect.new()
+	cia_handle.color = Color(0.1, 0.15, 0.25)
+	cia_handle.size = Vector2(24, 60)
+	cia_handle.position = Vector2(23, 0)
+	cia_handle.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stamp_cia.add_child(cia_handle)
+	
 	var lbl_cia = Label.new()
 	lbl_cia.text = "SELO CIA"
 	lbl_cia.add_theme_font_size_override("font_size", 12)
-	lbl_cia.position = Vector2(5, 40)
+	lbl_cia.add_theme_color_override("font_color", Color.WHITE)
+	lbl_cia.position = Vector2(5, 65)
 	stamp_cia.add_child(lbl_cia)
 
 	outbox_rect = ColorRect.new()
@@ -378,38 +409,47 @@ func _setup_ui() -> void:
 	task_pad_rect.add_child(task_vbox)
 
 
-	# --- LINHA INFERIOR (Rádio, Telefone, Calendário) ---
+
+	# --- RÁDIO (Agora em formato de Walkie-Talkie, à direita do Telefone) ---
 	radio_rect = ColorRect.new()
-	radio_rect.color = Color(0.6, 0.6, 0.65) 
-	radio_rect.size = Vector2(250, 120)
-	radio_rect.position = Vector2(480, 420)
+	radio_rect.color = Color(0.2, 0.2, 0.25) # Cinza azulado escuro
+	radio_rect.size = Vector2(140, 320)      # Formato Vertical
+	radio_rect.position = Vector2(420, 690)  # Ao lado do telefone
 	ui_layer.add_child(radio_rect)
 	_make_draggable(radio_rect, "radio")
 	
+	var radio_antenna = ColorRect.new()
+	radio_antenna.color = Color(0.1, 0.1, 0.1)
+	radio_antenna.size = Vector2(16, 80)
+	radio_antenna.position = Vector2(20, -70)
+	radio_antenna.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	radio_rect.add_child(radio_antenna)
+	
 	var radio_speaker = ColorRect.new()
-	radio_speaker.color = Color(0.15, 0.15, 0.15)
-	radio_speaker.size = Vector2(120, 80)
-	radio_speaker.position = Vector2(20, 20)
+	radio_speaker.color = Color(0.1, 0.1, 0.1)
+	radio_speaker.size = Vector2(100, 100)
+	radio_speaker.position = Vector2(20, 120)
 	radio_speaker.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	radio_rect.add_child(radio_speaker)
 	
 	var radio_lbl = Label.new()
 	radio_lbl.text = "RÁDIO PTT\nFREQ 104.2"
-	radio_lbl.add_theme_color_override("font_color", Color.BLACK)
-	radio_lbl.position = Vector2(150, 20)
+	radio_lbl.add_theme_color_override("font_color", Color.WHITE)
+	radio_lbl.position = Vector2(20, 20)
 	radio_rect.add_child(radio_lbl)
 	
 	radio_led = ColorRect.new()
 	radio_led.color = Color(0.2, 0.05, 0.05) 
-	radio_led.size = Vector2(20, 20)
-	radio_led.position = Vector2(150, 70)
+	radio_led.size = Vector2(24, 24)
+	radio_led.position = Vector2(96, 70) # LED no canto
 	radio_led.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	radio_rect.add_child(radio_led)
 
+	# --- TELEFONE (Movido para baixo à esquerda) ---
 	phone_rect = ColorRect.new()
 	phone_rect.color = Color(0.1, 0.25, 0.15) 
 	phone_rect.size = Vector2(340, 260) 
-	phone_rect.position = Vector2(750, 650)
+	phone_rect.position = Vector2(40, 750) # Posição Inferior Esquerda
 	ui_layer.add_child(phone_rect)
 	_make_draggable(phone_rect, "panel")
 	
@@ -436,6 +476,8 @@ func _setup_ui() -> void:
 	dial_rect.draw.connect(_on_dial_draw)
 	dial_rect.gui_input.connect(_on_dial_gui_input)
 	phone_rect.add_child(dial_rect)
+	
+		# --- LINHA INFERIOR (Calendário) ---
 
 	calendar_rect = ColorRect.new()
 	calendar_rect.color = Color(0.9, 0.9, 0.9)
