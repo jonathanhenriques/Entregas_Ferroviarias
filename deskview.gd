@@ -4,7 +4,7 @@ var ui_layer: CanvasLayer
 
 var agenda_rect: ColorRect
 var clipboard_rect: ColorRect
-var active_paper_rect: ColorRect
+
 var diretrizes_rect: ColorRect
 var diretrizes_label: Label
 var diretrizes_bar: ProgressBar
@@ -33,7 +33,7 @@ var btn_close_folder: Button
 
 var report_label: Label
 var btn_next_day: Button
-var contracts_vbox: VBoxContainer 
+
 
 var bg_rect: ColorRect
 var btn_back_map: Button
@@ -111,7 +111,6 @@ func _ready() -> void:
 	
 	_load_agenda_contacts()
 	_update_report_text()
-	_update_active_contracts_text()
 	_update_diretrizes() 
 	_update_task_pad()
 
@@ -355,46 +354,29 @@ func _setup_ui() -> void:
 
 	task_pad_rect = ColorRect.new()
 	task_pad_rect.color = Color(0.95, 0.92, 0.65)
-	task_pad_rect.size = Vector2(280, 280)
-	task_pad_rect.position = Vector2(1150, 200) # Lado Direito
+	# Aumentamos o tamanho e movemos um pouco para a esquerda para não encostar na lixeira
+	task_pad_rect.size = Vector2(380, 380)
+	task_pad_rect.position = Vector2(1100, 200) 
 	ui_layer.add_child(task_pad_rect)
 	_make_draggable(task_pad_rect, "panel")
 
 	var pad_clip = ColorRect.new()
 	pad_clip.color = Color(0.7, 0.2, 0.2) 
-	pad_clip.size = Vector2(280, 20)
+	pad_clip.size = Vector2(380, 20)
 	task_pad_rect.add_child(pad_clip)
 
 	var task_title = Label.new()
-	task_title.text = "TAREFAS PENDENTES"
+	task_title.text = "PRANCHETA DE OPERAÇÕES"
 	task_title.add_theme_color_override("font_color", Color.BLACK)
-	task_title.position = Vector2(10, 25)
+	task_title.position = Vector2(20, 25)
 	task_pad_rect.add_child(task_title)
 
 	task_vbox = VBoxContainer.new()
-	task_vbox.position = Vector2(10, 50)
-	task_vbox.size = Vector2(260, 220)
+	task_vbox.position = Vector2(15, 55)
+	task_vbox.size = Vector2(350, 310)
 	task_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	task_pad_rect.add_child(task_vbox)
 
-	active_paper_rect = ColorRect.new()
-	active_paper_rect.color = Color(0.85, 0.9, 0.95) 
-	active_paper_rect.size = Vector2(400, 520) 
-	active_paper_rect.position = Vector2(1480, 450) # Canto Inferior Direito
-	ui_layer.add_child(active_paper_rect)
-	_make_draggable(active_paper_rect, "panel")
-
-	var active_title = Label.new()
-	active_title.text = "FROTA E CONTRATOS ATIVOS" 
-	active_title.add_theme_color_override("font_color", Color.BLACK)
-	active_title.position = Vector2(20, 20)
-	active_paper_rect.add_child(active_title)
-
-	contracts_vbox = VBoxContainer.new()
-	contracts_vbox.position = Vector2(20, 50)
-	contracts_vbox.size = Vector2(360, 450) 
-	contracts_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	active_paper_rect.add_child(contracts_vbox)
 
 	# --- LINHA INFERIOR (Rádio, Telefone, Calendário) ---
 	radio_rect = ColorRect.new()
@@ -1335,7 +1317,6 @@ func _on_cancel_confirmed(idx: int) -> void:
 		if not (is_daily and GameManager.current_day == 1):
 			GameManager.company_cooldowns[c_name] = 7
 			
-		_update_active_contracts_text()
 		_load_agenda_contacts()
 
 func _on_radio_choice(idx: int) -> void:
@@ -1360,7 +1341,6 @@ func _on_radio_choice(idx: int) -> void:
 	GameManager.save_game()
 	_update_report_text()
 	_update_diretrizes()
-	_update_active_contracts_text()
 	_update_task_pad()
 
 func _update_task_pad() -> void:
@@ -1369,111 +1349,88 @@ func _update_task_pad() -> void:
 		
 	if GameManager.active_contracts.size() == 0:
 		var lbl = Label.new()
-		lbl.text = "Nenhum contrato ativo no momento."
+		lbl.text = "Nenhum contrato ativo no momento.\nO pátio está vazio."
 		lbl.add_theme_color_override("font_color", Color.DIM_GRAY)
-		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.add_theme_font_size_override("font_size", 14)
 		task_vbox.add_child(lbl)
 		return
 		
+	var i = 0
 	for c in GameManager.active_contracts:
+		var hbox = HBoxContainer.new()
+		hbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		
 		var lbl = Label.new()
-		var rid = c["route_id"]
-		var t = "- " + c["company_name"] + "\n  Status: "
+		var rid = c.get("route_id", "")
+		var is_act = GameManager.is_contract_operating(c)
+		var cargo_name = c.get("cargo", "Carga Geral")
+		var route_name = c.get("route_name", "Desconhecida")
+		var days_left = c.get("days_left", 0)
+		
+		var st = ""
+		var t = "T" + str(i + 1) + " - " + c["company_name"] + "\nCarga: " + cargo_name + " | Rota: " + route_name + "\nStatus: "
 		
 		if c.has("pending_route_days"):
-			var is_building = (GameManager.routes_under_construction.get(rid, 0) > 0)
-			if is_building:
-				t += "EM OBRAS (" + str(GameManager.routes_under_construction[rid]) + "d restantes)"
-				lbl.add_theme_color_override("font_color", Color.DARK_GOLDENROD)
-			else:
-				t += "ROTA INEXISTENTE (" + str(c["pending_route_days"]) + "d p/ falha)"
-				lbl.add_theme_color_override("font_color", Color.DARK_RED)
+			st = "AGUARDANDO VIA (" + str(c["pending_route_days"]) + "d p/ falha)"
+			lbl.add_theme_color_override("font_color", Color.DARK_GOLDENROD)
 		else:
-			var stats = GameManager.network_stats.get(rid, {})
-			if stats.get("is_broken", false):
-				t += "INTERROMPIDO (Falha na Via)"
-				lbl.add_theme_color_override("font_color", Color.CRIMSON)
-			else:
-				t += "OPERACIONAL (" + str(c["days_left"]) + "d restantes)"
+			if is_act: 
+				if c.get("is_urgent", false):
+					st = "OPERACIONAL [PAGO À VISTA]"
+				else:
+					st = "OPERACIONAL (+$" + str(c.get("reward", 0)) + "/dia)"
 				lbl.add_theme_color_override("font_color", Color.DARK_GREEN)
-				
+			else:
+				lbl.add_theme_color_override("font_color", Color.INDIAN_RED)
+				if GameManager.routes_under_construction.get(rid, 0) > 0:
+					st = "EM OBRAS (" + str(GameManager.routes_under_construction[rid]) + "d restantes)"
+				else:
+					if not (rid in GameManager.network_connections): 
+						st = "SEM ROTA FÍSICA"
+					else: 
+						var stats = GameManager.network_stats.get(rid, {})
+						if stats.get("is_broken", false):
+							st = "VIA DESTRUÍDA"
+						else:
+							var tp = c.get("type", "")
+							if tp == "Expresso" and stats.get("dist", 999) > c.get("max_dist", 999):
+								st = "PARADO (ROTA LONGA)"
+							else:
+								if tp == "VIP" and GameManager.active_contracts.size() > 1:
+									st = "PARADO (FIM DA EXCLUSIVIDADE)"
+								else:
+									if tp == "VIP" and stats.get("gangs", 0) > 0:
+										st = "PARADO (GANGUES NA LINHA)"
+									else:
+										if tp == "Ecologico" and stats.get("forests", 0) > 0:
+											st = "PARADO (CRIME AMBIENTAL)"
+										else:
+											st = "PARADO (ILEGAL)"
+											
+		t += st + "\nRestam: " + str(days_left) + "d"
 		lbl.text = t
 		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		lbl.add_theme_font_size_override("font_size", 12)
-		task_vbox.add_child(lbl)
-
-
-
-func _update_active_contracts_text() -> void:
-	for child in contracts_vbox.get_children(): 
-		child.queue_free()
+		lbl.custom_minimum_size = Vector2(300, 0)
 		
-	if GameManager.active_contracts.size() == 0:
-		var l = Label.new()
-		l.text = "\nPátio vazio."
-		l.add_theme_color_override("font_color", Color.DIM_GRAY)
-		contracts_vbox.add_child(l)
-	else:
-		var i = 0
-		for c in GameManager.active_contracts:
-			var hbox = HBoxContainer.new()
-			var is_act = GameManager.is_contract_operating(c)
-			var st = ""
-			var cl = Label.new()
-			
-			var cargo_name = c.get("cargo", "Carga Geral")
-			var route_name = c.get("route_name", "Desconhecida")
-			var days_left = c.get("days_left", 0)
-			
-			if c.has("pending_route_days"):
-				st = "[AGUARDANDO VIA: " + str(c["pending_route_days"]) + "d]"
-				cl.add_theme_color_override("font_color", Color.DARK_GOLDENROD)
-			else:
-				if is_act: 
-					if c.get("is_urgent", false):
-						st = "[PAGO]"
-					else:
-						st = "(+$" + str(c.get("reward", 0)) + ")"
-					cl.add_theme_color_override("font_color", Color.DARK_SLATE_GRAY)
-				else:
-					cl.add_theme_color_override("font_color", Color.INDIAN_RED)
-					var rid = c.get("route_id", "")
-					if GameManager.routes_under_construction.get(rid, 0) > 0:
-						st = "[OBRAS: " + str(GameManager.routes_under_construction[rid]) + "d]"
-					else:
-						if not (rid in GameManager.network_connections): 
-							st = "[SEM ROTA]"
-						else: 
-							var stats = GameManager.network_stats.get(rid, {})
-							if stats.get("is_broken", false):
-								st = "[VIA DESTRUÍDA]"
-							else:
-								var tp = c.get("type", "")
-								if tp == "Expresso" and stats.get("dist", 999) > c.get("max_dist", 999):
-									st = "[PARADO: ROTA LONGA]"
-								else:
-									if tp == "VIP" and GameManager.active_contracts.size() > 1:
-										st = "[PARADO: FIM EXCLUSIVIDADE]"
-									else:
-										if tp == "VIP" and stats.get("gangs", 0) > 0:
-											st = "[PARADO: GANGUES NA LINHA]"
-										else:
-											if tp == "Ecologico" and stats.get("forests", 0) > 0:
-												st = "[PARADO: CRIME AMBIENTAL]"
-											else:
-												st = "[PARADO: ILEGAL]"
-									
-			cl.text = "T" + str(i + 1) + ": " + cargo_name + "\n" + route_name + " " + st + "\n" + str(days_left) + "d"
-			# ALARGADO PARA NÃO VAZAR
-			cl.custom_minimum_size = Vector2(300, 0) 
-			hbox.add_child(cl)
-			
-			var b = Button.new()
-			b.text = "X"
-			b.pressed.connect(_on_cancel_dynamic.bind(i))
-			hbox.add_child(b)
-			contracts_vbox.add_child(hbox)
-			i += 1
+		hbox.add_child(lbl)
+		
+		var b = Button.new()
+		b.text = "X"
+		b.custom_minimum_size = Vector2(30, 30)
+		b.add_theme_color_override("font_color", Color.INDIAN_RED)
+		b.pressed.connect(_on_cancel_dynamic.bind(i))
+		hbox.add_child(b)
+		
+		task_vbox.add_child(hbox)
+		
+		var sep = ColorRect.new()
+		sep.custom_minimum_size = Vector2(340, 1)
+		sep.color = Color(0.75, 0.75, 0.5)
+		task_vbox.add_child(sep)
+		
+		i += 1
+
 
 
 func _on_company_selected(data: Dictionary) -> void:
@@ -2010,13 +1967,11 @@ func _on_stats_changed(_v) -> void:
 
 func _on_contracts_updated() -> void: 
 	_update_report_text()
-	_update_active_contracts_text()
 	_load_agenda_contacts() 
 	_update_task_pad()
 
 func _on_day_changed(_v) -> void: 
 	_update_report_text()
-	_update_active_contracts_text()
 	_load_agenda_contacts() 
 	_update_task_pad()
 
@@ -2038,7 +1993,6 @@ func _on_fiscal_choice(is_bribe: bool, cost: int) -> void:
 	
 	_update_report_text()
 	_update_diretrizes()
-	_update_active_contracts_text()
 	_update_task_pad()
 	
 	
