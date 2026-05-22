@@ -744,7 +744,8 @@ func _spawn_extension_form() -> void:
 
 	var content_lbl = Label.new()
 	content_lbl.add_theme_color_override("font_color", Color.BLACK)
-	content_lbl.text = "REQUERIMENTO DE EXTENSÃO\n\nSolicito +3 dias de prazo.\nCiente da multa de -30% no valor.\n\nContrato Alvo:"
+	content_lbl.size = Vector2(260, 380) # Previne vazamento de texto
+	content_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	content_lbl.position = Vector2(20, 20)
 	content.add_child(content_lbl)
 
@@ -755,51 +756,41 @@ func _spawn_extension_form() -> void:
 
 	_make_draggable(paper, "paper")
 
-	if GameManager.active_contracts.size() == 0:
-		var lbl_empty = Label.new()
-		lbl_empty.text = "(Nenhum contrato ativo)"
-		lbl_empty.add_theme_color_override("font_color", Color.DIM_GRAY)
-		lbl_empty.position = Vector2(20, 180)
-		content.add_child(lbl_empty)
+	var s_idx = -1
+	for i in range(GameManager.active_contracts.size()):
+		var c = GameManager.active_contracts[i]
+		if c["days_left"] == 1:
+			s_idx = i
+			break
+
+	if s_idx != -1:
+		var c = GameManager.active_contracts[s_idx]
+		var rtype = c.get("renewal_type", "penalty")
+		
+		paper.set_meta("selected_idx", s_idx)
+		paper.set_meta("renewal_type", rtype)
+		
+		var txt = ""
+		if rtype == "penalty":
+			var cost = int(c["reward"] * c.get("duration", 5) * 0.3)
+			paper.set_meta("cost", cost)
+			paper.color = Color(0.95, 0.85, 0.85) # Fundo Vermelho claro
+			txt = "NOTIFICAÇÃO DE ATRASO\n\nO cliente está furioso com a via em obras e trens parados. Pague a multa para estender o prazo.\n\nCusto: -$" + str(cost) + "\nPrazo extra: +5 dias"
+		elif rtype == "loyalty":
+			paper.color = Color(0.85, 0.95, 0.85) # Fundo Verde claro
+			txt = "PROPOSTA DE RENOVAÇÃO\n\nServiço perfeito! O cliente quer renovar por mais dias, mas pediu um desconto na diária.\n\nNova Diária: $" + str(int(c.get("reward", 0) * 0.8)) + "\nPrazo: +10 dias\nCusto de Renovação: $0"
+		elif rtype == "express_upgrade":
+			var new_dist = c.get("new_max_dist", 20)
+			paper.set_meta("new_max_dist", new_dist)
+			paper.color = Color(0.95, 0.95, 0.8) # Fundo Dourado claro
+			txt = "DESAFIO EXPRESSO\n\nQuerem transformar a carga em EXPRESSA! O trajeto atual está muito longo.\n\nEncurte a rota para " + str(new_dist) + " km.\nNova Diária: $" + str(int(c.get("reward", 0) * 1.4)) + "\nPrazo bônus para obras: +5 dias\nCusto: $0"
+
+		content_lbl.text = txt + "\n\nContrato Alvo:\n" + c["company_name"] + " -> " + c.get("route_name", "")
 	else:
-		for i in range(GameManager.active_contracts.size()):
-			var c = GameManager.active_contracts[i]
-			
-			var cb_bg = ColorRect.new()
-			cb_bg.color = Color.BLACK
-			cb_bg.size = Vector2(32, 32)
-			cb_bg.position = Vector2(20, 180 + (i * 50))
-			cb_bg.set_meta("is_checkbox", true)
-			cb_bg.set_meta("cb_idx", i)
-
-			var cb_fg = ColorRect.new()
-			cb_fg.color = Color.WHITE
-			cb_fg.size = Vector2(28, 28)
-			cb_fg.position = Vector2(2, 2)
-			cb_bg.add_child(cb_fg)
-
-			var cb_mark = Label.new()
-			cb_mark.text = "X"
-			cb_mark.add_theme_color_override("font_color", Color.BLACK)
-			cb_mark.add_theme_font_size_override("font_size", 30)
-			cb_mark.position = Vector2(4, -8)
-			cb_mark.visible = false
-			cb_fg.add_child(cb_mark)
-
-			var lbl = Label.new()
-			lbl.text = "T" + str(i+1) + " - " + c["company_name"]
-			lbl.add_theme_color_override("font_color", Color.BLACK)
-			lbl.position = Vector2(65, 184 + (i * 50))
-			content.add_child(lbl)
-
-			cb_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			content.add_child(cb_bg)
-
-	_add_ball_visual(paper)
+		content_lbl.text = "REQUERIMENTO DE EXTENSÃO\n\nNenhum contrato vencendo hoje."
 
 	ui_layer.add_child(paper)
 	spawned_papers.append(paper)
-
 
 
 
@@ -1534,21 +1525,29 @@ func _spawn_proposal_paper(c_data: Dictionary, is_urg: bool, reward: int) -> voi
 	text_lbl.size = paper.size - Vector2(40, 40)
 	text_lbl.position = Vector2(20, 20)
 
+	# --- PROGRAMAÇÃO DEFENSIVA: Extração segura de dados ---
+	# Tenta pegar "company_name", se não achar tenta "name", se não achar põe "Empresa Desconhecida"
+	var comp_name = c_data.get("company_name", c_data.get("name", "Empresa Desconhecida"))
+	var cargo_name = c_data.get("cargo", "Carga Geral")
+	var route_name = c_data.get("route_name", "Rota Não Especificada")
+	var c_type = c_data.get("type", "Comum")
+	var c_weight = str(c_data.get("weight", 0))
+
 	var text = "TERMO OFICIAL DE TRANSPORTE\n\n"
-	text += "CONTRATANTE: " + c_data["name"] + "\n"
-	text += "CARGA: " + c_data["cargo"] + " (" + str(c_data.get("weight", 0)) + " Kg)\n"
-	text += "ROTA EXIGIDA: " + c_data["route_name"] + "\n\n"
+	text += "CONTRATANTE: " + comp_name + "\n"
+	text += "CARGA: " + cargo_name + " (" + c_weight + " Kg)\n"
+	text += "ROTA EXIGIDA: " + route_name + "\n\n"
 	
 	if is_urg:
 		text += "[ OPERAÇÃO DE URGÊNCIA MÁXIMA ]\n"
 		text += "Duração da Operação: 1 Dia\n"
 		text += "Pagamento à Vista: $" + str(reward) + "\n\n"
 	if not is_urg:
-		text += "[ CONTRATO PADRÃO " + c_data["type"] + " ]\n"
+		text += "[ CONTRATO PADRÃO " + c_type + " ]\n"
 		text += "Duração Estimada: " + str(c_data.get("duration", 5)) + " a " + str(c_data.get("duration", 10) + 3) + " Dias\n"
 		text += "Pagamento Diário: $" + str(reward) + "\n\n"
 
-	text += "CLÁUSULA ÚNICA: A Cia. de Entregas Ferroviárias assume responsabilidade integral sobre o estado da carga (" + str(c_data.get("weight", 0)) + " Kg) durante todo o trajeto.\n\n"
+	text += "CLÁUSULA ÚNICA: A Cia. de Entregas Ferroviárias assume responsabilidade integral sobre o estado da carga (" + c_weight + " Kg) durante todo o trajeto.\n\n"
 	
 	if pending_is_risk:
 		text += "[ ATENÇÃO: CONTRATO DE RISCO ]\nVia inexistente ou em obras. Prazo estrito: 3 dias para iniciar operação."
@@ -1567,12 +1566,17 @@ func _spawn_proposal_paper(c_data: Dictionary, is_urg: bool, reward: int) -> voi
 	paper.set_meta("action", "")
 
 	_make_draggable(paper, "paper")
-	_add_ball_visual(paper)
+	
+	# Presumo que esta função existe no seu arquivo para adicionar um pino/selo visual
+	if has_method("_add_ball_visual"):
+		_add_ball_visual(paper)
 
 	ui_layer.add_child(paper)
 	spawned_papers.append(paper)
 	
-	_load_agenda_contacts()
+	if has_method("_load_agenda_contacts"):
+		_load_agenda_contacts()
+
 
 
 func _spawn_blueprint_form() -> void:
@@ -1719,47 +1723,40 @@ func _on_next_day_pressed() -> void:
 			rej_c += 1
 			
 		# Processa a Extensão de Prazo
+		# Processa a Extensão de Prazo
 		if p.has_meta("is_extension") and p.get_meta("is_extension"):
 			if p.has_meta("action") and p.get_meta("action") == "approve":
-				ext_c += 1
 				var s_idx = p.get_meta("selected_idx", -1)
 				if s_idx >= 0 and s_idx < GameManager.active_contracts.size():
-					GameManager.active_contracts[s_idx]["days_left"] += 3
-					GameManager.money -= 200 
+					var c = GameManager.active_contracts[s_idx]
+					var rtype = p.get_meta("renewal_type", "penalty")
+					
+					if rtype == "penalty":
+						var cost = p.get_meta("cost", 0)
+						# Se for multa, só estende se a empresa tiver dinheiro na conta
+						if GameManager.money >= cost:
+							GameManager.money -= cost
+							c["days_left"] += 5
+							c["delayed_days"] = 0
+							ext_c += 1
+					elif rtype == "loyalty":
+						c["days_left"] += 10
+						c["reward"] = int(c["reward"] * 0.8)
+						c["delayed_days"] = 0
+						ext_c += 1
+					elif rtype == "express_upgrade":
+						var bonus_days = c.get("duration", 5) + 5
+						c["days_left"] += bonus_days
+						c["reward"] = int(c["reward"] * 1.4)
+						c["type"] = "Expresso"
+						c["max_dist"] = p.get_meta("new_max_dist", 20)
+						c["delayed_days"] = 0
+						ext_c += 1
+						
+					# Limpa o estado para poder rolar a roleta de novo no futuro!
+					c.erase("renewal_type")
 					
 		# Processa a Planta de Obras
-		elif p.has_meta("is_blueprint") and p.get_meta("is_blueprint"):
-			if p.has_meta("action") and p.get_meta("action") == "approve":
-				var bp = GameManager.pending_blueprint
-				var cd = bp.get("routes_to_cooldown", [])
-				
-				bp_cost += bp.get("total_cost", 0)
-				GameManager.money -= bp.get("total_cost", 0)
-				
-				for route_id in cd:
-					GameManager.company_cooldowns[route_id] = 5
-					
-					# === CORREÇÃO DE BALANCEAMENTO ===
-					var base_days = bp.get("est_days", 1) 
-					# Adicionamos +1 porque a função end_day() roda logo em seguida e subtrai 1.
-					# Assim, no dia seguinte a placa marca "1 dia" corretamente e no próximo dia a rota libera.
-					GameManager.routes_under_construction[route_id] = base_days + 1
-					
-				GameManager.saved_routes.append_array(bp.get("draft_paths", []))
-				var keep_routes = []
-				for old_r in GameManager.saved_routes:
-					var is_del = false
-					for del_r in bp.get("deleted_paths", []):
-						if _are_routes_equal(old_r, del_r): is_del = true
-					if not is_del: keep_routes.append(old_r)
-				GameManager.saved_routes = keep_routes
-				
-				var new_broken = []
-				for bt in GameManager.broken_tiles:
-					if not bp.get("repair_tiles", []).has(bt): new_broken.append(bt)
-				GameManager.broken_tiles = new_broken
-				GameManager.pending_blueprint.clear()
-				
 		# Processa os Contratos de Carga
 		elif p.has_meta("action") and p.get_meta("action") == "approve":
 			new_c += 1
@@ -1768,12 +1765,22 @@ func _on_next_day_pressed() -> void:
 			var reward = p.get_meta("reward")
 			var is_risk = p.get_meta("is_risk")
 			
+			# --- PROGRAMAÇÃO DEFENSIVA: Extração segura para salvar no GameManager ---
+			var comp_name = c_data.get("company_name", c_data.get("name", "Empresa Desconhecida"))
+			var route_id = c_data.get("route_id", "0")
+			var c_type = c_data.get("type", "Comum")
+			var cargo_name = c_data.get("cargo", "Carga Geral")
+			var duration_est = c_data.get("duration", 5) # Importante para a multa!
+			
 			var new_contract = {
-				"company_name": c_data["name"],
-				"route_id": c_data["route_id"],
-				"type": c_data["type"],
-				"reward": reward
+				"company_name": comp_name,
+				"route_id": route_id,
+				"type": c_type,
+				"cargo": cargo_name,
+				"reward": reward,
+				"duration": duration_est
 			}
+			# -------------------------------------------------------------------------
 			
 			if is_urg:
 				new_contract["is_urgent"] = true
@@ -1781,13 +1788,13 @@ func _on_next_day_pressed() -> void:
 				new_contract["days_left"] = 1
 				GameManager.active_contracts.append(new_contract)
 			else:
-				new_contract["days_left"] = randi_range(5, 10)
+				new_contract["days_left"] = randi_range(duration_est, duration_est + 5)
 				GameManager.active_contracts.append(new_contract)
 				
 			if is_risk:
 				new_contract["pending_route_days"] = c_data.get("temp_wait_days", 3)
 				
-			GameManager.company_cooldowns[c_data["route_id"]] = 4
+			GameManager.company_cooldowns[route_id] = 4
 
 	for p in spawned_papers:
 		if is_instance_valid(p): p.queue_free()
@@ -2086,7 +2093,7 @@ func _spawn_extension_warning_note() -> void:
 	note.rotation_degrees = -5
 
 	var lbl = Label.new()
-	lbl.text = "AVISO DO CHEFE:\nUm dos nossos contratos vence amanhã! Se não renovarmos, o cliente vai nos processar. Use o Formulário de Extensão (O bloco à esquerda)!"
+	lbl.text = "AVISO DO CHEFE:\nUm dos nossos contratos termina amanhã! Avalie a situação da via e pegue o Formulário de Extensão (no bloco à esquerda) para ver a proposta do cliente."
 	lbl.add_theme_color_override("font_color", Color.BLACK)
 	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lbl.add_theme_font_size_override("font_size", 12)
@@ -2100,6 +2107,9 @@ func _spawn_extension_warning_note() -> void:
 	_make_draggable(note, "paper")
 	ui_layer.add_child(note)
 	spawned_papers.append(note)
+
+
+
 
 # === FASE 3: LÓGICA DO FICHÁRIO E CALENDÁRIO ===
 

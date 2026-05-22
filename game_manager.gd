@@ -238,7 +238,32 @@ func end_day(upfront_income: int = 0) -> void:
 
 		if not contract_failed:
 			if not c.has("pending_route_days"):
+				
+				# --- NOVO: CONTA ATRASOS SE O TREM NÃO RODOU ---
+				if not is_contract_operating(c):
+					c["delayed_days"] = c.get("delayed_days", 0) + 1
+				# -----------------------------------------------
+				
 				c["days_left"] -= 1
+				
+				# --- NOVO: GERA O TIPO DE RENOVAÇÃO (NO PENÚLTIMO DIA) ---
+				if c["days_left"] == 1:
+					var delayed = c.get("delayed_days", 0)
+					if delayed > 0:
+						c["renewal_type"] = "penalty"
+					else:
+						if randf() <= 0.7:
+							c["renewal_type"] = "loyalty"
+						else:
+							c["renewal_type"] = "express_upgrade"
+							var rid = c["route_id"]
+							var stats = network_stats.get(rid, {})
+							var current_dist = stats.get("dist", 20)
+							var new_dist = int(current_dist * 0.8)
+							if new_dist < 2: new_dist = current_dist - 1
+							c["new_max_dist"] = new_dist
+				# ---------------------------------------------------------
+				
 				if c["days_left"] > 0: keep.append(c)
 			else:
 				keep.append(c) 
