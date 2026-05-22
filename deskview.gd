@@ -1716,9 +1716,12 @@ func _on_next_day_pressed() -> void:
 				
 				for route_id in cd:
 					GameManager.company_cooldowns[route_id] = 5
-					# Utiliza o tempo exato calculado pela engenharia (est_days)
-					var base_days = bp.get("est_days", 3) 
-					GameManager.routes_under_construction[route_id] = base_days
+					
+					# === CORREÇÃO DE BALANCEAMENTO ===
+					var base_days = bp.get("est_days", 1) 
+					# Adicionamos +1 porque a função end_day() roda logo em seguida e subtrai 1.
+					# Assim, no dia seguinte a placa marca "1 dia" corretamente e no próximo dia a rota libera.
+					GameManager.routes_under_construction[route_id] = base_days + 1
 					
 				GameManager.saved_routes.append_array(bp.get("draft_paths", []))
 				var keep_routes = []
@@ -1760,7 +1763,6 @@ func _on_next_day_pressed() -> void:
 				GameManager.active_contracts.append(new_contract)
 				
 			if is_risk:
-				# Utiliza os dias calculados de espera que o telefone encontrou
 				new_contract["pending_route_days"] = c_data.get("temp_wait_days", 3)
 				
 			GameManager.company_cooldowns[c_data["route_id"]] = 4

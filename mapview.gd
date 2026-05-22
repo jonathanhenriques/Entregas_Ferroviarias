@@ -1011,8 +1011,9 @@ func _on_confirm_edit_pressed() -> void:
 	if is_new_build: proj_type = "Nova Construção"
 	if is_demolition: proj_type = "Demolição de Via"
 	
-	var est_days = int((dist * 15) / 30.0) + 1 
-	if is_demolition: est_days = 1
+	# === CORREÇÃO DE BALANCEAMENTO ===
+	# O prazo é rigidamente fixado em 1 dia para manter o fluxo do jogo dinâmico.
+	var est_days = 1 
 
 	GameManager.pending_blueprint = {
 		"draft_paths": draft_paths.duplicate(true),
@@ -1038,7 +1039,6 @@ func _on_confirm_edit_pressed() -> void:
 	_on_cancel_edit_pressed() 
 	confirmed_routes = GameManager.saved_routes.duplicate()
 	queue_redraw()
-	
 	
 
 
