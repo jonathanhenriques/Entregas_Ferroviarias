@@ -157,7 +157,7 @@ func start_call(company_name: String, company_type: String, company_cargo: Strin
 
 	_type_next_char(true)
 
-func start_risk_call(company_name: String, route_name: String, base_reward: int) -> void:
+func start_risk_call(company_name: String, route_name: String, base_reward: int, wait_days: int) -> void:
 	_reset_ui()
 	current_mode = "RISK_CALL"
 	
@@ -168,11 +168,14 @@ func start_risk_call(company_name: String, route_name: String, base_reward: int)
 	name_label.text = "[ TRANSMISSÃO: " + company_name.to_upper() + " ]"
 	name_label.add_theme_color_override("font_color", Color.GOLDENROD)
 	
-	full_text = "Vejo que a sua via para " + route_name + " não está pronta. O nosso frete é urgente.\n"
-	full_text += "Assino o contrato hoje, mas você tem 3 dias para colocar esse trem nos trilhos levando a minha carga.\n"
+	full_text = "Nossa operação logística exige sincronia perfeita.\n"
+	full_text += "Assino o contrato hoje, mas o senhor tem exatamente " + str(wait_days) + " dia(s) para liberar um trem ou a via para a minha carga.\n"
 	full_text += "Se falhar, os meus advogados destroem a sua empresa. Estamos entendidos?"
 	
 	_type_next_char(true)
+
+
+
 
 func start_rejection_call(company_name: String, custom_reason: String = "") -> void:
 	_reset_ui()

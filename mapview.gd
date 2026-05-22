@@ -887,8 +887,76 @@ func _on_cancel_edit_pressed() -> void:
 	queue_redraw()
 
 
+func _update_edit_info() -> void:
+	var total_dist = 0
+	var forests = 0
+	var mountains = 0
+	var rivers = 0
+	var gangs = 0
+	
+	net_cost = 0
+	current_env_tax = 0
+	current_eng_tax = 0
+	current_sec_tax = 0
+	current_total_cost = 0
+	
+	var all_cells = []
+	for p in draft_paths:
+		for c in p: all_cells.append(c)
+	for c in tentative_path: all_cells.append(c)
+		
+	total_dist = all_cells.size()
+	
+	if total_dist == 0 and repair_tiles.size() == 0 and deleted_paths.size() == 0:
+		edit_info.text = "PROJETO DE ENGENHARIA\n\nSelecione o ponto de partida e o destino no mapa para gerar o estudo de viabilidade técnica, ambiental e financeira da via."
+		btn_confirm.disabled = true
+		return
+		
+	for cell in all_cells:
+		var b = biome_map.get(cell, Biome.PLAIN)
+		if b == Biome.FOREST: forests += 1
+		if b == Biome.MOUNTAIN: mountains += 1
+		if b == Biome.RIVER: rivers += 1
+		if gang_map.has(cell): gangs += 1
+		net_cost += GameManager.COSTS[b]
+		
+	current_env_tax = forests * 50
+	current_eng_tax = (mountains + rivers) * 100
+	current_sec_tax = gangs * 75
+	current_total_cost = net_cost + current_env_tax + current_eng_tax + current_sec_tax
+	
+	var km_total = total_dist * 15 
+	var maint_cost = total_dist * 25
+	
+	btn_confirm.disabled = false
+	
+	var relatorio = "[ PROJETO DE ENGENHARIA ]\n\n"
+	relatorio += "► ESPECIFICAÇÕES DA VIA\n"
+	relatorio += "Extensão Total: " + str(km_total) + " km\n"
+	relatorio += "Orçamento Base: $" + str(net_cost) + "\n"
+	relatorio += "Custo Total (c/ taxas): $" + str(current_total_cost) + "\n"
+	relatorio += "Manutenção Diária: $" + str(maint_cost) + "\n\n"
+	
+	relatorio += "► OBRAS DE ARTE\n"
+	relatorio += "Pontes: " + str(rivers) + " | Túneis: " + str(mountains) + "\n\n"
+	
+	relatorio += "► AVALIAÇÃO DE RISCO\n"
+	if forests > 0:
+		relatorio += "Ambiental: ALERTA (" + str(forests) + " zonas florestais afetadas).\n"
+	else:
+		relatorio += "Ambiental: Impacto mínimo.\n"
+		
+	if gangs > 0:
+		relatorio += "Segurança: ROTA CRÍTICA (" + str(gangs) + " áreas sob domínio de gangues).\n"
+	else:
+		relatorio += "Segurança: Baixo risco.\n"
+		
+	edit_info.text = relatorio
 
 func _on_confirm_edit_pressed() -> void:
+	if tentative_path.size() >= 2:
+		draft_paths.append(tentative_path.duplicate())
+		
 	var affected_tiles = {}
 	for d in deleted_paths:
 		for cell in d: affected_tiles[cell] = true
@@ -912,15 +980,15 @@ func _on_confirm_edit_pressed() -> void:
 	
 	if _bfs_shortest_dist(city_a, city_b, untouched, false, false) == -1: 
 		r_cd.append("Azul-Vermelha")
-		route_desc_string += "Ligacao: Estacao Azul para Vermelha\n"
+		route_desc_string += "Ligação: Estação Azul para Vermelha\n"
 	if _bfs_shortest_dist(city_a, city_c, untouched, false, false) == -1: 
 		r_cd.append("Azul-Verde")
-		route_desc_string += "Ligacao: Estacao Azul para Verde\n"
+		route_desc_string += "Ligação: Estação Azul para Verde\n"
 	if _bfs_shortest_dist(city_b, city_c, untouched, false, false) == -1: 
 		r_cd.append("Vermelha-Verde")
-		route_desc_string += "Ligacao: Estacao Vermelha para Verde\n"
+		route_desc_string += "Ligação: Estação Vermelha para Verde\n"
 		
-	if route_desc_string == "": route_desc_string = "Manutencao ou Demolicao da Malha"
+	if route_desc_string == "": route_desc_string = "Manutenção ou Demolição da Malha"
 
 	var dist = 0
 	var forests = 0
@@ -939,14 +1007,13 @@ func _on_confirm_edit_pressed() -> void:
 
 	var is_demolition = (deleted_paths.size() > 0 and draft_paths.size() == 0)
 	var is_new_build = draft_paths.size() > 0
-	var proj_type = "Manutencao Geral"
-	if is_new_build: proj_type = "Nova Construcao"
-	if is_demolition: proj_type = "Demolicao de Via"
+	var proj_type = "Manutenção Geral"
+	if is_new_build: proj_type = "Nova Construção"
+	if is_demolition: proj_type = "Demolição de Via"
 	
 	var est_days = int((dist * 15) / 30.0) + 1 
 	if is_demolition: est_days = 1
 
-	# CORREÇÃO FASE 3: Usando as variáveis exatas que existem no v89.txt
 	GameManager.pending_blueprint = {
 		"draft_paths": draft_paths.duplicate(true),
 		"deleted_paths": deleted_paths.duplicate(true),
@@ -971,7 +1038,8 @@ func _on_confirm_edit_pressed() -> void:
 	_on_cancel_edit_pressed() 
 	confirmed_routes = GameManager.saved_routes.duplicate()
 	queue_redraw()
-
+	
+	
 
 
 func _on_btn_maint_pressed() -> void:

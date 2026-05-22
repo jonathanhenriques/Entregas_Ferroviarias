@@ -128,6 +128,7 @@ func _process(delta: float) -> void:
 	else:
 		radio_led.color = Color(0.2, 0.05, 0.05)
 
+
 func _setup_ui() -> void:
 	ui_layer = CanvasLayer.new()
 	add_child(ui_layer)
@@ -146,8 +147,8 @@ func _setup_ui() -> void:
 	
 	btn_organize = Button.new()
 	btn_organize.text = "Arrumar a Mesa"
-	btn_organize.position = Vector2(40, 100)
-	btn_organize.size = Vector2(180, 40)
+	btn_organize.position = Vector2(240, 40)
+	btn_organize.size = Vector2(150, 40)
 	btn_organize.pressed.connect(_on_organize_pressed)
 	ui_layer.add_child(btn_organize)
 
@@ -175,6 +176,46 @@ func _setup_ui() -> void:
 	diretrizes_bar.add_theme_stylebox_override("background", bg_bar)
 	diretrizes_bar.add_theme_stylebox_override("fill", fg_bar)
 	diretrizes_rect.add_child(diretrizes_bar)
+
+	# PASTAS E FERRAMENTAS REORGANIZADAS PARA NÃO SOBREPOR
+	tool_pen = ColorRect.new()
+	tool_pen.color = Color(0.8, 0.8, 0.85) 
+	tool_pen.size = Vector2(12, 110)
+	tool_pen.position = Vector2(500, 120)
+	tool_pen.rotation_degrees = -35.0
+	ui_layer.add_child(tool_pen)
+	_make_draggable(tool_pen, "tool_pen")
+	
+	var pen_tip = Polygon2D.new()
+	pen_tip.color = Color(0.2, 0.2, 0.2)
+	pen_tip.polygon = PackedVector2Array([ Vector2(0, 110), Vector2(12, 110), Vector2(6, 125) ])
+	tool_pen.add_child(pen_tip)
+
+	stamp_reject = ColorRect.new()
+	stamp_reject.color = Color(0.6, 0.2, 0.2)
+	stamp_reject.size = Vector2(70, 90)
+	stamp_reject.position = Vector2(600, 120)
+	ui_layer.add_child(stamp_reject)
+	_make_draggable(stamp_reject, "tool_reject")
+	
+	var lbl_r = Label.new()
+	lbl_r.text = "REJEITAR"
+	lbl_r.add_theme_font_size_override("font_size", 12)
+	lbl_r.position = Vector2(5, 40)
+	stamp_reject.add_child(lbl_r)
+
+	stamp_cia = ColorRect.new()
+	stamp_cia.color = Color(0.2, 0.3, 0.5)
+	stamp_cia.size = Vector2(70, 90)
+	stamp_cia.position = Vector2(720, 120)
+	ui_layer.add_child(stamp_cia)
+	_make_draggable(stamp_cia, "tool_cia")
+	
+	var lbl_cia = Label.new()
+	lbl_cia.text = "SELO CIA"
+	lbl_cia.add_theme_font_size_override("font_size", 12)
+	lbl_cia.position = Vector2(5, 40)
+	stamp_cia.add_child(lbl_cia)
 
 	outbox_rect = ColorRect.new()
 	outbox_rect.color = Color(0.3, 0.25, 0.2, 0.5) 
@@ -216,77 +257,11 @@ func _setup_ui() -> void:
 	trash_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	trash_rect.add_child(trash_lbl)
 
-	var tool_y = 120
-
-	tool_pen = ColorRect.new()
-	tool_pen.color = Color(0.8, 0.8, 0.85) 
-	tool_pen.size = Vector2(12, 110)
-	tool_pen.position = Vector2(500, tool_y)
-	tool_pen.rotation_degrees = -35.0
-	ui_layer.add_child(tool_pen)
-	_make_draggable(tool_pen, "tool_pen")
-	
-	var pen_tip = Polygon2D.new()
-	pen_tip.color = Color(0.2, 0.2, 0.2)
-	pen_tip.polygon = PackedVector2Array([
-		Vector2(0, 110), Vector2(12, 110), Vector2(6, 125)
-	])
-	tool_pen.add_child(pen_tip)
-
-	stamp_reject = ColorRect.new()
-	stamp_reject.color = Color(0.6, 0.2, 0.2)
-	stamp_reject.size = Vector2(70, 90)
-	stamp_reject.position = Vector2(600, tool_y)
-	ui_layer.add_child(stamp_reject)
-	_make_draggable(stamp_reject, "tool_reject")
-	
-	var lbl_r = Label.new()
-	lbl_r.text = "REJEITAR"
-	lbl_r.add_theme_font_size_override("font_size", 12)
-	lbl_r.position = Vector2(5, 40)
-	stamp_reject.add_child(lbl_r)
-
-	stamp_cia = ColorRect.new()
-	stamp_cia.color = Color(0.2, 0.3, 0.5)
-	stamp_cia.size = Vector2(70, 90)
-	stamp_cia.position = Vector2(720, tool_y)
-	ui_layer.add_child(stamp_cia)
-	_make_draggable(stamp_cia, "tool_cia")
-	
-	var lbl_cia = Label.new()
-	lbl_cia.text = "SELO CIA"
-	lbl_cia.add_theme_font_size_override("font_size", 12)
-	lbl_cia.position = Vector2(5, 40)
-	stamp_cia.add_child(lbl_cia)
-
-	pad_extension = ColorRect.new()
-	pad_extension.color = Color(0.35, 0.4, 0.45)
-	pad_extension.size = Vector2(140, 180)
-	pad_extension.position = Vector2(40, 600)
-	pad_extension.visible = false 
-	ui_layer.add_child(pad_extension)
-	
-	var pad_clip_ext = ColorRect.new()
-	pad_clip_ext.color = Color(0.1, 0.1, 0.1)
-	pad_clip_ext.size = Vector2(140, 20)
-	pad_extension.add_child(pad_clip_ext)
-	
-	var pad_ext_lbl = Label.new()
-	pad_ext_lbl.text = "FORM.\nEXTENSÃO"
-	pad_ext_lbl.add_theme_font_size_override("font_size", 14)
-	pad_ext_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	pad_ext_lbl.position = Vector2(0, 50)
-	pad_ext_lbl.size = Vector2(140, 40)
-	pad_extension.add_child(pad_ext_lbl)
-	
-	pad_extension.mouse_filter = Control.MOUSE_FILTER_STOP
-	pad_extension.gui_input.connect(_on_pad_extension_input)
-
-	# --- PASTA DE CLIENTES LARGURA 400 ---
+	# --- LINHA DO MEIO DA MESA (Arquivos e Pranchetas) ---
 	agenda_rect = ColorRect.new()
 	agenda_rect.color = Color(0.85, 0.8, 0.6) 
 	agenda_rect.size = Vector2(400, 520) 
-	agenda_rect.position = Vector2(50, 200)
+	agenda_rect.position = Vector2(40, 200) # Canto Esquerdo
 	ui_layer.add_child(agenda_rect)
 	_make_draggable(agenda_rect, "panel")
 	
@@ -324,15 +299,36 @@ func _setup_ui() -> void:
 	btn_next_page = Button.new()
 	btn_next_page.text = "Pág. ->"
 	btn_next_page.size = Vector2(80, 40)
-	btn_next_page.position = Vector2(280, 460)
+	btn_next_page.position = Vector2(300, 460)
 	btn_next_page.pressed.connect(_on_next_page_pressed)
 	agenda_rect.add_child(btn_next_page)
 
-	# --- PRANCHETA PRINCIPAL ---
+	pad_extension = ColorRect.new()
+	pad_extension.color = Color(0.35, 0.4, 0.45)
+	pad_extension.size = Vector2(140, 180)
+	pad_extension.position = Vector2(480, 200) # Ao lado do arquivo
+	pad_extension.visible = false 
+	ui_layer.add_child(pad_extension)
+	
+	var pad_clip_ext = ColorRect.new()
+	pad_clip_ext.color = Color(0.1, 0.1, 0.1)
+	pad_clip_ext.size = Vector2(140, 20)
+	pad_extension.add_child(pad_clip_ext)
+	
+	var pad_ext_lbl = Label.new()
+	pad_ext_lbl.text = "FORM.\nEXTENSÃO"
+	pad_ext_lbl.add_theme_font_size_override("font_size", 14)
+	pad_ext_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	pad_ext_lbl.position = Vector2(0, 50)
+	pad_ext_lbl.size = Vector2(140, 40)
+	pad_extension.add_child(pad_ext_lbl)
+	pad_extension.mouse_filter = Control.MOUSE_FILTER_STOP
+	pad_extension.gui_input.connect(_on_pad_extension_input)
+
 	clipboard_rect = ColorRect.new()
 	clipboard_rect.color = Color(0.95, 0.95, 0.9) 
 	clipboard_rect.size = Vector2(350, 400)
-	clipboard_rect.position = Vector2(1000, 250)
+	clipboard_rect.position = Vector2(750, 200) # Meio da mesa
 	ui_layer.add_child(clipboard_rect)
 	_make_draggable(clipboard_rect, "panel")
 	
@@ -357,11 +353,34 @@ func _setup_ui() -> void:
 	btn_next_day.pressed.connect(_on_next_day_pressed)
 	clipboard_rect.add_child(btn_next_day)
 
-	# --- PASTA DA FROTA LARGURA 400 ---
+	task_pad_rect = ColorRect.new()
+	task_pad_rect.color = Color(0.95, 0.92, 0.65)
+	task_pad_rect.size = Vector2(280, 280)
+	task_pad_rect.position = Vector2(1150, 200) # Lado Direito
+	ui_layer.add_child(task_pad_rect)
+	_make_draggable(task_pad_rect, "panel")
+
+	var pad_clip = ColorRect.new()
+	pad_clip.color = Color(0.7, 0.2, 0.2) 
+	pad_clip.size = Vector2(280, 20)
+	task_pad_rect.add_child(pad_clip)
+
+	var task_title = Label.new()
+	task_title.text = "TAREFAS PENDENTES"
+	task_title.add_theme_color_override("font_color", Color.BLACK)
+	task_title.position = Vector2(10, 25)
+	task_pad_rect.add_child(task_title)
+
+	task_vbox = VBoxContainer.new()
+	task_vbox.position = Vector2(10, 50)
+	task_vbox.size = Vector2(260, 220)
+	task_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	task_pad_rect.add_child(task_vbox)
+
 	active_paper_rect = ColorRect.new()
 	active_paper_rect.color = Color(0.85, 0.9, 0.95) 
 	active_paper_rect.size = Vector2(400, 520) 
-	active_paper_rect.position = Vector2(1450, 450) 
+	active_paper_rect.position = Vector2(1480, 450) # Canto Inferior Direito
 	ui_layer.add_child(active_paper_rect)
 	_make_draggable(active_paper_rect, "panel")
 
@@ -377,7 +396,80 @@ func _setup_ui() -> void:
 	contracts_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	active_paper_rect.add_child(contracts_vbox)
 
-	# --- PASTA DO CONTRATO LARGURA 500 ---
+	# --- LINHA INFERIOR (Rádio, Telefone, Calendário) ---
+	radio_rect = ColorRect.new()
+	radio_rect.color = Color(0.6, 0.6, 0.65) 
+	radio_rect.size = Vector2(250, 120)
+	radio_rect.position = Vector2(480, 420)
+	ui_layer.add_child(radio_rect)
+	_make_draggable(radio_rect, "radio")
+	
+	var radio_speaker = ColorRect.new()
+	radio_speaker.color = Color(0.15, 0.15, 0.15)
+	radio_speaker.size = Vector2(120, 80)
+	radio_speaker.position = Vector2(20, 20)
+	radio_speaker.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	radio_rect.add_child(radio_speaker)
+	
+	var radio_lbl = Label.new()
+	radio_lbl.text = "RÁDIO PTT\nFREQ 104.2"
+	radio_lbl.add_theme_color_override("font_color", Color.BLACK)
+	radio_lbl.position = Vector2(150, 20)
+	radio_rect.add_child(radio_lbl)
+	
+	radio_led = ColorRect.new()
+	radio_led.color = Color(0.2, 0.05, 0.05) 
+	radio_led.size = Vector2(20, 20)
+	radio_led.position = Vector2(150, 70)
+	radio_led.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	radio_rect.add_child(radio_led)
+
+	phone_rect = ColorRect.new()
+	phone_rect.color = Color(0.1, 0.25, 0.15) 
+	phone_rect.size = Vector2(340, 260) 
+	phone_rect.position = Vector2(750, 650)
+	ui_layer.add_child(phone_rect)
+	_make_draggable(phone_rect, "panel")
+	
+	var handset_rect = ColorRect.new()
+	handset_rect.color = Color(0.08, 0.2, 0.12)
+	handset_rect.size = Vector2(300, 40)
+	handset_rect.position = Vector2(20, -20)
+	handset_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	phone_rect.add_child(handset_rect)
+	
+	phone_display = Label.new()
+	phone_display.text = "VISOR: ---"
+	phone_display.position = Vector2(40, 30)
+	phone_display.size = Vector2(260, 40)
+	phone_display.add_theme_font_size_override("font_size", 24)
+	phone_display.add_theme_color_override("font_color", Color.WHITE)
+	phone_rect.add_child(phone_display)
+	
+	dial_rect = Control.new()
+	dial_rect.position = Vector2(170, 160) 
+	dial_rect.size = Vector2(240, 240)
+	dial_rect.position -= dial_rect.size / 2.0
+	dial_rect.mouse_filter = Control.MOUSE_FILTER_STOP
+	dial_rect.draw.connect(_on_dial_draw)
+	dial_rect.gui_input.connect(_on_dial_gui_input)
+	phone_rect.add_child(dial_rect)
+
+	calendar_rect = ColorRect.new()
+	calendar_rect.color = Color(0.9, 0.9, 0.9)
+	calendar_rect.size = Vector2(220, 160)
+	calendar_rect.position = Vector2(1150, 520)
+	ui_layer.add_child(calendar_rect)
+	_make_draggable(calendar_rect, "panel")
+	
+	var cal_clip = ColorRect.new()
+	cal_clip.name = "clip"
+	cal_clip.color = Color(0.2, 0.2, 0.2)
+	cal_clip.size = Vector2(100, 15)
+	cal_clip.position = Vector2(60, 0)
+	calendar_rect.add_child(cal_clip)
+
+	# --- PASTA ESCONDIDA DE DADOS DO CONTRATO ---
 	folder_rect = ColorRect.new()
 	folder_rect.color = Color(0.8, 0.65, 0.4) 
 	folder_rect.size = Vector2(500, 480)
@@ -454,107 +546,76 @@ func _setup_ui() -> void:
 	btn_call_urg.pressed.connect(_on_call_urgent_pressed)
 	doc_urgent.add_child(btn_call_urg)
 
-	# --- TELEFONE ---
-	phone_rect = ColorRect.new()
-	phone_rect.color = Color(0.1, 0.25, 0.15) 
-	phone_rect.size = Vector2(340, 260) 
-	phone_rect.position = Vector2(350, 700)
-	ui_layer.add_child(phone_rect)
-	_make_draggable(phone_rect, "panel")
+func _process_call() -> void:
+	var rid = pending_company_data["route_id"]
+	var ctype = pending_company_data["type"]
+	var has_route = rid in GameManager.network_connections
+	var is_constructing = GameManager.routes_under_construction.get(rid, 0) > 0
+
+	var route_valid = false
+	var reason = ""
 	
-	var handset_rect = ColorRect.new()
-	handset_rect.color = Color(0.08, 0.2, 0.12)
-	handset_rect.size = Vector2(300, 40)
-	handset_rect.position = Vector2(20, -20)
-	handset_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	phone_rect.add_child(handset_rect)
-	
-	phone_display = Label.new()
-	phone_display.text = "VISOR: ---"
-	phone_display.position = Vector2(40, 30)
-	phone_display.size = Vector2(260, 40)
-	phone_display.add_theme_font_size_override("font_size", 24)
-	phone_display.add_theme_color_override("font_color", Color.WHITE)
-	phone_rect.add_child(phone_display)
-	
-	dial_rect = Control.new()
-	dial_rect.position = Vector2(170, 160) 
-	dial_rect.size = Vector2(240, 240)
-	dial_rect.position -= dial_rect.size / 2.0
-	dial_rect.mouse_filter = Control.MOUSE_FILTER_STOP
-	dial_rect.draw.connect(_on_dial_draw)
-	dial_rect.gui_input.connect(_on_dial_gui_input)
-	phone_rect.add_child(dial_rect)
+	if has_route:
+		if not is_constructing:
+			var stats = GameManager.network_stats.get(rid, {})
+			var max_d = pending_company_data.get("max_dist", 999)
+			var curr_d = stats.get("dist", 999)
+			var is_long = (ctype == "Expresso" and curr_d > max_d)
+			
+			if is_long:
+				reason = "A nossa carga EXPRESSA tem limite rigoroso de tempo!\nA sua via tem " + str(curr_d) + " km, mas exigimos um trajeto máximo de " + str(max_d) + " km!\nRefaça a rota de forma mais direta!"
+			if not is_long:
+				var is_vip_bad = (ctype == "VIP" and (stats.get("gangs", 0) > 0 or GameManager.active_contracts.size() > 0))
+				if is_vip_bad:
+					reason = "VIP exige segurança absoluta e exclusividade na malha!"
+				if not is_vip_bad:
+					var is_eco_bad = (ctype == "Ecologico" and stats.get("forests", 0) > 0)
+					if is_eco_bad:
+						reason = "Os seus trilhos desmataram a floresta! Não financiamos crimes ambientais!"
+					if not is_eco_bad:
+						route_valid = true
 
-	# --- RÁDIO ---
-	radio_rect = ColorRect.new()
-	radio_rect.color = Color(0.6, 0.6, 0.65) 
-	radio_rect.size = Vector2(250, 120)
-	radio_rect.position = Vector2(60, 800)
-	ui_layer.add_child(radio_rect)
-	_make_draggable(radio_rect, "radio")
-	
-	var radio_speaker = ColorRect.new()
-	radio_speaker.color = Color(0.15, 0.15, 0.15)
-	radio_speaker.size = Vector2(120, 80)
-	radio_speaker.position = Vector2(20, 20)
-	radio_speaker.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	radio_rect.add_child(radio_speaker)
-	
-	var radio_lbl = Label.new()
-	radio_lbl.text = "RÁDIO PTT\nFREQ 104.2"
-	radio_lbl.add_theme_color_override("font_color", Color.BLACK)
-	radio_lbl.position = Vector2(150, 20)
-	radio_rect.add_child(radio_lbl)
-	
-	radio_led = ColorRect.new()
-	radio_led.color = Color(0.2, 0.05, 0.05) 
-	radio_led.size = Vector2(20, 20)
-	radio_led.position = Vector2(150, 70)
-	radio_led.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	radio_rect.add_child(radio_led)
+	# Lógica Inteligente: Calcula quantos dias o jogo realmente precisa esperar
+	var wait_for_route = 0
+	if not has_route: wait_for_route = 3
+	if has_route and is_constructing: wait_for_route = GameManager.routes_under_construction[rid]
 
-	# --- BLOCO DE TAREFAS ---
-	task_pad_rect = ColorRect.new()
-	task_pad_rect.color = Color(0.95, 0.92, 0.65)
-	task_pad_rect.size = Vector2(280, 280)
-	task_pad_rect.position = Vector2(1080, 680)
-	ui_layer.add_child(task_pad_rect)
-	_make_draggable(task_pad_rect, "panel")
+	var wait_for_fleet = 0
+	if GameManager.active_contracts.size() >= GameManager.MAX_CONTRACTS:
+		var min_days = 999
+		for c in GameManager.active_contracts:
+			var d = c.get("days_left", 999)
+			if c.has("pending_route_days"): d += c["pending_route_days"]
+			if d < min_days: min_days = d
+		wait_for_fleet = min_days
 
-	var pad_clip = ColorRect.new()
-	pad_clip.color = Color(0.7, 0.2, 0.2) 
-	pad_clip.size = Vector2(280, 20)
-	task_pad_rect.add_child(pad_clip)
+	var final_wait_days = wait_for_route
+	if wait_for_fleet > final_wait_days: final_wait_days = wait_for_fleet
 
-	var task_title = Label.new()
-	task_title.text = "TAREFAS PENDENTES"
-	task_title.add_theme_color_override("font_color", Color.BLACK)
-	task_title.position = Vector2(10, 25)
-	task_pad_rect.add_child(task_title)
+	# Salva o tempo dinâmico de espera no dicionário da empresa
+	pending_company_data["temp_wait_days"] = final_wait_days
 
-	task_vbox = VBoxContainer.new()
-	task_vbox.position = Vector2(10, 50)
-	task_vbox.size = Vector2(260, 220)
-	task_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	task_pad_rect.add_child(task_vbox)
+	if final_wait_days > 0:
+		pending_is_risk = true
+	if final_wait_days == 0:
+		pending_is_risk = false
 
-	# --- CALENDÁRIO ---
-	calendar_rect = ColorRect.new()
-	calendar_rect.color = Color(0.9, 0.9, 0.9)
-	calendar_rect.size = Vector2(220, 160)
-	calendar_rect.position = Vector2(100, 620)
-	ui_layer.add_child(calendar_rect)
-	_make_draggable(calendar_rect, "panel")
-	
-	var cal_clip = ColorRect.new()
-	cal_clip.name = "clip"
-	cal_clip.color = Color(0.2, 0.2, 0.2)
-	cal_clip.size = Vector2(100, 15)
-	cal_clip.position = Vector2(60, 0)
-	calendar_rect.add_child(cal_clip)
+	if has_route and not is_constructing and not route_valid:
+		phone_cutscene.start_rejection_call(pending_company_data["name"], reason)
+		var is_daily = "(Diário)" in pending_company_data["name"]
+		if not (is_daily and GameManager.current_day == 1):
+			GameManager.company_cooldowns[pending_company_data["name"]] = 1 
+		folder_rect.visible = false
+		return
 
-
+	var rew = pending_company_data["base_reward"]
+	if pending_is_urgent:
+		rew = GameManager.daily_urgencies.get(pending_company_data["name"], rew)
+		
+	if pending_is_risk:
+		phone_cutscene.start_risk_call(pending_company_data["name"], pending_company_data["route_name"], rew, final_wait_days)
+	if not pending_is_risk:
+		phone_cutscene.start_call(pending_company_data["name"], pending_company_data["type"], pending_company_data["cargo"], rew, pending_is_urgent)
 
 
 
@@ -1201,71 +1262,6 @@ func _on_call_urgent_pressed() -> void:
 	current_dialed = ""
 	_update_phone_display()
 
-func _process_call() -> void:
-	if GameManager.active_contracts.size() >= GameManager.MAX_CONTRACTS:
-		phone_cutscene.start_rejection_call(pending_company_data["name"], "A frota esta lotada!")
-		folder_rect.visible = false
-		pending_company_data = {}
-		return
-		
-	var rid = pending_company_data["route_id"]
-	var ctype = pending_company_data["type"]
-	var has_route = rid in GameManager.network_connections
-	var is_constructing = GameManager.routes_under_construction.get(rid, 0) > 0
-
-	var route_valid = false
-	var reason = ""
-	
-	if has_route:
-		if not is_constructing:
-			var stats = GameManager.network_stats.get(rid, {})
-			
-			var max_d = pending_company_data.get("max_dist", 999)
-			var curr_d = stats.get("dist", 999)
-			var is_long = (ctype == "Expresso" and curr_d > max_d)
-			
-			if is_long:
-				# CORREÇÃO: O cliente agora diz os tamanhos exatos!
-				reason = "A nossa carga EXPRESSA tem limite rigoroso de tempo!\nA sua via tem " + str(curr_d) + " km, mas exigimos um trajeto maximo de " + str(max_d) + " km!\nRefaca a rota de forma mais direta!"
-			
-			if not is_long:
-				var is_vip_bad = (ctype == "VIP" and (stats.get("gangs", 0) > 0 or GameManager.active_contracts.size() > 0))
-				if is_vip_bad:
-					reason = "VIP exige seguranca absoluta e exclusividade na malha!"
-				if not is_vip_bad:
-					var is_eco_bad = (ctype == "Ecologico" and stats.get("forests", 0) > 0)
-					if is_eco_bad:
-						reason = "Os seus trilhos desmataram a floresta! Nao financiamos crimes ambientais!"
-					if not is_eco_bad:
-						route_valid = true
-
-	var can_do_risk = false
-	if not has_route:
-		can_do_risk = true
-	if has_route:
-		if is_constructing:
-			can_do_risk = true
-
-	if can_do_risk:
-		pending_is_risk = true
-		var rew = pending_company_data["base_reward"]
-		if pending_is_urgent:
-			rew = GameManager.daily_urgencies.get(pending_company_data["name"], rew)
-		phone_cutscene.start_risk_call(pending_company_data["name"], pending_company_data["route_name"], rew)
-
-	if not can_do_risk:
-		pending_is_risk = false
-		if not route_valid:
-			phone_cutscene.start_rejection_call(pending_company_data["name"], reason)
-			var is_daily = "(Diario)" in pending_company_data["name"]
-			if not (is_daily and GameManager.current_day == 1):
-				GameManager.company_cooldowns[pending_company_data["name"]] = 1 
-			folder_rect.visible = false
-		if route_valid:
-			var rew = pending_company_data["base_reward"]
-			if pending_is_urgent:
-				rew = GameManager.daily_urgencies.get(pending_company_data["name"], rew)
-			phone_cutscene.start_call(pending_company_data["name"], pending_company_data["type"], pending_company_data["cargo"], rew, pending_is_urgent)
 
 
 
@@ -1714,15 +1710,14 @@ func _on_next_day_pressed() -> void:
 			if p.has_meta("action") and p.get_meta("action") == "approve":
 				var bp = GameManager.pending_blueprint
 				var cd = bp.get("routes_to_cooldown", [])
-				var r_desc = bp.get("route_description", "")
 				
 				bp_cost += bp.get("total_cost", 0)
 				GameManager.money -= bp.get("total_cost", 0)
 				
 				for route_id in cd:
 					GameManager.company_cooldowns[route_id] = 5
-					var base_days = 3
-					if r_desc.find("Azul") != -1 and r_desc.find("Vermelha") != -1: base_days = 2
+					# Utiliza o tempo exato calculado pela engenharia (est_days)
+					var base_days = bp.get("est_days", 3) 
 					GameManager.routes_under_construction[route_id] = base_days
 					
 				GameManager.saved_routes.append_array(bp.get("draft_paths", []))
@@ -1765,7 +1760,8 @@ func _on_next_day_pressed() -> void:
 				GameManager.active_contracts.append(new_contract)
 				
 			if is_risk:
-				new_contract["pending_route_days"] = 3
+				# Utiliza os dias calculados de espera que o telefone encontrou
+				new_contract["pending_route_days"] = c_data.get("temp_wait_days", 3)
 				
 			GameManager.company_cooldowns[c_data["route_id"]] = 4
 
@@ -1776,10 +1772,8 @@ func _on_next_day_pressed() -> void:
 	current_agenda_contacts.clear()
 	current_agenda_page = 0
 	
-	# Restaura a chamada do Painel de Resumo!
 	pending_upfront_income = income
 	_start_eod_animation(new_c, rej_c, ext_c, bp_cost)
-	
 	
 	
 func _on_visibility_changed() -> void:
