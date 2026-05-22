@@ -554,6 +554,14 @@ func _setup_ui() -> void:
 	cal_clip.position = Vector2(60, 0)
 	calendar_rect.add_child(cal_clip)
 
+
+
+
+
+
+
+
+
 func _setup_eod_ui() -> void:
 	eod_layer = CanvasLayer.new()
 	eod_layer.layer = 280

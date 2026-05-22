@@ -624,6 +624,8 @@ func _setup_ui() -> void:
 	maint_panel.add_child(btn_close_maint)
 
 	_clear_inspection_desk()
+	
+	_setup_map_legend()
 
 
 
@@ -1646,3 +1648,45 @@ func _are_routes_equal(r1: Array, r2: Array) -> bool:
 
 func _get_cell_under_mouse(p: Vector2) -> Vector2i: 
 	return Vector2i(p.x / TILE_SIZE, p.y / TILE_SIZE)
+	
+	
+func _setup_map_legend() -> void:
+	# Cria o fundo da legenda
+	var legend_bg = ColorRect.new()
+	legend_bg.color = Color(0.92, 0.92, 0.9) # Fundo claro como na sua referência
+	legend_bg.size = Vector2(150, 180)
+	legend_bg.position = Vector2(20, 850) # Canto inferior esquerdo do mapa
+	ui_layer.add_child(legend_bg)
+
+	# Container vertical para organizar os itens
+	var vbox = VBoxContainer.new()
+	vbox.position = Vector2(15, 15)
+	vbox.add_theme_constant_override("separation", 12)
+	legend_bg.add_child(vbox)
+
+	# Array com os dados mapeando para suas constantes reais
+	var legend_items = [
+		{"nome": "Planície", "cor": BIOME_DATA[Biome.PLAIN]["color"]},
+		{"nome": "Floresta", "cor": BIOME_DATA[Biome.FOREST]["color"]},
+		{"nome": "Rio", "cor": BIOME_DATA[Biome.RIVER]["color"]},
+		{"nome": "Montanha", "cor": BIOME_DATA[Biome.MOUNTAIN]["color"]},
+		{"nome": "Gangues", "cor": Color(0.9, 0.6, 0.6)} # Cor baseada na sua transparência vermelha
+	]
+
+	# Loop para gerar os quadros de cor e os textos
+	for item in legend_items:
+		var hbox = HBoxContainer.new()
+		hbox.add_theme_constant_override("separation", 12)
+
+		var color_box = ColorRect.new()
+		color_box.custom_minimum_size = Vector2(20, 20)
+		color_box.color = item["cor"]
+		hbox.add_child(color_box)
+
+		var lbl = Label.new()
+		lbl.text = item["nome"]
+		lbl.add_theme_color_override("font_color", Color(0.3, 0.3, 0.3))
+		lbl.add_theme_font_size_override("font_size", 15)
+		hbox.add_child(lbl)
+
+		vbox.add_child(hbox)
