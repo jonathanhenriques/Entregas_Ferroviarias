@@ -73,6 +73,12 @@ var spawned_papers: Array = []
 var outbox_rect: ColorRect
 var trash_rect: Panel
 
+# === NOVAS VARIÁVEIS DA LIXEIRA (POP-UP) ===
+var trash_dialog: ColorRect
+var btn_trash_yes: Button
+var btn_trash_no: Button
+var trash_target_paper: Control = null
+
 var tool_pen: ColorRect
 var stamp_reject: ColorRect
 var stamp_cia: ColorRect
@@ -249,13 +255,7 @@ func _setup_ui() -> void:
 	trash_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui_layer.add_child(trash_rect)
 	
-	var trash_lbl = Label.new()
-	trash_lbl.text = "LIXEIRA"
-	trash_lbl.add_theme_color_override("font_color", Color.DIM_GRAY)
-	trash_lbl.position = Vector2(0, 100)
-	trash_lbl.size = Vector2(220, 30)
-	trash_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	trash_rect.add_child(trash_lbl)
+	
 
 	# --- LINHA DO MEIO DA MESA (Arquivos e Pranchetas) ---
 	agenda_rect = ColorRect.new()
@@ -545,6 +545,44 @@ func _setup_ui() -> void:
 	btn_call_urg.add_theme_color_override("font_color", Color.INDIAN_RED)
 	btn_call_urg.pressed.connect(_on_call_urgent_pressed)
 	doc_urgent.add_child(btn_call_urg)
+	
+	# --- NOVO: CAIXA DE DIÁLOGO DA LIXEIRA ---
+	trash_dialog = ColorRect.new()
+	trash_dialog.color = Color(0.1, 0.1, 0.15, 0.98)
+	trash_dialog.size = Vector2(400, 200)
+	trash_dialog.position = Vector2(760, 440) # Centralizado na tela
+	trash_dialog.visible = false
+	ui_layer.add_child(trash_dialog)
+	
+	var trash_border = ReferenceRect.new()
+	trash_border.set_anchors_preset(Control.PRESET_FULL_RECT)
+	trash_border.border_color = Color.INDIAN_RED
+	trash_border.border_width = 4
+	trash_dialog.add_child(trash_border)
+	
+	var trash_lbl = Label.new()
+	trash_lbl.text = "Excluir Documento?"
+	trash_lbl.add_theme_font_size_override("font_size", 28)
+	trash_lbl.add_theme_color_override("font_color", Color.WHITE)
+	trash_lbl.position = Vector2(0, 40)
+	trash_lbl.size = Vector2(400, 40)
+	trash_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	trash_dialog.add_child(trash_lbl)
+	
+	btn_trash_yes = Button.new()
+	btn_trash_yes.text = "Sim"
+	btn_trash_yes.size = Vector2(140, 50)
+	btn_trash_yes.position = Vector2(40, 110)
+	btn_trash_yes.add_theme_color_override("font_color", Color.INDIAN_RED)
+	btn_trash_yes.pressed.connect(_on_trash_yes)
+	trash_dialog.add_child(btn_trash_yes)
+	
+	btn_trash_no = Button.new()
+	btn_trash_no.text = "Não"
+	btn_trash_no.size = Vector2(140, 50)
+	btn_trash_no.position = Vector2(220, 110)
+	btn_trash_no.pressed.connect(_on_trash_no)
+	trash_dialog.add_child(btn_trash_no)
 
 func _process_call() -> void:
 	var rid = pending_company_data["route_id"]
@@ -902,10 +940,7 @@ func _on_panel_gui_input(event: InputEvent, panel: Control) -> void:
 				if type == "paper":
 					panel.pivot_offset = panel.size / 2.0
 					var tw = create_tween().set_parallel(true)
-					if panel.get_meta("crumpled", false):
-						tw.tween_property(panel, "scale", Vector2(0.6, 0.6), 0.15).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-					else:
-						tw.tween_property(panel, "scale", Vector2(1.0, 1.0), 0.15).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+					tw.tween_property(panel, "scale", Vector2(1.0, 1.0), 0.15).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 			else:
 				if dragged_panel == panel:
 					dragged_panel = null
@@ -938,39 +973,20 @@ func _on_panel_gui_input(event: InputEvent, panel: Control) -> void:
 								var outbox_center = outbox_rect.global_position + outbox_rect.size / 2.0
 								var trash_center = trash_rect.global_position + trash_rect.size / 2.0
 								
-								if panel.get_meta("crumpled", false):
-									_clamp_scaled_paper(panel)
-									
-								elif center.distance_to(trash_center) < 160:
-									panel.pivot_offset = panel.size / 2.0
-									var tw = create_tween().set_parallel(true)
-									tw.tween_property(panel, "scale", Vector2(0.5, 0.5), 0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
-									tw.tween_property(panel, "rotation_degrees", 0.0, 0.2) 
-									tw.tween_property(panel, "global_position", trash_center - (panel.size / 2.0), 0.2)
-									
-									if not panel.get_meta("crumpled", false):
-										panel.set_meta("crumpled", true)
-										
-										# CORREÇÃO: Remove a identidade de Planta ao amassar
-										if panel.get_meta("is_blueprint", false):
-											panel.set_meta("is_blueprint", false)
-											GameManager.pending_blueprint.clear()
-											GameManager.save_game()
-												
-									panel.self_modulate.a = 0.0 
-									if panel.has_node("content"):
-										panel.get_node("content").visible = false
-									if panel.has_node("ball_visual"):
-										panel.get_node("ball_visual").visible = true
-										
-								elif outbox_rect.get_global_rect().grow(100).has_point(center):
-									panel.pivot_offset = panel.size / 2.0
-									var tw = create_tween().set_parallel(true)
-									tw.tween_property(panel, "scale", Vector2(0.60, 0.60), 0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-									var target_pos = outbox_center - (panel.size / 2.0) + Vector2(randf_range(-10, 10), randf_range(-10, 10))
-									tw.tween_property(panel, "global_position", target_pos, 0.2)
+								# Verifica se soltou em cima da lixeira
+								if center.distance_to(trash_center) < 160:
+									trash_target_paper = panel
+									trash_dialog.visible = true
+									trash_dialog.get_parent().move_child(trash_dialog, -1) # Traz pop-up pra frente
 								else:
-									_clamp_to_screen(panel)
+									if outbox_rect.get_global_rect().grow(100).has_point(center):
+										panel.pivot_offset = panel.size / 2.0
+										var tw = create_tween().set_parallel(true)
+										tw.tween_property(panel, "scale", Vector2(0.60, 0.60), 0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+										var target_pos = outbox_center - (panel.size / 2.0) + Vector2(randf_range(-10, 10), randf_range(-10, 10))
+										tw.tween_property(panel, "global_position", target_pos, 0.2)
+									else:
+										_clamp_to_screen(panel)
 							else:
 								if type == "panel":
 									panel.rotation_degrees = randf_range(-3.0, 3.0) 
@@ -979,35 +995,42 @@ func _on_panel_gui_input(event: InputEvent, panel: Control) -> void:
 		if event is InputEventMouseMotion:
 			if dragged_panel == panel:
 				panel.global_position = panel.get_global_mouse_position() - drag_offset
-				
 				if type == "paper":
-					_clamp_scaled_paper(panel)
-					
-					if not panel.get_meta("crumpled", false):
-						var center = panel.get_global_rect().get_center()
-						var trash_center = trash_rect.global_position + trash_rect.size / 2.0
-						
-						if center.distance_to(trash_center) < 160:
-							panel.set_meta("crumpled", true)
-							panel.pivot_offset = panel.size / 2.0
-							
-							# CORREÇÃO: Também remove identidade no movimento (Drag over trash)
-							if panel.get_meta("is_blueprint", false):
-								panel.set_meta("is_blueprint", false)
-								GameManager.pending_blueprint.clear()
-								GameManager.save_game()
-							
-							var tw = create_tween().set_parallel(true)
-							tw.tween_property(panel, "scale", Vector2(0.5, 0.5), 0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
-							tw.tween_property(panel, "rotation_degrees", randf_range(0, 360), 0.2) 
-							
-							panel.self_modulate.a = 0.0 
-							if panel.has_node("content"):
-								panel.get_node("content").visible = false
-							if panel.has_node("ball_visual"):
-								panel.get_node("ball_visual").visible = true
+					# Agora, ao mover o mouse, não amassa mais o papel automaticamente.
+					_clamp_to_screen(panel) 
 				else:
 					_clamp_to_screen(panel)
+
+
+
+func _on_trash_yes() -> void:
+	trash_dialog.visible = false
+	if is_instance_valid(trash_target_paper):
+		# Se for uma planta de obras, precisamos limpar do GameManager também
+		if trash_target_paper.get_meta("is_blueprint", false):
+			GameManager.pending_blueprint.clear()
+			GameManager.save_game()
+			
+		# Remove da lista de papeis spawnados para evitar bugs de save/load
+		var idx = spawned_papers.find(trash_target_paper)
+		if idx != -1:
+			spawned_papers.remove_at(idx)
+			
+		# Deleta imediatamente do jogo
+		trash_target_paper.queue_free()
+		
+	trash_target_paper = null
+
+func _on_trash_no() -> void:
+	trash_dialog.visible = false
+	if is_instance_valid(trash_target_paper):
+		# Devolve o papel com segurança pra mesa para não ficar em cima da lixeira
+		var safe_center = get_viewport_rect().size / 2.0
+		trash_target_paper.global_position = safe_center - (trash_target_paper.size / 2.0)
+		_clamp_to_screen(trash_target_paper)
+	trash_target_paper = null
+
+
 
 
 
