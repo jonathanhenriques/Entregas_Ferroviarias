@@ -352,80 +352,127 @@ func _setup_ui() -> void:
 	desk_bg.add_child(desk_border)
 
 	
-	# --- ESTILOS VISUAIS PARA OS BOTÕES INDUSTRIAIS ---
-	var panel_btn_normal = StyleBoxFlat.new()
-	panel_btn_normal.bg_color = Color(0.25, 0.25, 0.28)
-	panel_btn_normal.border_width_bottom = 6
-	panel_btn_normal.border_color = Color(0.1, 0.1, 0.12)
-	panel_btn_normal.corner_radius_top_left = 8
-	panel_btn_normal.corner_radius_top_right = 8
-	panel_btn_normal.corner_radius_bottom_left = 8
-	panel_btn_normal.corner_radius_bottom_right = 8
+	# --- PAINEL METÁLICO (Fundo dos botões) ---
+	var control_panel = ColorRect.new()
+	control_panel.color = Color(0.2, 0.22, 0.25) # Metal escuro industrial
+	control_panel.size = Vector2(500, 205)
+	control_panel.position = Vector2(10, 10)
+	desk_bg.add_child(control_panel)
 	
-	var panel_btn_pressed = StyleBoxFlat.new()
-	panel_btn_pressed.bg_color = Color(0.2, 0.2, 0.22)
-	panel_btn_pressed.border_width_bottom = 2
-	panel_btn_pressed.border_color = Color(0.1, 0.1, 0.12)
-	panel_btn_pressed.corner_radius_top_left = 8
-	panel_btn_pressed.corner_radius_top_right = 8
-	panel_btn_pressed.corner_radius_bottom_left = 8
-	panel_btn_pressed.corner_radius_bottom_right = 8
+	var cp_border = ReferenceRect.new()
+	cp_border.set_anchors_preset(Control.PRESET_FULL_RECT)
+	cp_border.border_color = Color(0.1, 0.1, 0.12)
+	cp_border.border_width = 4
+	control_panel.add_child(cp_border)
+	
+	# Parafusos do painel
+	for pos in [Vector2(10, 10), Vector2(480, 10), Vector2(10, 185), Vector2(480, 185)]:
+		var screw = ColorRect.new()
+		screw.color = Color(0.05, 0.05, 0.05)
+		screw.size = Vector2(10, 10)
+		screw.position = pos
+		control_panel.add_child(screw)
+
+	# --- ESTILOS VISUAIS PARA OS BOTÕES INDUSTRIAIS ---
+	# --- ESTILOS VISUAIS PARA OS BOTÕES DO PAINEL ---
+	var base_style = StyleBoxFlat.new()
+	# Borda prata/cinza para simular o anel de metal do botão físico
+	base_style.border_width_left = 4
+	base_style.border_width_right = 4
+	base_style.border_width_top = 4
+	base_style.border_width_bottom = 12
+	base_style.border_color = Color(0.65, 0.65, 0.7) 
+	# Bordas super arredondadas para formato de pílula (Botão industrial)
+	base_style.corner_radius_top_left = 35
+	base_style.corner_radius_top_right = 35
+	base_style.corner_radius_bottom_left = 35
+	base_style.corner_radius_bottom_right = 35
+	base_style.shadow_color = Color(0, 0, 0, 0.6)
+	base_style.shadow_size = 4
+	base_style.shadow_offset = Vector2(0, 4)
+
+	var pressed_style = base_style.duplicate()
+	pressed_style.border_width_bottom = 4 # O botão "afunda"
+	pressed_style.border_color = Color(0.5, 0.5, 0.55)
+	pressed_style.shadow_offset = Vector2(0, 1)
+	
+	# Estado Desligado (Sem energia / Bloqueado)
+	var disabled_style = base_style.duplicate()
+	disabled_style.bg_color = Color(0.25, 0.25, 0.25)
+	disabled_style.border_color = Color(0.4, 0.4, 0.4)
+	disabled_style.border_width_bottom = 4
+	disabled_style.shadow_size = 0
+	disabled_style.shadow_offset = Vector2(0, 0)
 
 	btn_lever = Button.new()
-	btn_lever.text = "[ CHUTA ALAVANCA ]\nChamar Encomenda"
-	btn_lever.size = Vector2(180, 70)
+	btn_lever.text = "CHAMAR ENCOMENDA\n(Puxar Alavanca)"
+	btn_lever.size = Vector2(220, 70)
 	btn_lever.position = Vector2(30, 30)
-	btn_lever.add_theme_stylebox_override("normal", panel_btn_normal)
-	btn_lever.add_theme_stylebox_override("pressed", panel_btn_pressed)
+	var btn_lever_normal = base_style.duplicate()
+	btn_lever_normal.bg_color = Color(0.8, 0.5, 0.1) # Laranja/Amarelo
+	var btn_lever_pressed = pressed_style.duplicate()
+	btn_lever_pressed.bg_color = Color(0.6, 0.35, 0.05)
+	btn_lever.add_theme_stylebox_override("normal", btn_lever_normal)
+	btn_lever.add_theme_stylebox_override("pressed", btn_lever_pressed)
+	btn_lever.add_theme_stylebox_override("disabled", disabled_style)
 	btn_lever.add_theme_color_override("font_color", Color.WHITE)
+	btn_lever.add_theme_color_override("font_outline_color", Color(0.2, 0.1, 0.0))
+	btn_lever.add_theme_constant_override("outline_size", 4)
 	btn_lever.pressed.connect(_on_btn_lever_pressed)
 	desk_bg.add_child(btn_lever)
 
 	btn_xray = Button.new()
-	btn_xray.text = "[ LIGAR RAIO-X ]\nCusto: $15"
-	btn_xray.size = Vector2(180, 70)
-	btn_xray.position = Vector2(230, 30)
-	var xray_btn_normal = panel_btn_normal.duplicate()
-	xray_btn_normal.bg_color = Color(0.2, 0.35, 0.2)
-	xray_btn_normal.border_color = Color(0.05, 0.15, 0.05)
-	var xray_btn_pressed = panel_btn_pressed.duplicate()
-	xray_btn_pressed.bg_color = Color(0.15, 0.25, 0.15)
-	btn_xray.add_theme_stylebox_override("normal", xray_btn_normal)
-	btn_xray.add_theme_stylebox_override("pressed", xray_btn_pressed)
-	btn_xray.add_theme_color_override("font_color", Color(0.7, 1.0, 0.7))
+	btn_xray.text = "LIGAR RAIO-X\n(Custo: $15)"
+	btn_xray.size = Vector2(220, 70)
+	btn_xray.position = Vector2(270, 30)
+	var btn_xray_normal = base_style.duplicate()
+	btn_xray_normal.bg_color = Color(0.2, 0.45, 0.8) # Azul
+	var btn_xray_pressed = pressed_style.duplicate()
+	btn_xray_pressed.bg_color = Color(0.1, 0.3, 0.6)
+	btn_xray.add_theme_stylebox_override("normal", btn_xray_normal)
+	btn_xray.add_theme_stylebox_override("pressed", btn_xray_pressed)
+	btn_xray.add_theme_stylebox_override("disabled", disabled_style)
+	btn_xray.add_theme_color_override("font_color", Color.WHITE)
+	btn_xray.add_theme_color_override("font_outline_color", Color(0.05, 0.1, 0.2))
+	btn_xray.add_theme_constant_override("outline_size", 4)
 	btn_xray.pressed.connect(_on_btn_xray_pressed)
 	desk_bg.add_child(btn_xray)
 
 	btn_approve_pkg = Button.new()
-	btn_approve_pkg.text = "[ CARREGAR NO TREM ]\n(Validado)"
+	btn_approve_pkg.text = "CARREGAR TREM\n(Validar)"
 	btn_approve_pkg.size = Vector2(220, 70)
-	btn_approve_pkg.position = Vector2(30, 120) 
-	var app_btn_normal = panel_btn_normal.duplicate()
-	app_btn_normal.bg_color = Color(0.15, 0.4, 0.15)
-	app_btn_normal.border_color = Color(0.05, 0.2, 0.05)
-	var app_btn_pressed = panel_btn_pressed.duplicate()
-	app_btn_pressed.bg_color = Color(0.1, 0.3, 0.1)
-	btn_approve_pkg.add_theme_stylebox_override("normal", app_btn_normal)
-	btn_approve_pkg.add_theme_stylebox_override("pressed", app_btn_pressed)
+	btn_approve_pkg.position = Vector2(30, 115) 
+	var btn_app_normal = base_style.duplicate()
+	btn_app_normal.bg_color = Color(0.2, 0.65, 0.25) # Verde brilhante
+	var btn_app_pressed = pressed_style.duplicate()
+	btn_app_pressed.bg_color = Color(0.1, 0.45, 0.15)
+	btn_approve_pkg.add_theme_stylebox_override("normal", btn_app_normal)
+	btn_approve_pkg.add_theme_stylebox_override("pressed", btn_app_pressed)
+	btn_approve_pkg.add_theme_stylebox_override("disabled", disabled_style)
 	btn_approve_pkg.add_theme_color_override("font_color", Color.WHITE)
+	btn_approve_pkg.add_theme_color_override("font_outline_color", Color(0.05, 0.2, 0.05))
+	btn_approve_pkg.add_theme_constant_override("outline_size", 4)
 	btn_approve_pkg.pressed.connect(_on_approve_pkg_pressed)
 	desk_bg.add_child(btn_approve_pkg)
 	
 	btn_reject_pkg = Button.new()
-	btn_reject_pkg.text = "[ DEVOLVER REMETENTE ]\n(Fraude)"
+	btn_reject_pkg.text = "DEVOLVER REMETENTE\n(Fraude)"
 	btn_reject_pkg.size = Vector2(220, 70)
-	btn_reject_pkg.position = Vector2(270, 120) 
-	var rej_btn_normal = panel_btn_normal.duplicate()
-	rej_btn_normal.bg_color = Color(0.6, 0.2, 0.2)
-	rej_btn_normal.border_color = Color(0.3, 0.05, 0.05)
-	var rej_btn_pressed = panel_btn_pressed.duplicate()
-	rej_btn_pressed.bg_color = Color(0.4, 0.15, 0.15)
-	btn_reject_pkg.add_theme_stylebox_override("normal", rej_btn_normal)
-	btn_reject_pkg.add_theme_stylebox_override("pressed", rej_btn_pressed)
+	btn_reject_pkg.position = Vector2(270, 115) 
+	var btn_rej_normal = base_style.duplicate()
+	btn_rej_normal.bg_color = Color(0.8, 0.2, 0.2) # Vermelho alerta
+	var btn_rej_pressed = pressed_style.duplicate()
+	btn_rej_pressed.bg_color = Color(0.55, 0.1, 0.1)
+	btn_reject_pkg.add_theme_stylebox_override("normal", btn_rej_normal)
+	btn_reject_pkg.add_theme_stylebox_override("pressed", btn_rej_pressed)
+	btn_reject_pkg.add_theme_stylebox_override("disabled", disabled_style)
 	btn_reject_pkg.add_theme_color_override("font_color", Color.WHITE)
+	btn_reject_pkg.add_theme_color_override("font_outline_color", Color(0.2, 0.05, 0.05))
+	btn_reject_pkg.add_theme_constant_override("outline_size", 4)
 	btn_reject_pkg.pressed.connect(_on_reject_pkg_pressed)
 	desk_bg.add_child(btn_reject_pkg)
-	
+
+	# IMPORTANTE: Logo abaixo desta linha deve começar a sua var clipboard_bg = ColorRect.new() que já existe no seu código!
 
 	var clipboard_bg = ColorRect.new()
 	clipboard_bg.color = Color(0.85, 0.8, 0.65)
