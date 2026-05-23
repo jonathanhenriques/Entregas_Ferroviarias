@@ -836,7 +836,7 @@ func _process_decision(approved: bool) -> void:
 		if current_package.get("is_contraband", false):
 			if not GameManager.first_fiscal_warning_done:
 				GameManager.first_fiscal_warning_done = true
-				GameManager.pendent_strike_warning = "AVISO OFICIAL: Aprovou carga ilegal. Como e a primeira vez, a coima foi perdoada. Cuidado!"
+				GameManager.pendent_strike_warning = "AVISO OFICIAL: Aprovou carga ilegal. Como é a primeira vez, a multa foi perdoada. Cuidado!"
 				_show_strike_warning(GameManager.pendent_strike_warning)
 			else:
 				var fine = 1500
