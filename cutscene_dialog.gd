@@ -185,7 +185,7 @@ func start_risk_call(company_name: String, route_name: String, base_reward: int,
 	name_label.add_theme_color_override("font_color", Color.GOLDENROD)
 	
 	full_text = "Nossa operação logística exige sincronia perfeita.\n"
-	full_text += "Assino o contrato hoje, mas o senhor tem exatamente " + str(wait_days) + " dia(s) para liberar um trem ou a via para a minha carga.\n"
+	full_text += "Assino o contrato hoje, mas o senhor tem exatamente " + str(wait_days) + " dia(s) para liberar um trem ou a via para a minha carga. "
 	full_text += "Se falhar, os meus advogados destroem a sua empresa. Estamos entendidos?"
 	
 	_type_next_char(true)
@@ -239,9 +239,9 @@ func start_boss_intro() -> void:
 	name_label.text = "[ TRANSMISSÃO: BEAR (DIRETORIA) ]"
 	name_label.add_theme_color_override("font_color", Color.LIGHT_GRAY)
 	
-	full_text = "Seu avô avisou que você viria. Temos locomotivas enferrujadas e clientes isolados.\n\n"
+	full_text = "Seu avô avisou que você viria. Temos locomotivas enferrujadas e clientes isolados.\n"
 	full_text += "Preste atenção: neste mercado cruel, ninguém assina contrato sem ver trabalho feito.\n"
-	full_text += "Vá ao mapa, construa a linha conectando as cidades e só depois ligue para os clientes.\n\n"
+	full_text += "Vá ao mapa, construa a linha conectando as cidades e só depois ligue para os clientes.\n"
 	full_text += "O problema agora é seu."
 	
 	_type_next_char(false)
@@ -286,9 +286,9 @@ func start_badger_radio() -> void:
 		btn_opt_1.text = "[ Entendido. Preparando obras. ]"
 	else:
 		current_mode = "RADIO_EVENT"
-		full_text = "Chefe. Aqui é o Badger. Motoqueiros trancaram a linha na planície de novo.\n\n"
+		full_text = "Chefe. Aqui é o Badger. Motoqueiros trancaram a linha na planície de novo.\n"
 		full_text += "O povo das cidades tá esperando esses suprimentos pra comer hoje, mas se eu passar com o trem "
-		full_text += "por cima desses bandidos, eles vão atirar contra a caldeira. E se a gente recuar, a carga atrasa e a empresa perde moral.\n\n"
+		full_text += "por cima desses bandidos, eles vão atirar contra a carga. E se a gente recuar, a carga atrasa e a empresa perde moral.\n"
 		full_text += "Aguardo ordens, Chefe."
 		
 		btn_opt_1.text = "[ Pagar Pedágio ($150) ]"
@@ -348,7 +348,7 @@ func _show_buttons(is_negotiation: bool) -> void:
 		btn_reject.visible = true
 		return
 		
-	if current_mode == "FISCAL": # <--- NOVA REGRA DE EXCEÇÃO PARA O FISCAL
+	if current_mode == "FISCAL": 
 		btn_opt_1.visible = true
 		var bp = GameManager.pending_fiscal_event
 		if bp.get("can_bribe", false):
@@ -366,7 +366,10 @@ func _show_buttons(is_negotiation: bool) -> void:
 			btn_reject.text = "DESLIGAR"
 	else:
 		btn_close.visible = true
-
+		if current_mode == "BADGER_WARNING":
+			btn_close.text = "ENTENDIDO"
+		else:
+			btn_close.text = "DESLIGAR"
 
 
 func _on_accept() -> void:
@@ -521,5 +524,22 @@ func start_defeat_call() -> void:
 	full_text += "O nosso caixa está destruído. As dívidas estão nos afogando. Você é uma vergonha para o seu avô!\n"
 	full_text += "Eu avisei que este mercado era cruel. Você falhou no teste. Pegue as suas coisas, você está DEMITIDO.\n"
 	full_text += "E não volte mais aqui."
+	
+	_type_next_char(false)
+	
+func start_badger_package_warning() -> void:
+	_reset_ui()
+	current_mode = "BADGER_WARNING"
+	
+	character_portrait.texture = tex_badger
+	
+	name_label.text = "[ FREQUÊNCIA 104.2: MAQUINISTA BADGER ]"
+	name_label.add_theme_color_override("font_color", Color.SKY_BLUE)
+	
+	full_text = "Chefe, bom dia! Desculpe chamar no rádio logo cedo.\n"
+	full_text += "Estou passando pela Estação de Triagem e a esteira está lotada!\n"
+	full_text += "As encomendas de ontem ficaram acumuladas e logo vão chegar mais. "
+	full_text += "Por favor, vá para a Tela de Pesagem e libere essas caixas o mais rápido possível!\n"
+	full_text += "Aguardo a carga no trem!"
 	
 	_type_next_char(false)

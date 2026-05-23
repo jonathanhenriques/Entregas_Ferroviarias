@@ -22,7 +22,7 @@ var letter_bg: ColorRect
 var intro_texts: Array[String] = [
 	"Para o meu neto.\n\nO tempo das nossas pequenas ferrovias acabou. Os grandes monopólios esmagaram quase tudo. A nossa velha companhia é uma das últimas que ainda respira.",
 	"O meu tempo acabou, mas as cidades ainda precisam de nós. O Bear, meu velho sócio, vai precisar de você para manter os trens rodando. Não é um trabalho bonito, mas é vital.",
-	"Ele deixou os papéis na sua mesa.\n\nA partir de hoje, o peso dos trilhos é seu.\n\nBoa sorte."
+	"Ele deixou os papéis na sua mesa.\nA partir de hoje, o peso dos trilhos é seu.\nBoa sorte."
 ]
 
 var current_intro_page: int = 0

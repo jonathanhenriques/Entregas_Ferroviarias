@@ -18,6 +18,8 @@ var start_in_world_map: bool = true
 
 var is_fiscal_calling: bool = false
 
+var pending_badger_package_warning: bool = false
+
 var is_game_ended: bool = false
 var pending_victory_call: bool = false
 var pending_defeat_call: bool = false
@@ -143,6 +145,14 @@ func _process(delta: float) -> void:
 			package_queue_updated.emit(package_queue.size())
 			
 		if boss_package_intro_done and shift_active:
+			shift_time_left -= delta
+			if shift_time_left <= 0:
+				shift_active = false
+				if package_queue.size() > 0:
+					if has_method("add_strike"): 
+						add_strike("O trem partiu e " + str(package_queue.size()) + " encomendas ficaram na plataforma!")
+					# As encomendas agora não são mais destruídas, elas acumulam!
+					package_queue_updated.emit(package_queue.size())
 			shift_time_left -= delta
 			if shift_time_left <= 0:
 				shift_active = false
@@ -325,10 +335,12 @@ func end_day(upfront_income: int = 0) -> void:
 	
 	_generate_daily_generics()
 	
-	package_queue.clear()
+	if package_queue.size() > 0:
+		pending_badger_package_warning = true
+	
 	packages_generated_today = 0
 	shift_active = false
-	package_queue_updated.emit(0)
+	package_queue_updated.emit(package_queue.size())
 	
 	contracts_updated.emit()
 	current_day += 1
@@ -590,6 +602,12 @@ func reset_game() -> void:
 	
 	pending_victory_call = false
 	pending_defeat_call = false
+	
+	is_first_route_built = false
+	first_fiscal_warning_done = false
+	shift_time_left = 0.0
+	shift_active = false
+	pending_badger_package_warning = false
 	
 	_generate_daily_generics()
 	save_game()

@@ -132,37 +132,40 @@ func _process(delta: float) -> void:
 			GameManager.pending_victory_call = false
 			phone_cutscene.start_victory_call()
 		else:
-			if GameManager.pendent_angry_call: 
-				GameManager.pendent_angry_call = false
-				phone_cutscene.start_angry_call()
+			if GameManager.pending_badger_package_warning:
+				GameManager.pending_badger_package_warning = false
+				phone_cutscene.start_badger_package_warning()
 			else:
-				if not GameManager.pending_fiscal_event.is_empty() and not GameManager.is_fiscal_calling:
-					GameManager.is_fiscal_calling = true 
-					phone_cutscene.start_fiscal_audit(GameManager.pending_fiscal_event)
+				if GameManager.pendent_angry_call: 
+					GameManager.pendent_angry_call = false
+					phone_cutscene.start_angry_call()
 				else:
-					if GameManager.pending_boss_package_call and not GameManager.boss_package_intro_done:
-						GameManager.pending_boss_package_call = false
-						GameManager.boss_package_intro_done = true
-						phone_cutscene.start_boss_package_call()
+					if not GameManager.pending_fiscal_event.is_empty() and not GameManager.is_fiscal_calling:
+						GameManager.is_fiscal_calling = true 
+						phone_cutscene.start_fiscal_audit(GameManager.pending_fiscal_event)
 					else:
-						if GameManager.pending_shark_call and not GameManager.shark_declined and not GameManager.has_loan_shark and not GameManager.is_shark_calling:
-							GameManager.pending_shark_call = false
-							GameManager.is_shark_calling = true
-							if phone_cutscene.has_method("start_loan_shark_call"):
-								phone_cutscene.start_loan_shark_call()
+						if GameManager.pending_boss_package_call and not GameManager.boss_package_intro_done:
+							GameManager.pending_boss_package_call = false
+							GameManager.boss_package_intro_done = true
+							phone_cutscene.start_boss_package_call()
 						else:
-							if GameManager.pending_shark_paper:
-								GameManager.pending_shark_paper = false
-								_spawn_shark_paper()
+							if GameManager.pending_shark_call and not GameManager.shark_declined and not GameManager.has_loan_shark and not GameManager.is_shark_calling:
+								GameManager.pending_shark_call = false
+								GameManager.is_shark_calling = true
+								if phone_cutscene.has_method("start_loan_shark_call"):
+									phone_cutscene.start_loan_shark_call()
 							else:
-								if not GameManager.intro_played:
-									GameManager.intro_played = true
-									phone_cutscene.start_boss_intro()
+								if GameManager.pending_shark_paper:
+									GameManager.pending_shark_paper = false
+									_spawn_shark_paper()
+								else:
+									if not GameManager.intro_played:
+										GameManager.intro_played = true
+										phone_cutscene.start_boss_intro()
 		
 	if GameManager.pending_shark_paper:
 			GameManager.pending_shark_paper = false
 			_spawn_shark_paper()
-
 
 
 func _setup_ui() -> void:
@@ -1977,8 +1980,8 @@ func _start_eod_animation(new_c: int, rej_c: int, ext_c: int, bp_cost: int, shar
 		if GameManager.is_contract_operating(c):
 			active_count += 1
 			
-	_add_eod_line("Entregas Operando", str(active_count), c_light, false)
-	_add_eod_line("Contratos Fechados", str(new_c), c_light, false)
+	_add_eod_line("Contratos Operando", str(active_count), c_light, false)
+	_add_eod_line("Novos Contratos", str(new_c), c_light, false)
 	_add_eod_line("Prazos Estendidos", str(ext_c), c_light, false)
 	_add_eod_line("Propostas Rejeitadas", str(rej_c), c_light, false)
 	_add_eod_line("Contratos Rompidos", str(GameManager.today_broken_contracts), c_light, false)
@@ -2158,7 +2161,7 @@ func _spawn_tutorial_paper(type: int) -> void:
 	lbl.size = paper.size - Vector2(40, 40)
 
 	if type == 1:
-		lbl.text = "DIRETRIZES DE OPERAÇÃO - DIA 1\n\nBem-vindo à Diretoria.\n\nPASSOS PARA HOJE:\n1. Abra o 'Arquivo de Clientes'.\n2. Clique em 'Preparar Contrato' para a Rota Azul <-> Vermelha.\n3. Arraste a Caneta e o Carimbo para aprovar e mova o papel para a Bandeja de Saída.\n4. Vá ao Mapa (<-), clique em Modo Obras e ligue as duas estações.\n5. Clique em Gerar Planta, assine a planta na mesa e finalize o dia!"
+		lbl.text = "DIRETRIZES DE OPERAÇÃO - DIA 1\n\nBem-vindo à Diretoria.\n\nPASSOS PARA HOJE:\n1. Escolha um cliente em 'Arquivo de Clientes'.\n2. Clique em 'Preparar Contrato' e disque o telefone.\n3. Vá ao Mapa (<-), clique em Modo Obras e ligue as duas estações Azul <-> Vermelha e clique em Gerar planta.\n4. Na mesa, arraste a Caneta e o Carimbo sobre o Termo e o Projeto para aprovar, coloque os Documentos na bandeja de saída e finalize o dia!"
 		paper.set_meta("is_tutorial_1", true)
 	elif type == 2:
 		lbl.text = "DIRETRIZES DE TRIAGEM\n\nSua rota está pronta! A partir de agora, pacotes chegarão na Estação de Triagem.\n\n- Vá para a Triagem e chame pacotes.\n- Verifique o peso na balança.\n- Use o Raio-X se desconfiar.\n- Se o peso ou o selo estiverem errados, REJEITE.\n- Cuidado com o Temporizador! O trem parte em breve."
