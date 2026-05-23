@@ -25,6 +25,17 @@ var btn_opt_3: Button
 var silhouette_body: ColorRect
 var silhouette_head: ColorRect
 
+
+var character_portrait: TextureRect
+
+var tex_bear: Texture2D = preload("res://bear,chefe_v01.png")
+var tex_badger: Texture2D = preload("res://maquinista,texugo_v01.png")
+var tex_fiscal: Texture2D = preload("res://fiscal,garca_v01.png")
+
+# --- NOVO: IMAGENS DOS CLIENTES ALEATÓRIOS ---
+var tex_client_1: Texture2D = preload("res://cliente_01.png")
+var tex_client_2: Texture2D = preload("res://cliente_02.png")
+
 var full_text: String = ""
 var char_index: int = 0
 var offered_reward: int = 0
@@ -46,17 +57,14 @@ func _setup_visuals() -> void:
 	overlay.mouse_filter = Control.MOUSE_FILTER_STOP 
 	add_child(overlay)
 
-	silhouette_body = ColorRect.new()
-	silhouette_body.color = Color(0, 0, 0, 1)
-	silhouette_body.size = Vector2(600, 750)
-	silhouette_body.position = Vector2(100, 330)
-	add_child(silhouette_body)
-	
-	silhouette_head = ColorRect.new()
-	silhouette_head.color = Color(0, 0, 0, 1)
-	silhouette_head.size = Vector2(180, 210)
-	silhouette_head.position = Vector2(310, 150)
-	add_child(silhouette_head)
+	# --- NOVO RETRATO DO PERSONAGEM (Substitui os antigos ColorRects) ---
+	character_portrait = TextureRect.new()
+	character_portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	character_portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	# Aumentamos o tamanho e a posição Y para cobrir desde a cabeça até a base da tela
+	character_portrait.size = Vector2(600, 800)
+	character_portrait.position = Vector2(100, 150) 
+	add_child(character_portrait)
 
 	dialog_box = ColorRect.new()
 	dialog_box.color = Color(0.05, 0.05, 0.15, 0.9) 
@@ -105,30 +113,27 @@ func _setup_visuals() -> void:
 	btn_close.pressed.connect(_on_close)
 	dialog_box.add_child(btn_close)
 
-	# LARGURA AUMENTADA E DISTRIBUÍDA PARA NÃO SOBREPOR
 	btn_opt_1 = Button.new()
-	btn_opt_1.text = "[ Opção 1 ]"
+	btn_opt_1.text = "[ Pagar Pedágio ($150) ]"
 	btn_opt_1.size = Vector2(420, 50)
 	btn_opt_1.position = Vector2(40, 230)
 	btn_opt_1.pressed.connect(_on_opt_1)
 	dialog_box.add_child(btn_opt_1)
 
 	btn_opt_2 = Button.new()
-	btn_opt_2.text = "[ Opção 2 ]"
+	btn_opt_2.text = "[ Recuar (Atrasa a Carga) ]"
 	btn_opt_2.size = Vector2(420, 50)
 	btn_opt_2.position = Vector2(480, 230)
 	btn_opt_2.pressed.connect(_on_opt_2)
 	dialog_box.add_child(btn_opt_2)
 	
 	btn_opt_3 = Button.new()
-	btn_opt_3.text = "[ Opção 3 ]"
+	btn_opt_3.text = "[ Avançar à Força (Risco) ]"
 	btn_opt_3.size = Vector2(420, 50)
 	btn_opt_3.position = Vector2(920, 230)
 	btn_opt_3.add_theme_color_override("font_color", Color.INDIAN_RED)
 	btn_opt_3.pressed.connect(_on_opt_3)
 	dialog_box.add_child(btn_opt_3)
-
-
 
 func _input(event: InputEvent) -> void:
 	if visible:
@@ -140,6 +145,10 @@ func _input(event: InputEvent) -> void:
 
 func start_call(company_name: String, company_type: String, company_cargo: String, base_reward: int, is_urgent: bool = false) -> void:
 	_reset_ui()
+	# --- NOVO: Sorteia um cliente ---
+	var arts = [tex_client_1, tex_client_2]
+	character_portrait.texture = arts.pick_random()
+	
 	current_mode = "CALL"
 	
 	var dice = randi_range(1, 6)
@@ -160,8 +169,12 @@ func start_call(company_name: String, company_type: String, company_cargo: Strin
 
 	_type_next_char(true)
 
-func start_risk_call(company_name: String, route_name: String, base_reward: int) -> void:
+func start_risk_call(company_name: String, route_name: String, base_reward: int, wait_days: int) -> void:
 	_reset_ui()
+	# --- NOVO: Sorteia um cliente ---
+	var arts = [tex_client_1, tex_client_2]
+	character_portrait.texture = arts.pick_random()
+	
 	current_mode = "RISK_CALL"
 	
 	var dice = randi_range(1, 6)
@@ -171,14 +184,21 @@ func start_risk_call(company_name: String, route_name: String, base_reward: int)
 	name_label.text = "[ TRANSMISSÃO: " + company_name.to_upper() + " ]"
 	name_label.add_theme_color_override("font_color", Color.GOLDENROD)
 	
-	full_text = "Vejo que a sua via para " + route_name + " não está pronta. O nosso frete é urgente.\n"
-	full_text += "Assino o contrato hoje, mas você tem 3 dias para colocar esse trem nos trilhos levando a minha carga.\n"
-	full_text += "Se falhar, os meus advogados destruirão a sua empresa. Estamos entendidos?"
+	full_text = "Nossa operação logística exige sincronia perfeita.\n"
+	full_text += "Assino o contrato hoje, mas o senhor tem exatamente " + str(wait_days) + " dia(s) para liberar um trem ou a via para a minha carga. "
+	full_text += "Se falhar, os meus advogados destroem a sua empresa. Estamos entendidos?"
 	
 	_type_next_char(true)
 
+
+
+
 func start_rejection_call(company_name: String, custom_reason: String = "") -> void:
 	_reset_ui()
+	# --- NOVO: Sorteia um cliente ---
+	var arts = [tex_client_1, tex_client_2]
+	character_portrait.texture = arts.pick_random()
+	
 	current_mode = "REJECT"
 	
 	name_label.text = "[ TRANSMISSÃO: " + company_name.to_upper() + " ]"
@@ -197,6 +217,10 @@ func start_rejection_call(company_name: String, custom_reason: String = "") -> v
 
 func start_angry_call() -> void:
 	_reset_ui()
+	# --- NOVO: Sorteia um cliente ---
+	var arts = [tex_client_1, tex_client_2]
+	character_portrait.texture = arts.pick_random()
+	
 	current_mode = "ANGRY"
 	
 	name_label.text = "[ TRANSMISSÃO: CLIENTE FURIOSO ]"
@@ -215,15 +239,19 @@ func start_boss_intro() -> void:
 	name_label.text = "[ TRANSMISSÃO: BEAR (DIRETORIA) ]"
 	name_label.add_theme_color_override("font_color", Color.LIGHT_GRAY)
 	
-	full_text = "Seu avô avisou que você viria. Temos locomotivas enferrujadas e clientes isolados.\n\n"
+	full_text = "Seu avô avisou que você viria. Temos locomotivas enferrujadas e clientes isolados.\n"
 	full_text += "Preste atenção: neste mercado cruel, ninguém assina contrato sem ver trabalho feito.\n"
-	full_text += "Vá ao mapa, construa a linha conectando as cidades e só depois ligue para os clientes.\n\n"
+	full_text += "Vá ao mapa, construa a linha conectando as cidades e só depois ligue para os clientes.\n"
 	full_text += "O problema agora é seu."
 	
 	_type_next_char(false)
 
 func start_cancel_warning(company_name: String, idx: int) -> void:
 	_reset_ui()
+	# --- NOVO: Sorteia um cliente ---
+	var arts = [tex_client_1, tex_client_2]
+	character_portrait.texture = arts.pick_random()
+	
 	current_mode = "CANCEL_WARNING"
 	pending_cancel_idx = idx
 	
@@ -239,13 +267,18 @@ func start_cancel_warning(company_name: String, idx: int) -> void:
 
 func start_badger_radio() -> void:
 	_reset_ui()
+	# --- NOVO: Troca para a arte do Maquinista
+	character_portrait.texture = tex_badger
+	
+	name_label.text = "[ FREQUÊNCIA 104.2: MAQUINISTA BADGER ]"
+	name_label.add_theme_color_override("font_color", Color.SKY_BLUE)
 	
 	name_label.text = "[ FREQUÊNCIA 104.2: MAQUINISTA BADGER ]"
 	name_label.add_theme_color_override("font_color", Color.SKY_BLUE)
 	
 	if GameManager.broken_tiles.size() > 0:
 		current_mode = "RADIO_DISASTER"
-		full_text = "ALERTA VERMELHO, CHEFE! A via cedeu logo à frente do nosso trem!\n\n"
+		full_text = "ALERTA VERMELHO CHEFE! A via cedeu logo à frente do nosso trem!\n\n"
 		full_text += "A composição está parada e não podemos avançar. Precisamos que o senhor entre no Mapa, "
 		full_text += "ative o Modo de Obras e reconstrua o trecho destruído imediatamente!\n\n"
 		full_text += "A carga vai apodrecer aqui se não formos rápidos!"
@@ -253,9 +286,9 @@ func start_badger_radio() -> void:
 		btn_opt_1.text = "[ Entendido. Preparando obras. ]"
 	else:
 		current_mode = "RADIO_EVENT"
-		full_text = "Chefe. Aqui é o Badger. Motoqueiros trancaram a linha na planície de novo.\n\n"
+		full_text = "Chefe. Aqui é o Badger. Motoqueiros trancaram a linha na planície de novo.\n"
 		full_text += "O povo das cidades tá esperando esses suprimentos pra comer hoje, mas se eu passar com o trem "
-		full_text += "por cima desses bandidos, eles vão atirar contra a caldeira. E se a gente recuar, a carga atrasa e a empresa perde moral.\n\n"
+		full_text += "por cima desses bandidos, eles vão atirar contra a carga. E se a gente recuar, a carga atrasa e a empresa perde moral.\n"
 		full_text += "Aguardo ordens, Chefe."
 		
 		btn_opt_1.text = "[ Pagar Pedágio ($150) ]"
@@ -279,6 +312,8 @@ func _reset_ui() -> void:
 	btn_opt_3.visible = false
 	
 	name_label.add_theme_color_override("font_color", Color.YELLOW)
+	# --- NOVO: Define a arte do Urso como o padrão ao iniciar qualquer chamada
+	character_portrait.texture = tex_bear
 
 func _type_next_char(is_negotiation: bool) -> void:
 	if fast_forward:
@@ -302,39 +337,82 @@ func _show_buttons(is_negotiation: bool) -> void:
 		btn_opt_1.visible = true
 		btn_opt_2.visible = true
 		btn_opt_3.visible = true
-	else:
-		if current_mode == "RADIO_DISASTER":
-			btn_opt_1.visible = true
+		return
+
+	if current_mode == "RADIO_DISASTER":
+		btn_opt_1.visible = true
+		return
+
+	if current_mode == "LOAN_SHARK":
+		btn_accept.visible = true
+		btn_reject.visible = true
+		return
+		
+	if current_mode == "FISCAL": 
+		btn_opt_1.visible = true
+		var bp = GameManager.pending_fiscal_event
+		if bp.get("can_bribe", false):
+			btn_opt_2.visible = true
+		return
+
+	if is_negotiation:
+		btn_accept.visible = true
+		btn_reject.visible = true
+		if current_mode == "CANCEL_WARNING":
+			btn_accept.text = "ROMPER CONTRATO"
+			btn_reject.text = "VOLTAR ATRÁS"
 		else:
-			if is_negotiation:
-				btn_accept.visible = true
-				btn_reject.visible = true
-				if current_mode == "CANCEL_WARNING":
-					btn_accept.text = "ROMPER CONTRATO"
-					btn_reject.text = "VOLTAR ATRÁS"
-				else:
-					btn_accept.text = "ENVIAR PROPOSTA"
-					btn_reject.text = "DESLIGAR"
-			else:
-				btn_close.visible = true
+			btn_accept.text = "ENVIAR PROPOSTA"
+			btn_reject.text = "DESLIGAR"
+	else:
+		btn_close.visible = true
+		if current_mode == "BADGER_WARNING":
+			btn_close.text = "ENTENDIDO"
+		else:
+			btn_close.text = "DESLIGAR"
+
 
 func _on_accept() -> void:
 	visible = false
 	if current_mode == "CANCEL_WARNING":
 		cancel_confirmed.emit(pending_cancel_idx)
-	else:
-		contract_accepted.emit(offered_reward)
+		return
+
+	if current_mode == "LOAN_SHARK":
+		GameManager.is_shark_calling = false # <--- A TRAVA É LIBERADA AQUI
+		GameManager.pending_shark_paper = true
+		call_closed.emit()
+		return
+		
+	contract_accepted.emit(offered_reward)
+
+
+
 
 func _on_reject() -> void:
 	visible = false
 	if current_mode == "CANCEL_WARNING":
 		cancel_aborted.emit()
-	else:
-		contract_rejected.emit()
+		return
+		
+	if current_mode == "LOAN_SHARK":
+		GameManager.is_shark_calling = false # <--- A TRAVA É LIBERADA AQUI
+		GameManager.shark_declined = true
+		call_closed.emit()
+		return
+		
+	contract_rejected.emit()
+	
 	
 func _on_close() -> void:
 	visible = false
 	call_closed.emit()
+	
+	if current_mode == "VICTORY":
+		GameManager.trigger_victory()
+	else:
+		if current_mode == "DEFEAT":
+			GameManager.trigger_bankruptcy()
 
 func _on_opt_1() -> void:
 	visible = false
@@ -351,7 +429,7 @@ func _on_opt_2() -> void:
 	visible = false
 	if current_mode == "FISCAL":
 		var bp = GameManager.pending_fiscal_event
-		fiscal_choice_made.emit(false, bp["fine"])
+		fiscal_choice_made.emit(false, bp["fine"]) 
 	else:
 		radio_choice_made.emit(1)
 
@@ -363,24 +441,29 @@ func start_fiscal_audit(data: Dictionary) -> void:
 	_reset_ui()
 	current_mode = "FISCAL"
 	
+	# Troca para a arte do Fiscal
+	character_portrait.texture = tex_fiscal
+	
 	name_label.text = "[ MINISTÉRIO DOS TRANSPORTES: AUDITORIA ]"
 	name_label.add_theme_color_override("font_color", Color.ORANGE)
 	
-	full_text = "Atenção, Diretor. Os nossos agentes pararam o seu trem que serve a empresa " + data["contract_name"] + ".\n\n"
+	full_text = "Atenção Gestor. Os nossos agentes pararam o seu trem que serve a empresa " + data["contract_name"] + ".\n\n"
 	full_text += data["reason"] + "\n\n"
 	
 	if data["can_bribe"]:
 		full_text += "Como a sua empresa tem 'excelentes relações' com o Governo, podemos arquivar este relatório por uma taxa administrativa de $" + str(data["bribe_cost"]) + ".\nO que me diz?"
 		btn_opt_1.text = "[ Pagar Propina / Caixa 2 (-$" + str(data["bribe_cost"]) + ") ]"
 		btn_opt_2.text = "[ Recusar e Pagar Multa Oficial (-$" + str(data["fine"]) + ") ]"
-		btn_opt_1.visible = true
-		btn_opt_2.visible = true
+		# (Removemos a alteração prematura de visible = true daqui)
 	else:
 		full_text += "A sua empresa não possui aliados em Brasília. O senhor será autuado com o rigor máximo da lei.\nA multa de $" + str(data["fine"]) + " foi emitida."
 		btn_opt_1.text = "[ Aceitar Multa (-$" + str(data["fine"]) + ") ]"
-		btn_opt_1.visible = true
+		# (Removemos a alteração prematura de visible = true daqui)
 	
 	_type_next_char(false)
+
+
+
 
 func start_boss_package_call() -> void:
 	_reset_ui()
@@ -389,9 +472,9 @@ func start_boss_package_call() -> void:
 	name_label.text = "[ TRANSMISSÃO: BEAR (DIRETORIA) ]"
 	name_label.add_theme_color_override("font_color", Color.LIGHT_GRAY)
 	
-	full_text = "Diretor! Vi que a nossa primeira rota está finalmente operando!\n\n"
+	full_text = "Gestor! Vi que a nossa primeira rota está finalmente operando!\n\n"
 	full_text += "A partir de agora, os clientes começarão a deixar encomendas avulsas na Estação de Triagem.\n"
-	full_text += "Vá até lá de vez em quando e valide os pacotes. Não deixe a esteira acumular!"
+	full_text += "Vá até lá toda manhã e valide os pacotes. Não deixe a esteira acumular!"
 	
 	_type_next_char(false)
 
@@ -402,44 +485,61 @@ func start_loan_shark_call() -> void:
 	name_label.text = "[ TRANSMISSÃO DESCONHECIDA ]"
 	name_label.add_theme_color_override("font_color", Color.CRIMSON)
 
-	full_text = "Estou vendo que as coisas vão mal por aí, Diretor... Conta no vermelho, não é?\n\n"
-	full_text += "Eu posso limpar a sua dívida e deixá-lo com $1500 na mão agora mesmo. "
+	full_text = "Estou vendo que as coisas vão mal por aí, Gestor... Conta no vermelho, não é?\n\n"
+	full_text += "Eu posso limpar a sua dívida e lhe deixar com $1500 na mão agora mesmo.\n"
 	full_text += "Em troca, cobrarei $150 por dia durante os próximos 20 dias.\n\n"
 	full_text += "Pega ou larga. Se disser não e falir, o problema é seu."
 
-	btn_accept.text = "[ ACEITAR EMPRÉSTIMO ]"
-	btn_accept.visible = true
-	btn_reject.text = "[ RECUSAR E DESLIGAR ]"
-	btn_reject.visible = true
+	btn_accept.text = "[ ACEITAR ]"
+	btn_reject.text = "[ RECUSAR ]"
 
 	_type_next_char(false)
+	
+	
+	#cutscenes chefe bear
+func start_victory_call() -> void:
+	_reset_ui()
+	current_mode = "VICTORY"
+	
+	character_portrait.texture = tex_bear
+	name_label.text = "[ TRANSMISSÃO: BEAR (DIRETORIA) ]"
+	name_label.add_theme_color_override("font_color", Color.LIGHT_GREEN)
+	
+	full_text = "Muito bem... Você conseguiu.\n"
+	full_text += "Olhando para os relatórios, vejo que superou a nossa meta de caixa de forma espetacular.\n"
+	full_text += "Seu avô vai ficar muito orgulhoso quando souber. Você passou no teste, o cargo de gestor é oficialmente seu!\n"
+	full_text += "Aproveite a sua vitória."
+	
+	_type_next_char(false)
 
-func _on_accept_pressed() -> void:
-	if current_mode == "PROPOSAL":
-		contract_accepted.emit(offered_reward)
-		visible = false
-		call_closed.emit()
-	elif current_mode == "FISCAL":
-		fiscal_choice_made.emit(true, offered_reward) 
-		visible = false
-		call_closed.emit()
-	elif current_mode == "LOAN_SHARK":
-		if GameManager.has_method("accept_loan_shark"):
-			GameManager.accept_loan_shark()
-		visible = false
-		call_closed.emit()
-
-func _on_reject_pressed() -> void:
-	if current_mode == "PROPOSAL":
-		contract_rejected.emit()
-		visible = false
-		call_closed.emit()
-	elif current_mode == "FISCAL":
-		fiscal_choice_made.emit(false, offered_reward) 
-		visible = false
-		call_closed.emit()
-	elif current_mode == "LOAN_SHARK":
-		if GameManager.has_method("reject_loan_shark"):
-			GameManager.reject_loan_shark()
-		visible = false
-		call_closed.emit()
+func start_defeat_call() -> void:
+	_reset_ui()
+	current_mode = "DEFEAT"
+	
+	character_portrait.texture = tex_bear
+	name_label.text = "[ TRANSMISSÃO: BEAR (DIRETORIA) ]"
+	name_label.add_theme_color_override("font_color", Color.RED)
+	
+	full_text = "O que você fez com a nossa empresa?!\n"
+	full_text += "O nosso caixa está destruído. As dívidas estão nos afogando. Você é uma vergonha para o seu avô!\n"
+	full_text += "Eu avisei que este mercado era cruel. Você falhou no teste. Pegue as suas coisas, você está DEMITIDO.\n"
+	full_text += "E não volte mais aqui."
+	
+	_type_next_char(false)
+	
+func start_badger_package_warning() -> void:
+	_reset_ui()
+	current_mode = "BADGER_WARNING"
+	
+	character_portrait.texture = tex_badger
+	
+	name_label.text = "[ FREQUÊNCIA 104.2: MAQUINISTA BADGER ]"
+	name_label.add_theme_color_override("font_color", Color.SKY_BLUE)
+	
+	full_text = "Chefe, bom dia! Desculpe chamar no rádio logo cedo.\n"
+	full_text += "Estou passando pela Estação de Triagem e a esteira está lotada!\n"
+	full_text += "As encomendas de ontem ficaram acumuladas e logo vão chegar mais. "
+	full_text += "Por favor, vá para a Tela de Pesagem e libere essas caixas o mais rápido possível!\n"
+	full_text += "Aguardo a carga no trem!"
+	
+	_type_next_char(false)

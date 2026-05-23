@@ -3,6 +3,10 @@ extends Node2D
 var map_node: Node2D
 var desk_node: Node2D
 
+var game_over_layer: CanvasLayer
+var lbl_game_over: Label
+var btn_go_menu: Button
+
 var esc_layer: CanvasLayer
 var esc_overlay: ColorRect
 var btn_esc_map: Button
@@ -17,9 +21,10 @@ var letter_bg: ColorRect
 
 var intro_texts: Array[String] = [
 	"Para o meu neto.\n\nO tempo das nossas pequenas ferrovias acabou. Os grandes monopólios esmagaram quase tudo. A nossa velha companhia é uma das últimas que ainda respira.",
-	"O meu tempo acabou, mas as cidades ainda precisam de nós. O Bear, o meu velho sócio, vai precisar de você para manter os trens rodando. Não é um trabalho bonito, mas é vital.",
-	"Ele deixou os papéis na sua mesa.\n\nA partir de hoje, o peso dos trilhos é seu.\n\nBoa sorte."
+	"O meu tempo acabou, mas as cidades ainda precisam de nós. O Bear, meu velho sócio, vai precisar de você para manter os trens rodando. Não é um trabalho bonito, mas é vital.",
+	"Ele deixou os papéis na sua mesa.\nA partir de hoje, o peso dos trilhos é seu.\nBoa sorte."
 ]
+
 var current_intro_page: int = 0
 var is_letter_typing: bool = false
 var letter_char_index: int = 0
@@ -35,16 +40,55 @@ func _ready() -> void:
 	_setup_esc_menu()
 	_setup_main_menu()
 	_setup_intro_letter()
+	_setup_game_over_ui()
 	
 	GameManager.game_over.connect(_on_game_over)
 	
 	menu_layer.visible = true
+	
+	
+func _setup_game_over_ui() -> void:
+	game_over_layer = CanvasLayer.new()
+	game_over_layer.layer = 500
+	add_child(game_over_layer)
+	
+	var bg = ColorRect.new()
+	bg.color = Color(0.05, 0.05, 0.08, 0.95)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	game_over_layer.add_child(bg)
+	
+	lbl_game_over = Label.new()
+	lbl_game_over.text = "MENSAGEM AQUI"
+	lbl_game_over.add_theme_font_size_override("font_size", 45)
+	lbl_game_over.add_theme_color_override("font_color", Color.WHITE)
+	
+	# Centralização rigorosa nos dois eixos
+	lbl_game_over.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl_game_over.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lbl_game_over.position = Vector2(460, 350)
+	lbl_game_over.size = Vector2(1000, 200)
+	bg.add_child(lbl_game_over)
+	
+	btn_go_menu = Button.new()
+	btn_go_menu.text = "VOLTAR AO MENU PRINCIPAL"
+	
+	# Botão centralizado matematicamente: 1920 - 500 = 1420 / 2 = 710 no eixo X
+	btn_go_menu.size = Vector2(500, 80)
+	btn_go_menu.position = Vector2(710, 600) 
+	btn_go_menu.pressed.connect(_on_btn_go_menu_pressed)
+	bg.add_child(btn_go_menu)
+	
+	game_over_layer.visible = false
+
+func _on_btn_go_menu_pressed() -> void:
+	game_over_layer.visible = false
+	menu_layer.visible = true
+
 
 func _setup_main_menu() -> void:
 	menu_layer = CanvasLayer.new()
 	menu_layer.layer = 400
 	add_child(menu_layer)
-	
 	
 	var bg = ColorRect.new()
 	bg.color = Color(0.1, 0.1, 0.15)
@@ -89,6 +133,8 @@ func _setup_main_menu() -> void:
 	btn_quit.size = Vector2(400, 70)
 	btn_quit.pressed.connect(_on_btn_esc_quit_pressed)
 	menu_layer.add_child(btn_quit)
+
+
 
 func _setup_intro_letter() -> void:
 	letter_layer = CanvasLayer.new()
@@ -226,7 +272,7 @@ func _setup_esc_menu() -> void:
 	esc_layer.add_child(btn_esc_map)
 	
 	btn_esc_desk = Button.new()
-	btn_esc_desk.text = "VOLTAR A MESA"
+	btn_esc_desk.text = "VOLTAR À MESA"
 	btn_esc_desk.position = Vector2(start_x, start_y + 80)
 	btn_esc_desk.size = Vector2(menu_w, 60)
 	btn_esc_desk.pressed.connect(_on_btn_esc_desk_pressed)
@@ -241,6 +287,8 @@ func _setup_esc_menu() -> void:
 	esc_layer.add_child(btn_esc_quit)
 	
 	esc_layer.visible = false
+
+
 
 func _toggle_esc_menu() -> void:
 	if not is_instance_valid(esc_layer):
@@ -267,8 +315,16 @@ func _on_btn_esc_desk_pressed() -> void: go_to_desk()
 func _on_btn_esc_quit_pressed() -> void: get_tree().quit()
 
 func _on_game_over(is_victory: bool, message: String) -> void:
-	# A correção: Escondemos o menu em vez de destrui-lo!
+	# Ocultamos outras telas de interrupção, se estiverem abertas
 	if is_instance_valid(esc_layer): 
 		esc_layer.visible = false
 		is_esc_open = false
-	go_to_desk()
+		
+	# Ajustamos as cores da mensagem baseado no resultado
+	if is_victory:
+		lbl_game_over.add_theme_color_override("font_color", Color.GOLDENROD)
+	if not is_victory:
+		lbl_game_over.add_theme_color_override("font_color", Color.INDIAN_RED)
+		
+	lbl_game_over.text = message
+	game_over_layer.visible = true
