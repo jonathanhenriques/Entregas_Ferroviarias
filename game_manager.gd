@@ -248,12 +248,21 @@ func end_day(upfront_income: int = 0) -> void:
 				c["days_left"] -= 1
 				
 				# --- NOVO: GERA O TIPO DE RENOVAÇÃO (NO PENÚLTIMO DIA) ---
+				# --- NOVO: GERA O TIPO DE RENOVAÇÃO (NO PENÚLTIMO DIA) ---
 				if c["days_left"] == 1:
 					var delayed = c.get("delayed_days", 0)
 					if delayed > 0:
 						c["renewal_type"] = "penalty"
 					else:
-						if randf() <= 0.7:
+						var roll = randf()
+						
+						# --- TRAVA DE PROGRESSÃO (GAME DESIGN) ---
+						# O jogador só recebe o desafio Expresso se já passou do dia 10 
+						# E tem pelo menos $1000 em caixa para aguentar obras.
+						var can_express = current_day > 10 and money >= 1000
+						# -----------------------------------------
+						
+						if roll <= 0.7 or not can_express:
 							c["renewal_type"] = "loyalty"
 						else:
 							c["renewal_type"] = "express_upgrade"
