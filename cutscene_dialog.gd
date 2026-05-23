@@ -337,45 +337,62 @@ func _show_buttons(is_negotiation: bool) -> void:
 		btn_opt_1.visible = true
 		btn_opt_2.visible = true
 		btn_opt_3.visible = true
-	else:
-		if current_mode == "RADIO_DISASTER":
-			btn_opt_1.visible = true
+		return
+
+	if current_mode == "RADIO_DISASTER":
+		btn_opt_1.visible = true
+		return
+
+	if current_mode == "LOAN_SHARK":
+		btn_accept.visible = true
+		btn_reject.visible = true
+		return
+
+	if is_negotiation:
+		btn_accept.visible = true
+		btn_reject.visible = true
+		if current_mode == "CANCEL_WARNING":
+			btn_accept.text = "ROMPER CONTRATO"
+			btn_reject.text = "VOLTAR ATRÁS"
 		else:
-			if is_negotiation:
-				btn_accept.visible = true
-				btn_reject.visible = true
-				if current_mode == "CANCEL_WARNING":
-					btn_accept.text = "ROMPER CONTRATO"
-					btn_reject.text = "VOLTAR ATRÁS"
-				else:
-					btn_accept.text = "ENVIAR PROPOSTA"
-					btn_reject.text = "DESLIGAR"
-			else:
-				btn_close.visible = true
+			btn_accept.text = "ENVIAR PROPOSTA"
+			btn_reject.text = "DESLIGAR"
+	else:
+		btn_close.visible = true
+
+
+
 
 func _on_accept() -> void:
 	visible = false
 	if current_mode == "CANCEL_WARNING":
 		cancel_confirmed.emit(pending_cancel_idx)
-	else:
-		if current_mode == "LOAN_SHARK":
-			# Manda o papel pra mesa em vez de dar o dinheiro na hora
-			GameManager.pending_shark_paper = true
-			call_closed.emit()
-		else:
-			contract_accepted.emit(offered_reward)
+		return
+
+	if current_mode == "LOAN_SHARK":
+		GameManager.is_shark_calling = false # <--- A TRAVA É LIBERADA AQUI
+		GameManager.pending_shark_paper = true
+		call_closed.emit()
+		return
+		
+	contract_accepted.emit(offered_reward)
+
+
+
 
 func _on_reject() -> void:
 	visible = false
 	if current_mode == "CANCEL_WARNING":
 		cancel_aborted.emit()
-	else:
-		if current_mode == "LOAN_SHARK":
-			GameManager.shark_declined = true
-			call_closed.emit()
-		else:
-			contract_rejected.emit()
-	
+		return
+		
+	if current_mode == "LOAN_SHARK":
+		GameManager.is_shark_calling = false # <--- A TRAVA É LIBERADA AQUI
+		GameManager.shark_declined = true
+		call_closed.emit()
+		return
+		
+	contract_rejected.emit()
 	
 	
 func _on_close() -> void:
@@ -452,13 +469,11 @@ func start_loan_shark_call() -> void:
 	name_label.add_theme_color_override("font_color", Color.CRIMSON)
 
 	full_text = "Estou vendo que as coisas vão mal por aí, Diretor... Conta no vermelho, não é?\n\n"
-	full_text += "Eu posso limpar a sua dívida e lhe deixar com $1500 na mão agora mesmo. "
+	full_text += "Eu posso limpar a sua dívida e lhe deixar com $1500 na mão agora mesmo.\n"
 	full_text += "Em troca, cobrarei $150 por dia durante os próximos 20 dias.\n\n"
 	full_text += "Pega ou larga. Se disser não e falir, o problema é seu."
 
 	btn_accept.text = "[ ACEITAR EMPRÉSTIMO ]"
-	btn_accept.visible = true
 	btn_reject.text = "[ RECUSAR E DESLIGAR ]"
-	btn_reject.visible = true
 
 	_type_next_char(false)

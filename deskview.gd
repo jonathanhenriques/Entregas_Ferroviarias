@@ -138,6 +138,7 @@ func _process(delta: float) -> void:
 			else:
 				if GameManager.pending_shark_call and not GameManager.shark_declined and not GameManager.has_loan_shark:
 					GameManager.pending_shark_call = false
+					GameManager.is_shark_calling = true # <--- A TRAVA É ATIVADA AQUI
 					if phone_cutscene.has_method("start_loan_shark_call"):
 						phone_cutscene.start_loan_shark_call()
 				else:
@@ -152,7 +153,6 @@ func _process(delta: float) -> void:
 	if GameManager.pending_shark_paper:
 			GameManager.pending_shark_paper = false
 			_spawn_shark_paper()
-
 
 
 

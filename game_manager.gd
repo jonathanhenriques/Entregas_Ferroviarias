@@ -6,6 +6,7 @@ signal maintenance_updated(new_maintenance)
 signal contracts_updated() 
 signal game_over(is_victory: bool, message: String)
 
+
 # SINAIS DA TRIAGEM
 signal package_queue_updated(count: int)
 signal strike_received(total_strikes: int, reason: String)
@@ -14,6 +15,10 @@ var pending_fiscal_event: Dictionary = {}
 var current_level: int = 1
 var highest_unlocked_level: int = 1
 var start_in_world_map: bool = true 
+
+var is_game_ended: bool = false
+
+var is_shark_calling: bool = false
 
 var money: int = 1500 :
 	set(value):
@@ -103,12 +108,15 @@ var pending_blueprint: Dictionary = {}
 
 
 func _process(delta: float) -> void:
+	if is_game_ended:
+		return
+
 	if current_day > 0 and money > -9999: 
 		if money <= -2000:
 			trigger_bankruptcy()
 			return
 			
-		if money <= -1500 and not has_loan_shark and not pending_shark_call and not shark_declined:
+		if money <= -1500 and not has_loan_shark and not pending_shark_call and not shark_declined and not is_shark_calling:
 			pending_shark_call = true
 			
 		if not is_first_route_built and routes_under_construction.size() > 0:
@@ -116,7 +124,8 @@ func _process(delta: float) -> void:
 			for k in routes_under_construction.keys():
 				routes_under_construction[k] = 1 
 				
-		if not has_ready_route(): return
+		if not has_ready_route(): 
+			return
 		
 		if not boss_package_intro_done and not pending_boss_package_call:
 			pending_boss_package_call = true
@@ -133,9 +142,11 @@ func _process(delta: float) -> void:
 			if shift_time_left <= 0:
 				shift_active = false
 				if package_queue.size() > 0:
-					if has_method("add_strike"): add_strike("O trem partiu e " + str(package_queue.size()) + " encomendas ficaram na plataforma!")
+					if has_method("add_strike"): 
+						add_strike("O trem partiu e " + str(package_queue.size()) + " encomendas ficaram na plataforma!")
 					package_queue.clear()
 					package_queue_updated.emit(0)
+
 
 # NOVA FUNÇÃO DE VALIDAÇÃO GERAL
 func has_ready_route() -> bool:
@@ -232,7 +243,8 @@ func end_day(upfront_income: int = 0) -> void:
 						contract_failed = true
 						today_broken_contracts += 1
 						var pen = int(c["reward"] * 5)
-						if c.get("is_urgent", false): pen = 500
+						if c.get("is_urgent", false): 
+							pen = 500
 						today_penalties += pen
 						money -= pen
 						pendent_angry_call = true
@@ -240,27 +252,18 @@ func end_day(upfront_income: int = 0) -> void:
 		if not contract_failed:
 			if not c.has("pending_route_days"):
 				
-				# --- NOVO: CONTA ATRASOS SE O TREM NÃO RODOU ---
 				if not is_contract_operating(c):
 					c["delayed_days"] = c.get("delayed_days", 0) + 1
-				# -----------------------------------------------
 				
 				c["days_left"] -= 1
 				
-				# --- NOVO: GERA O TIPO DE RENOVAÇÃO (NO PENÚLTIMO DIA) ---
-				# --- NOVO: GERA O TIPO DE RENOVAÇÃO (NO PENÚLTIMO DIA) ---
 				if c["days_left"] == 1:
 					var delayed = c.get("delayed_days", 0)
 					if delayed > 0:
 						c["renewal_type"] = "penalty"
 					else:
 						var roll = randf()
-						
-						# --- TRAVA DE PROGRESSÃO (GAME DESIGN) ---
-						# O jogador só recebe o desafio Expresso se já passou do dia 10 
-						# E tem pelo menos $1000 em caixa para aguentar obras.
 						var can_express = current_day > 10 and money >= 1000
-						# -----------------------------------------
 						
 						if roll <= 0.7 or not can_express:
 							c["renewal_type"] = "loyalty"
@@ -270,11 +273,12 @@ func end_day(upfront_income: int = 0) -> void:
 							var stats = network_stats.get(rid, {})
 							var current_dist = stats.get("dist", 20)
 							var new_dist = int(current_dist * 0.8)
-							if new_dist < 2: new_dist = current_dist - 1
+							if new_dist < 2: 
+								new_dist = current_dist - 1
 							c["new_max_dist"] = new_dist
-				# ---------------------------------------------------------
 				
-				if c["days_left"] > 0: keep.append(c)
+				if c["days_left"] > 0: 
+					keep.append(c)
 			else:
 				keep.append(c) 
 			
@@ -282,7 +286,8 @@ func end_day(upfront_income: int = 0) -> void:
 	
 	var new_cd = {}
 	for k in company_cooldowns.keys():
-		if company_cooldowns[k] > 1: new_cd[k] = company_cooldowns[k] - 1
+		if company_cooldowns[k] > 1: 
+			new_cd[k] = company_cooldowns[k] - 1
 	company_cooldowns = new_cd
 	
 	for key in tile_data.keys():
@@ -290,9 +295,12 @@ func end_day(upfront_income: int = 0) -> void:
 		var h = data["h"]
 		var t = data["t"]
 		var change = 0.0
-		if t == "infra": change = (maint_pct_infra - 0.7) * 0.2
-		if t == "tracks": change = (maint_pct_tracks - 0.7) * 0.2
-		if t == "env": change = (maint_pct_env - 0.7) * 0.2
+		if t == "infra": 
+			change = (maint_pct_infra - 0.7) * 0.2
+		if t == "tracks": 
+			change = (maint_pct_tracks - 0.7) * 0.2
+		if t == "env": 
+			change = (maint_pct_env - 0.7) * 0.2
 		h = clamp(h + change, 0.05, 1.0)
 		tile_data[key]["h"] = h
 		
@@ -302,7 +310,8 @@ func end_day(upfront_income: int = 0) -> void:
 	pending_radio_event = false
 	var has_op_train = false
 	for c in active_contracts:
-		if is_contract_operating(c): has_op_train = true
+		if is_contract_operating(c): 
+			has_op_train = true
 			
 	if has_op_train and randf() < 0.3:
 		pending_radio_event = true
@@ -312,7 +321,6 @@ func end_day(upfront_income: int = 0) -> void:
 	
 	_generate_daily_generics()
 	
-	# CORREÇÃO: Limpa o turno à noite para ele iniciar limpo de manhã
 	package_queue.clear()
 	packages_generated_today = 0
 	shift_active = false
@@ -322,9 +330,12 @@ func end_day(upfront_income: int = 0) -> void:
 	current_day += 1
 	save_game() 
 	
-	if money <= -2000: trigger_bankruptcy()
-	elif money >= LevelData.LEVELS[current_level]["goal"]: trigger_victory()
-
+	if money <= -2000: 
+		trigger_bankruptcy()
+	
+	if money > -2000:
+		if money >= LevelData.LEVELS[current_level]["goal"]: 
+			trigger_victory()
 
 
 func get_daily_package_limit() -> int:
@@ -500,17 +511,23 @@ func cancel_contract(idx: int) -> void:
 		contracts_updated.emit()
 		save_game()
 
-func trigger_bankruptcy() -> void: game_over.emit(false, "FALÊNCIA!\nSaldo negativo.")
+func trigger_bankruptcy() -> void:
+	is_game_ended = true
+	game_over.emit(false, "FALÊNCIA!\nA Diretoria foi destituída por saldo negativo excessivo.")
 
 
 func trigger_victory() -> void:
-	if current_level == highest_unlocked_level and LevelData.LEVELS.has(current_level + 1): highest_unlocked_level += 1
-	game_over.emit(true, "VITÓRIA!\nMeta atingida.")
+	is_game_ended = true
+	if current_level == highest_unlocked_level and LevelData.LEVELS.has(current_level + 1): 
+		highest_unlocked_level += 1
+	game_over.emit(true, "VITÓRIA!\nA região agora pertence à Cia. de Entregas Ferroviárias.")
+
 
 func has_save() -> bool: return FileAccess.file_exists(SAVE_PATH)
 
 
 func reset_game() -> void:
+	is_game_ended = false
 	var lvl = LevelData.LEVELS[current_level]
 	money = lvl["budget"]
 	current_day = 1
@@ -549,7 +566,6 @@ func reset_game() -> void:
 	pendent_strike_warning = ""
 	package_timer = 0.0
 	
-	# Reset Fase 1 e Temporizador
 	packages_generated_today = 0
 	has_loan_shark = false
 	loan_shark_days_left = 0
@@ -560,12 +576,16 @@ func reset_game() -> void:
 	pending_boss_package_call = false
 	
 	is_first_route_built = false
+	is_shark_calling = false
 	first_fiscal_warning_done = false
 	shift_time_left = 0.0
 	shift_active = false
 	
 	_generate_daily_generics()
 	save_game()
+
+
+
 
 func save_game() -> void:
 	var data = {

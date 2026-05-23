@@ -3,6 +3,10 @@ extends Node2D
 var map_node: Node2D
 var desk_node: Node2D
 
+var game_over_layer: CanvasLayer
+var lbl_game_over: Label
+var btn_go_menu: Button
+
 var esc_layer: CanvasLayer
 var esc_overlay: ColorRect
 var btn_esc_map: Button
@@ -36,10 +40,46 @@ func _ready() -> void:
 	_setup_esc_menu()
 	_setup_main_menu()
 	_setup_intro_letter()
+	_setup_game_over_ui()
 	
 	GameManager.game_over.connect(_on_game_over)
 	
 	menu_layer.visible = true
+	
+	
+func _setup_game_over_ui() -> void:
+	game_over_layer = CanvasLayer.new()
+	game_over_layer.layer = 500 # Camada bem alta para ficar na frente de tudo
+	add_child(game_over_layer)
+	
+	var bg = ColorRect.new()
+	bg.color = Color(0.05, 0.05, 0.08, 0.95)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	game_over_layer.add_child(bg)
+	
+	lbl_game_over = Label.new()
+	lbl_game_over.text = "MENSAGEM AQUI"
+	lbl_game_over.add_theme_font_size_override("font_size", 45)
+	lbl_game_over.add_theme_color_override("font_color", Color.WHITE)
+	lbl_game_over.position = Vector2(460, 350)
+	lbl_game_over.size = Vector2(1000, 200)
+	lbl_game_over.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	bg.add_child(lbl_game_over)
+	
+	btn_go_menu = Button.new()
+	btn_go_menu.text = "VOLTAR AO MENU PRINCIPAL"
+	btn_go_menu.position = Vector2(760, 600)
+	btn_go_menu.size = Vector2(400, 70)
+	btn_go_menu.pressed.connect(_on_btn_go_menu_pressed)
+	bg.add_child(btn_go_menu)
+	
+	game_over_layer.visible = false
+	
+
+func _on_btn_go_menu_pressed() -> void:
+	game_over_layer.visible = false
+	menu_layer.visible = true
+
 
 func _setup_main_menu() -> void:
 	menu_layer = CanvasLayer.new()
@@ -271,8 +311,16 @@ func _on_btn_esc_desk_pressed() -> void: go_to_desk()
 func _on_btn_esc_quit_pressed() -> void: get_tree().quit()
 
 func _on_game_over(is_victory: bool, message: String) -> void:
-	# A correção: Escondemos o menu em vez de destrui-lo!
+	# Ocultamos outras telas de interrupção, se estiverem abertas
 	if is_instance_valid(esc_layer): 
 		esc_layer.visible = false
 		is_esc_open = false
-	go_to_desk()
+		
+	# Ajustamos as cores da mensagem baseado no resultado
+	if is_victory:
+		lbl_game_over.add_theme_color_override("font_color", Color.GOLDENROD)
+	if not is_victory:
+		lbl_game_over.add_theme_color_override("font_color", Color.INDIAN_RED)
+		
+	lbl_game_over.text = message
+	game_over_layer.visible = true
