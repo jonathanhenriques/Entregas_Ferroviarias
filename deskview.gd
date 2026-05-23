@@ -1705,11 +1705,11 @@ func _on_blueprint_page_toggle(lbl: Label, btn: Button) -> void:
 	if p == 1:
 		lbl.text = lbl.get_meta("page2_text")
 		lbl.set_meta("page", 2)
-		btn.text = "[ <- ]"
+		btn.text = "[ Ver Página 1 ]"
 	elif p == 2:
 		lbl.text = lbl.get_meta("page1_text")
 		lbl.set_meta("page", 1)
-		btn.text = "[ -> ]"
+		btn.text = "[ Ver Página 2 ]"
 
 func _update_report_text() -> void:
 	var inc = GameManager.get_daily_income()
@@ -2041,8 +2041,8 @@ func _start_eod_animation(new_c: int, rej_c: int, ext_c: int, bp_cost: int, shar
 	_add_eod_line("SALDO PROJETADO", "$" + str(final_money), final_color, false)
 	
 	if GameManager.money < 0:
-		_add_eod_line("", "", c_light, false)
-		_add_eod_line("[!] AVISO: SALDO NEGATIVO! [!]", "", c_red, true)
+		#_add_eod_line("", "", c_light, false)
+		_add_eod_line("[!] AVISO: SALDO NEGATIVO! [!] ", "", c_red, true)
 		_add_eod_line("A empresa falirá em -$2000!", "", c_red, true)
 	
 	for line in eod_lines_container.get_children():

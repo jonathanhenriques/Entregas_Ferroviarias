@@ -539,7 +539,7 @@ func start_badger_package_warning() -> void:
 	full_text = "Chefe, bom dia! Desculpe chamar no rádio logo cedo.\n"
 	full_text += "Estou passando pela Estação de Triagem e a esteira está lotada!\n"
 	full_text += "As encomendas de ontem ficaram acumuladas e logo vão chegar mais. "
-	full_text += "Por favor, vá para a Tela de Pesagem e libere essas caixas o mais rápido possível!\n"
+	full_text += "Por favor, vá para a Mesa de Pesagem e libere essas caixas o mais rápido possível!\n"
 	full_text += "Aguardo a carga no trem!"
 	
 	_type_next_char(false)

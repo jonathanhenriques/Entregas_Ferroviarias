@@ -151,70 +151,8 @@ func _process(delta: float) -> void:
 				if package_queue.size() > 0:
 					if has_method("add_strike"): 
 						add_strike("O trem partiu e " + str(package_queue.size()) + " encomendas ficaram na plataforma!")
-					# As encomendas agora não são mais destruídas, elas acumulam!
+					# Removido o package_queue.clear() que apagava as encomendas no meio do dia
 					package_queue_updated.emit(package_queue.size())
-			shift_time_left -= delta
-			if shift_time_left <= 0:
-				shift_active = false
-				if package_queue.size() > 0:
-					if has_method("add_strike"): 
-						add_strike("O trem partiu e " + str(package_queue.size()) + " encomendas ficaram na plataforma!")
-					package_queue.clear()
-					package_queue_updated.emit(0)
-
-# NOVA FUNÇÃO DE VALIDAÇÃO GERAL
-func has_ready_route() -> bool:
-	for rid in network_connections:
-		if routes_under_construction.get(rid, 0) <= 0:
-			var st = network_stats.get(rid, {})
-			if not st.get("is_broken", false):
-				return true
-	return false
-
-
-func update_actual_maintenance() -> void:
-	var infra_cost = int(ideal_maint_infra * maint_pct_infra)
-	var tracks_cost = int(ideal_maint_tracks * maint_pct_tracks)
-	var env_cost = int(ideal_maint_env * maint_pct_env)
-	
-	daily_maintenance = infra_cost + tracks_cost + env_cost
-	daily_gang_toll = int(ideal_maint_sec * maint_pct_sec)
-	daily_crew_cost = int(ideal_maint_crew * maint_pct_crew)
-	daily_lobby_cost = int(ideal_maint_lobby * maint_pct_lobby)
-
-func is_contract_operating(c: Dictionary) -> bool:
-	if c.has("pending_route_days"): return false
-	var rid = c["route_id"]
-	if not (rid in network_connections): return false
-	if routes_under_construction.get(rid, 0) > 0: return false
-	var st = network_stats.get(rid, {})
-	if st.is_empty(): return false
-	if st.get("is_broken", false): return false
-	var tp = c.get("type", "")
-	if tp == "Expresso" and st["dist"] > c.get("max_dist", 999): return false
-	if tp == "VIP" and (st["gangs"] > 0 or active_contracts.size() > 1): return false 
-	if tp == "Ecologico" and st["forests"] > 0: return false
-	return true
-
-func is_contract_route_ready(c: Dictionary) -> bool:
-	var rid = c["route_id"]
-	if not (rid in network_connections): return false
-	if routes_under_construction.get(rid, 0) > 0: return false
-	var st = network_stats.get(rid, {})
-	if st.is_empty() or st.get("is_broken", false): return false
-	var tp = c.get("type", "")
-	if tp == "Expresso" and st.get("dist", 999) > c.get("max_dist", 999): return false
-	if tp == "VIP" and (st.get("gangs", 0) > 0 or active_contracts.size() > 1): return false
-	if tp == "Ecologico" and st.get("forests", 0) > 0: return false
-	return true
-
-func get_daily_income() -> int:
-	var t = 0
-	for c in active_contracts:
-		if is_contract_operating(c) and not c.get("is_urgent", false): 
-			t += c["reward"]
-	return t
-
 
 func end_day(upfront_income: int = 0) -> void:
 	money += upfront_income
@@ -335,9 +273,11 @@ func end_day(upfront_income: int = 0) -> void:
 	
 	_generate_daily_generics()
 	
+	# Verifica se há caixas sobrando ANTES de encerrar o estado do dia
 	if package_queue.size() > 0:
 		pending_badger_package_warning = true
 	
+	# Removido completamente o package_queue.clear()
 	packages_generated_today = 0
 	shift_active = false
 	package_queue_updated.emit(package_queue.size())
@@ -354,6 +294,64 @@ func end_day(upfront_income: int = 0) -> void:
 			if money >= LevelData.LEVELS[current_level]["goal"]: 
 				is_game_ended = true
 				pending_victory_call = true
+
+
+
+
+# NOVA FUNÇÃO DE VALIDAÇÃO GERAL
+func has_ready_route() -> bool:
+	for rid in network_connections:
+		if routes_under_construction.get(rid, 0) <= 0:
+			var st = network_stats.get(rid, {})
+			if not st.get("is_broken", false):
+				return true
+	return false
+
+
+func update_actual_maintenance() -> void:
+	var infra_cost = int(ideal_maint_infra * maint_pct_infra)
+	var tracks_cost = int(ideal_maint_tracks * maint_pct_tracks)
+	var env_cost = int(ideal_maint_env * maint_pct_env)
+	
+	daily_maintenance = infra_cost + tracks_cost + env_cost
+	daily_gang_toll = int(ideal_maint_sec * maint_pct_sec)
+	daily_crew_cost = int(ideal_maint_crew * maint_pct_crew)
+	daily_lobby_cost = int(ideal_maint_lobby * maint_pct_lobby)
+
+func is_contract_operating(c: Dictionary) -> bool:
+	if c.has("pending_route_days"): return false
+	var rid = c["route_id"]
+	if not (rid in network_connections): return false
+	if routes_under_construction.get(rid, 0) > 0: return false
+	var st = network_stats.get(rid, {})
+	if st.is_empty(): return false
+	if st.get("is_broken", false): return false
+	var tp = c.get("type", "")
+	if tp == "Expresso" and st["dist"] > c.get("max_dist", 999): return false
+	if tp == "VIP" and (st["gangs"] > 0 or active_contracts.size() > 1): return false 
+	if tp == "Ecologico" and st["forests"] > 0: return false
+	return true
+
+func is_contract_route_ready(c: Dictionary) -> bool:
+	var rid = c["route_id"]
+	if not (rid in network_connections): return false
+	if routes_under_construction.get(rid, 0) > 0: return false
+	var st = network_stats.get(rid, {})
+	if st.is_empty() or st.get("is_broken", false): return false
+	var tp = c.get("type", "")
+	if tp == "Expresso" and st.get("dist", 999) > c.get("max_dist", 999): return false
+	if tp == "VIP" and (st.get("gangs", 0) > 0 or active_contracts.size() > 1): return false
+	if tp == "Ecologico" and st.get("forests", 0) > 0: return false
+	return true
+
+func get_daily_income() -> int:
+	var t = 0
+	for c in active_contracts:
+		if is_contract_operating(c) and not c.get("is_urgent", false): 
+			t += c["reward"]
+	return t
+
+
 
 
 func get_daily_package_limit() -> int:
