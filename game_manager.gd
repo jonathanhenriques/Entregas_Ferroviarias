@@ -16,6 +16,8 @@ var current_level: int = 1
 var highest_unlocked_level: int = 1
 var start_in_world_map: bool = true 
 
+var is_fiscal_calling: bool = false
+
 var is_game_ended: bool = false
 
 var is_shark_calling: bool = false
@@ -577,6 +579,7 @@ func reset_game() -> void:
 	
 	is_first_route_built = false
 	is_shark_calling = false
+	is_fiscal_calling = false
 	first_fiscal_warning_done = false
 	shift_time_left = 0.0
 	shift_active = false

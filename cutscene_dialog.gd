@@ -347,6 +347,13 @@ func _show_buttons(is_negotiation: bool) -> void:
 		btn_accept.visible = true
 		btn_reject.visible = true
 		return
+		
+	if current_mode == "FISCAL": # <--- NOVA REGRA DE EXCEÇÃO PARA O FISCAL
+		btn_opt_1.visible = true
+		var bp = GameManager.pending_fiscal_event
+		if bp.get("can_bribe", false):
+			btn_opt_2.visible = true
+		return
 
 	if is_negotiation:
 		btn_accept.visible = true
@@ -359,7 +366,6 @@ func _show_buttons(is_negotiation: bool) -> void:
 			btn_reject.text = "DESLIGAR"
 	else:
 		btn_close.visible = true
-
 
 
 
@@ -426,7 +432,7 @@ func start_fiscal_audit(data: Dictionary) -> void:
 	_reset_ui()
 	current_mode = "FISCAL"
 	
-	# --- NOVO: Troca para a arte do Fiscal
+	# Troca para a arte do Fiscal
 	character_portrait.texture = tex_fiscal
 	
 	name_label.text = "[ MINISTÉRIO DOS TRANSPORTES: AUDITORIA ]"
@@ -439,14 +445,16 @@ func start_fiscal_audit(data: Dictionary) -> void:
 		full_text += "Como a sua empresa tem 'excelentes relações' com o Governo, podemos arquivar este relatório por uma taxa administrativa de $" + str(data["bribe_cost"]) + ".\nO que me diz?"
 		btn_opt_1.text = "[ Pagar Propina / Caixa 2 (-$" + str(data["bribe_cost"]) + ") ]"
 		btn_opt_2.text = "[ Recusar e Pagar Multa Oficial (-$" + str(data["fine"]) + ") ]"
-		btn_opt_1.visible = true
-		btn_opt_2.visible = true
+		# (Removemos a alteração prematura de visible = true daqui)
 	else:
 		full_text += "A sua empresa não possui aliados em Brasília. O senhor será autuado com o rigor máximo da lei.\nA multa de $" + str(data["fine"]) + " foi emitida."
 		btn_opt_1.text = "[ Aceitar Multa (-$" + str(data["fine"]) + ") ]"
-		btn_opt_1.visible = true
+		# (Removemos a alteração prematura de visible = true daqui)
 	
 	_type_next_char(false)
+
+
+
 
 func start_boss_package_call() -> void:
 	_reset_ui()
