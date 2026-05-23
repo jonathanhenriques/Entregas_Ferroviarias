@@ -60,6 +60,13 @@ var lbl_strike_warning: Label
 var current_package: Dictionary = {}
 var is_xray_on: bool = false
 
+# === VARIÁVEIS Da esteira ===
+var clock_base: ColorRect
+var clock_hand: ColorRect
+var strike_panel: ColorRect
+var strike_lights: Array = []
+var rules_bg: ColorRect
+
 var panel_overlay: ColorRect
 
 # === UI DO MAPA E MESA ===
@@ -242,19 +249,85 @@ func _setup_ui() -> void:
 	insp_border.border_width = 4
 	inspection_bg.add_child(insp_border)
 
+	# --- NOVO PAINEL DE MULTAS ---
+	strike_panel = ColorRect.new()
+	strike_panel.color = Color(0.15, 0.15, 0.18)
+	strike_panel.size = Vector2(200, 60)
+	strike_panel.position = Vector2(20, 20)
+	inspection_bg.add_child(strike_panel)
+
+	var strike_border = ReferenceRect.new()
+	strike_border.set_anchors_preset(Control.PRESET_FULL_RECT)
+	strike_border.border_color = Color(0.3, 0.3, 0.3)
+	strike_border.border_width = 3
+	strike_panel.add_child(strike_border)
+
+	strike_lights.clear()
+	for i in range(3):
+		var light = ColorRect.new()
+		light.color = Color(0.3, 0.3, 0.1) 
+		light.size = Vector2(20, 20)
+		light.position = Vector2(15 + (i * 30), 20)
+		strike_panel.add_child(light)
+		strike_lights.append(light)
+
+	var lbl_multa = Label.new()
+	lbl_multa.text = "= MULTA"
+	lbl_multa.add_theme_color_override("font_color", Color.WHITE)
+	lbl_multa.add_theme_font_size_override("font_size", 16)
+	lbl_multa.position = Vector2(115, 20)
+	strike_panel.add_child(lbl_multa)
+	
 	lbl_queue_count = Label.new()
 	lbl_queue_count.text = "FILA: 0 ENCOMENDAS"
-	lbl_queue_count.add_theme_font_size_override("font_size", 18)
+	lbl_queue_count.add_theme_font_size_override("font_size", 16)
 	lbl_queue_count.add_theme_color_override("font_color", Color(0.8, 0.8, 0.3))
-	lbl_queue_count.position = Vector2(400, 20)
+	lbl_queue_count.position = Vector2(25, 100)
 	inspection_bg.add_child(lbl_queue_count)
+
+	# --- RELÓGIO ANALÓGICO E CONTADORES ---
+	clock_base = ColorRect.new()
+	clock_base.color = Color(0.85, 0.85, 0.85)
+	clock_base.size = Vector2(80, 80)
+	clock_base.position = Vector2(480, 20)
+	inspection_bg.add_child(clock_base)
+
+	var clock_border = ReferenceRect.new()
+	clock_border.set_anchors_preset(Control.PRESET_FULL_RECT)
+	clock_border.border_color = Color(0.2, 0.2, 0.2)
+	clock_border.border_width = 4
+	clock_base.add_child(clock_border)
+
+	var clock_center = Vector2(40, 40)
+	for i in range(12):
+		var angle = i * (PI / 6.0)
+		var tick = ColorRect.new()
+		tick.color = Color.BLACK
+		if i % 3 == 0:
+			tick.size = Vector2(4, 10)
+			tick.pivot_offset = Vector2(2, 5)
+		else:
+			tick.size = Vector2(2, 6)
+			tick.pivot_offset = Vector2(1, 3)
+		tick.position = (clock_center + Vector2(sin(angle), -cos(angle)) * 35) - tick.pivot_offset
+		tick.rotation = angle
+		clock_base.add_child(tick)
+
+	clock_hand = ColorRect.new()
+	clock_hand.color = Color.RED
+	clock_hand.size = Vector2(4, 35)
+	clock_hand.pivot_offset = Vector2(2, 30)
+	clock_hand.position = clock_center - Vector2(2, 30)
+	clock_base.add_child(clock_hand)
 
 	lbl_timer = Label.new()
 	lbl_timer.text = "PARTIDA EM: 00:00"
-	lbl_timer.add_theme_font_size_override("font_size", 20)
+	lbl_timer.add_theme_font_size_override("font_size", 18)
 	lbl_timer.add_theme_color_override("font_color", Color(0.9, 0.2, 0.2))
-	lbl_timer.position = Vector2(400, 50)
+	lbl_timer.position = Vector2(450, 110)
 	inspection_bg.add_child(lbl_timer)
+	
+	
 
 	var scale_base = ColorRect.new()
 	scale_base.color = Color(0.7, 0.75, 0.7)
@@ -350,39 +423,35 @@ func _setup_ui() -> void:
 	desk_border.border_color = Color(0.2, 0.1, 0.05)
 	desk_border.border_width = 8
 	desk_bg.add_child(desk_border)
-
 	
-	# --- PAINEL METÁLICO (Fundo dos botões) ---
+	#Base dos botoes de encomenda
 	var control_panel = ColorRect.new()
-	control_panel.color = Color(0.2, 0.22, 0.25) # Metal escuro industrial
-	control_panel.size = Vector2(500, 205)
+	control_panel.color = Color(0.2, 0.22, 0.25)
+	control_panel.size = Vector2(620, 205)
 	control_panel.position = Vector2(10, 10)
 	desk_bg.add_child(control_panel)
 	
+	# nao sei o que é
 	var cp_border = ReferenceRect.new()
 	cp_border.set_anchors_preset(Control.PRESET_FULL_RECT)
 	cp_border.border_color = Color(0.1, 0.1, 0.12)
 	cp_border.border_width = 4
 	control_panel.add_child(cp_border)
 	
-	# Parafusos do painel
-	for pos in [Vector2(10, 10), Vector2(480, 10), Vector2(10, 185), Vector2(480, 185)]:
+	#parafusos da base dos botoes
+	for pos in [Vector2(10, 10), Vector2(600, 10), Vector2(10, 185), Vector2(600, 185)]:
 		var screw = ColorRect.new()
 		screw.color = Color(0.05, 0.05, 0.05)
 		screw.size = Vector2(10, 10)
 		screw.position = pos
 		control_panel.add_child(screw)
 
-	# --- ESTILOS VISUAIS PARA OS BOTÕES INDUSTRIAIS ---
-	# --- ESTILOS VISUAIS PARA OS BOTÕES DO PAINEL ---
 	var base_style = StyleBoxFlat.new()
-	# Borda prata/cinza para simular o anel de metal do botão físico
 	base_style.border_width_left = 4
 	base_style.border_width_right = 4
 	base_style.border_width_top = 4
 	base_style.border_width_bottom = 12
 	base_style.border_color = Color(0.65, 0.65, 0.7) 
-	# Bordas super arredondadas para formato de pílula (Botão industrial)
 	base_style.corner_radius_top_left = 35
 	base_style.corner_radius_top_right = 35
 	base_style.corner_radius_bottom_left = 35
@@ -392,11 +461,10 @@ func _setup_ui() -> void:
 	base_style.shadow_offset = Vector2(0, 4)
 
 	var pressed_style = base_style.duplicate()
-	pressed_style.border_width_bottom = 4 # O botão "afunda"
+	pressed_style.border_width_bottom = 4
 	pressed_style.border_color = Color(0.5, 0.5, 0.55)
 	pressed_style.shadow_offset = Vector2(0, 1)
 	
-	# Estado Desligado (Sem energia / Bloqueado)
 	var disabled_style = base_style.duplicate()
 	disabled_style.bg_color = Color(0.25, 0.25, 0.25)
 	disabled_style.border_color = Color(0.4, 0.4, 0.4)
@@ -405,11 +473,11 @@ func _setup_ui() -> void:
 	disabled_style.shadow_offset = Vector2(0, 0)
 
 	btn_lever = Button.new()
-	btn_lever.text = "CHAMAR ENCOMENDA\n(Puxar Alavanca)"
+	btn_lever.text = "CHAMAR ENCOMENDA"
 	btn_lever.size = Vector2(220, 70)
 	btn_lever.position = Vector2(30, 30)
 	var btn_lever_normal = base_style.duplicate()
-	btn_lever_normal.bg_color = Color(0.8, 0.5, 0.1) # Laranja/Amarelo
+	btn_lever_normal.bg_color = Color(0.8, 0.5, 0.1) 
 	var btn_lever_pressed = pressed_style.duplicate()
 	btn_lever_pressed.bg_color = Color(0.6, 0.35, 0.05)
 	btn_lever.add_theme_stylebox_override("normal", btn_lever_normal)
@@ -424,9 +492,9 @@ func _setup_ui() -> void:
 	btn_xray = Button.new()
 	btn_xray.text = "LIGAR RAIO-X\n(Custo: $15)"
 	btn_xray.size = Vector2(220, 70)
-	btn_xray.position = Vector2(270, 30)
+	btn_xray.position = Vector2(400, 30)
 	var btn_xray_normal = base_style.duplicate()
-	btn_xray_normal.bg_color = Color(0.2, 0.45, 0.8) # Azul
+	btn_xray_normal.bg_color = Color(0.2, 0.45, 0.8) 
 	var btn_xray_pressed = pressed_style.duplicate()
 	btn_xray_pressed.bg_color = Color(0.1, 0.3, 0.6)
 	btn_xray.add_theme_stylebox_override("normal", btn_xray_normal)
@@ -439,11 +507,11 @@ func _setup_ui() -> void:
 	desk_bg.add_child(btn_xray)
 
 	btn_approve_pkg = Button.new()
-	btn_approve_pkg.text = "CARREGAR TREM\n(Validar)"
+	btn_approve_pkg.text = "CARREGAR NO TREM"
 	btn_approve_pkg.size = Vector2(220, 70)
 	btn_approve_pkg.position = Vector2(30, 115) 
 	var btn_app_normal = base_style.duplicate()
-	btn_app_normal.bg_color = Color(0.2, 0.65, 0.25) # Verde brilhante
+	btn_app_normal.bg_color = Color(0.2, 0.65, 0.25) 
 	var btn_app_pressed = pressed_style.duplicate()
 	btn_app_pressed.bg_color = Color(0.1, 0.45, 0.15)
 	btn_approve_pkg.add_theme_stylebox_override("normal", btn_app_normal)
@@ -458,9 +526,9 @@ func _setup_ui() -> void:
 	btn_reject_pkg = Button.new()
 	btn_reject_pkg.text = "DEVOLVER REMETENTE\n(Fraude)"
 	btn_reject_pkg.size = Vector2(220, 70)
-	btn_reject_pkg.position = Vector2(270, 115) 
+	btn_reject_pkg.position = Vector2(400, 115) 
 	var btn_rej_normal = base_style.duplicate()
-	btn_rej_normal.bg_color = Color(0.8, 0.2, 0.2) # Vermelho alerta
+	btn_rej_normal.bg_color = Color(0.8, 0.2, 0.2) 
 	var btn_rej_pressed = pressed_style.duplicate()
 	btn_rej_pressed.bg_color = Color(0.55, 0.1, 0.1)
 	btn_reject_pkg.add_theme_stylebox_override("normal", btn_rej_normal)
@@ -472,62 +540,84 @@ func _setup_ui() -> void:
 	btn_reject_pkg.pressed.connect(_on_reject_pkg_pressed)
 	desk_bg.add_child(btn_reject_pkg)
 
-	# IMPORTANTE: Logo abaixo desta linha deve começar a sua var clipboard_bg = ColorRect.new() que já existe no seu código!
-
+	# --- DOCUMENTO 1: MANIFESTO ---
 	var clipboard_bg = ColorRect.new()
 	clipboard_bg.color = Color(0.85, 0.8, 0.65)
-	clipboard_bg.size = Vector2(280, 400)
-	clipboard_bg.position = Vector2(40, 220) 
+	clipboard_bg.size = Vector2(200, 380)
+	clipboard_bg.position = Vector2(10, 230) 
 	desk_bg.add_child(clipboard_bg)
 	
 	var clip_metal = ColorRect.new()
 	clip_metal.color = Color(0.4, 0.4, 0.45)
 	clip_metal.size = Vector2(100, 20)
-	clip_metal.position = Vector2(90, 5)
+	clip_metal.position = Vector2(50, 5)
 	clipboard_bg.add_child(clip_metal)
 	
 	var clip_title = Label.new()
 	clip_title.text = "MANIFESTO DE CARGA"
 	clip_title.add_theme_color_override("font_color", Color.BLACK)
-	clip_title.add_theme_font_size_override("font_size", 16)
-	clip_title.position = Vector2(20, 40)
+	clip_title.add_theme_font_size_override("font_size", 14)
+	clip_title.position = Vector2(10, 40)
 	clipboard_bg.add_child(clip_title)
 
 	clip_content = Label.new()
 	clip_content.add_theme_color_override("font_color", Color.BLACK)
-	clip_content.position = Vector2(20, 80)
+	clip_content.position = Vector2(10, 80)
 	clipboard_bg.add_child(clip_content)
 	
 	clip_weight = Label.new()
 	clip_weight.add_theme_color_override("font_color", Color.BLACK)
-	clip_weight.position = Vector2(20, 120)
+	clip_weight.position = Vector2(10, 120)
 	clipboard_bg.add_child(clip_weight)
 	
 	clip_stamp = Label.new()
 	clip_stamp.add_theme_color_override("font_color", Color.BLACK)
-	clip_stamp.position = Vector2(20, 160)
+	clip_stamp.position = Vector2(10, 160)
 	clipboard_bg.add_child(clip_stamp)
 
+	# --- DOCUMENTO 2: MANUAL ---
 	var manual_bg = ColorRect.new()
 	manual_bg.color = Color(0.7, 0.7, 0.8)
-	manual_bg.size = Vector2(260, 400)
-	manual_bg.position = Vector2(340, 220)
+	manual_bg.size = Vector2(200, 380)
+	manual_bg.position = Vector2(220, 230)
 	desk_bg.add_child(manual_bg)
 
 	var man_title = Label.new()
-	man_title.text = "MANUAL DE FISCALIZAÇÃO"
+	man_title.text = "MANUAL DE INSPEÇÃO"
 	man_title.add_theme_color_override("font_color", Color.BLACK)
 	man_title.position = Vector2(10, 20)
 	manual_bg.add_child(man_title)
 
 	var man_text = Label.new()
-	man_text.text = "- CARTAS: Selo Branco.\n\n- PERECÍVEIS: Selo Verde.\n\n- VALIOSOS: Selo Azul.\n\n* Atenção ao Peso Real!\n* Use Raio-X em Valiosos para\nevitar contrabando de armas."
+	man_text.text = "*Selos:\n- Branco: Cartas.\n- Verde: Perecíveis.\n- Azul: Jóias.\n* Atenção ao Peso Real!\n* Use Raio-X em Jóias para\nevitar armas ocultas\nR$15 Por uso."
 	man_text.add_theme_color_override("font_color", Color.DARK_SLATE_GRAY)
 	man_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	man_text.size = Vector2(240, 300)
+	man_text.size = Vector2(180, 300)
 	man_text.position = Vector2(10, 60)
 	manual_bg.add_child(man_text)
 
+	# --- DOCUMENTO 3: REGRAS E PUNIÇÕES (NOVO) ---
+	rules_bg = ColorRect.new()
+	rules_bg.color = Color(0.85, 0.9, 0.85)
+	rules_bg.size = Vector2(200, 380)
+	rules_bg.position = Vector2(430, 230)
+	desk_bg.add_child(rules_bg)
+
+	var rules_title = Label.new()
+	rules_title.text = "TABELA DE INFRAÇÕES"
+	rules_title.add_theme_color_override("font_color", Color.BLACK)
+	rules_title.position = Vector2(10, 20)
+	rules_bg.add_child(rules_title)
+
+	var rules_text = Label.new()
+	rules_text.text = "- 3 Advertências = Multa de $500 pelo Fiscal.\n- Omitir Raio-X em Contrabando = Multa de $1500.\n- Rejeitar carga válida resulta em Reclamações.\n- Aprovar fraude soma Advertências na hora."
+	rules_text.add_theme_color_override("font_color", Color.DARK_GREEN)
+	rules_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	rules_text.size = Vector2(180, 300)
+	rules_text.position = Vector2(10, 70)
+	rules_bg.add_child(rules_text)
+
+	# --- OVERLAYS DO MAPA ---
 	panel_overlay = ColorRect.new()
 	panel_overlay.color = Color(0, 0, 0, 0.8) 
 	panel_overlay.size = Vector2(1920 - map_limit_x, 1080)
@@ -723,24 +813,11 @@ func _setup_ui() -> void:
 	maint_panel.add_child(btn_close_maint)
 
 	_clear_inspection_desk()
-	
 	_setup_map_legend()
 
 
 
-# === LÓGICA DA TRIAGEM ===
 
-func _clear_inspection_desk() -> void:
-	box_visual.visible = false
-	is_xray_on = false
-	scale_needle.rotation = -PI * 0.8
-	lbl_scale_digital.text = "0.0 kg"
-	clip_content.text = "Aguardando carga..."
-	clip_weight.text = ""
-	clip_stamp.text = ""
-	btn_approve_pkg.disabled = true
-	btn_reject_pkg.disabled = true
-	btn_xray.disabled = true
 
 func _on_queue_updated(count: int) -> void:
 	lbl_queue_count.text = "FILA: " + str(count) + " ENCOMENDAS"
@@ -761,9 +838,9 @@ func _on_btn_lever_pressed() -> void:
 	box_xray_poly.visible = false
 	btn_xray.disabled = false
 	
-	clip_content.text = "Declarado: " + current_package["declared_item"]
-	clip_weight.text = "Peso Decl.: " + str(current_package["declared_weight"]) + " kg"
-	clip_stamp.text = "Selo: " + current_package["stamp_used"]
+	clip_content.text = "Declarado:\n" + current_package["declared_item"]
+	clip_weight.text = "\nPeso Decl.: " + str(current_package["declared_weight"]) + " kg"
+	clip_stamp.text = "\nSelo: " + current_package["stamp_used"]
 	
 	if current_package["stamp_used"] == "Selo Branco": 
 		box_stamp.color = Color.WHITE
@@ -876,6 +953,21 @@ func _process_decision(approved: bool) -> void:
 
 
 
+func _sync_strike_lights(total: int) -> void:
+	for i in range(3):
+		if is_instance_valid(strike_lights[i]):
+			if i < total:
+				strike_lights[i].color = Color(0.9, 0.8, 0.1) # Luz acesa (Amarelo)
+			else:
+				strike_lights[i].color = Color(0.3, 0.3, 0.1) # Luz apagada (Escura)
+
+	if total >= 3:
+		# Reseta as luzes do painel rapidamente, já que o GameManager cobrou a multa
+		await get_tree().create_timer(2.0).timeout
+		for i in range(3):
+			if is_instance_valid(strike_lights[i]):
+				strike_lights[i].color = Color(0.3, 0.3, 0.1)
+
 func _show_strike_warning(msg: String) -> void:
 	lbl_strike_warning.text = "[!] " + msg
 	lbl_strike_warning.visible = true
@@ -886,7 +978,10 @@ func _show_strike_warning(msg: String) -> void:
 	lbl_strike_warning.modulate.a = 1.0
 
 func _on_strike_received(total: int, reason: String) -> void:
-	_show_strike_warning(reason + " (" + str(total) + "/3 Ocorrencias)")
+	_sync_strike_lights(total)
+	_show_strike_warning(reason + " (" + str(total) + "/3 Ocorrências)")
+
+
 
 # === LÓGICA DO MAPA (Sem alterações) ===
 
@@ -1263,7 +1358,7 @@ func _update_edit_panel() -> void:
 	btn_confirm.disabled = not is_valid
 
 
-
+# === LÓGICA DA TRIAGEM ===
 func _process(delta: float) -> void:
 	if not visible: return
 	
@@ -1272,8 +1367,14 @@ func _process(delta: float) -> void:
 			var m = int(GameManager.shift_time_left) / 60
 			var s = int(GameManager.shift_time_left) % 60
 			lbl_timer.text = "PARTIDA EM: %02d:%02d" % [m, s]
+			
+			if is_instance_valid(clock_hand):
+				# Relógio analógico dá uma volta completa a cada 60 segundos
+				clock_hand.rotation = (GameManager.shift_time_left / 60.0) * TAU
 		else:
 			lbl_timer.text = "AGUARDANDO TREM"
+			if is_instance_valid(clock_hand):
+				clock_hand.rotation = 0
 	
 	var needs_redraw = false
 	for i in range(GameManager.active_contracts.size()):
@@ -1299,6 +1400,21 @@ func _process(delta: float) -> void:
 			needs_redraw = true
 
 	if needs_redraw: queue_redraw()
+
+func _clear_inspection_desk() -> void:
+	box_visual.visible = false
+	is_xray_on = false
+	scale_needle.rotation = -PI * 0.8
+	lbl_scale_digital.text = "0.0 kg"
+	clip_content.text = "Aguardando carga..."
+	clip_weight.text = ""
+	clip_stamp.text = ""
+	btn_approve_pkg.disabled = true
+	btn_reject_pkg.disabled = true
+	btn_xray.disabled = true
+	if has_method("_sync_strike_lights"):
+		_sync_strike_lights(GameManager.strikes)
+
 
 
 func _spawn_train(contract_index: int, contract: Dictionary) -> void:
