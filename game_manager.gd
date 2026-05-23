@@ -19,6 +19,8 @@ var start_in_world_map: bool = true
 var is_fiscal_calling: bool = false
 
 var is_game_ended: bool = false
+var pending_victory_call: bool = false
+var pending_defeat_call: bool = false
 
 var is_shark_calling: bool = false
 
@@ -115,7 +117,8 @@ func _process(delta: float) -> void:
 
 	if current_day > 0 and money > -9999: 
 		if money <= -2000:
-			trigger_bankruptcy()
+			is_game_ended = true
+			pending_defeat_call = true
 			return
 			
 		if money <= -1500 and not has_loan_shark and not pending_shark_call and not shark_declined and not is_shark_calling:
@@ -148,7 +151,6 @@ func _process(delta: float) -> void:
 						add_strike("O trem partiu e " + str(package_queue.size()) + " encomendas ficaram na plataforma!")
 					package_queue.clear()
 					package_queue_updated.emit(0)
-
 
 # NOVA FUNÇÃO DE VALIDAÇÃO GERAL
 func has_ready_route() -> bool:
@@ -332,12 +334,14 @@ func end_day(upfront_income: int = 0) -> void:
 	current_day += 1
 	save_game() 
 	
-	if money <= -2000: 
-		trigger_bankruptcy()
-	
-	if money > -2000:
-		if money >= LevelData.LEVELS[current_level]["goal"]: 
-			trigger_victory()
+	if not is_game_ended:
+		if money <= -2000: 
+			is_game_ended = true
+			pending_defeat_call = true
+		else:
+			if money >= LevelData.LEVELS[current_level]["goal"]: 
+				is_game_ended = true
+				pending_victory_call = true
 
 
 func get_daily_package_limit() -> int:
@@ -515,14 +519,14 @@ func cancel_contract(idx: int) -> void:
 
 func trigger_bankruptcy() -> void:
 	is_game_ended = true
-	game_over.emit(false, "FALÊNCIA!\nA Diretoria foi destituída por saldo negativo excessivo.")
+	game_over.emit(false, "FALÊNCIA!\nA Cia. de Entregas Ferroviárias foi destituída\n por saldo negativo excessivo.")
 
 
 func trigger_victory() -> void:
 	is_game_ended = true
 	if current_level == highest_unlocked_level and LevelData.LEVELS.has(current_level + 1): 
 		highest_unlocked_level += 1
-	game_over.emit(true, "VITÓRIA!\nA região agora pertence à Cia. de Entregas Ferroviárias.")
+	game_over.emit(true, "VITÓRIA!\n Bem-Vindo à Cia. de Entregas Ferroviárias.")
 
 
 func has_save() -> bool: return FileAccess.file_exists(SAVE_PATH)
@@ -583,6 +587,9 @@ func reset_game() -> void:
 	first_fiscal_warning_done = false
 	shift_time_left = 0.0
 	shift_active = false
+	
+	pending_victory_call = false
+	pending_defeat_call = false
 	
 	_generate_daily_generics()
 	save_game()

@@ -404,6 +404,12 @@ func _on_reject() -> void:
 func _on_close() -> void:
 	visible = false
 	call_closed.emit()
+	
+	if current_mode == "VICTORY":
+		GameManager.trigger_victory()
+	else:
+		if current_mode == "DEFEAT":
+			GameManager.trigger_bankruptcy()
 
 func _on_opt_1() -> void:
 	visible = false
@@ -438,7 +444,7 @@ func start_fiscal_audit(data: Dictionary) -> void:
 	name_label.text = "[ MINISTÉRIO DOS TRANSPORTES: AUDITORIA ]"
 	name_label.add_theme_color_override("font_color", Color.ORANGE)
 	
-	full_text = "Atenção Diretor. Os nossos agentes pararam o seu trem que serve a empresa " + data["contract_name"] + ".\n\n"
+	full_text = "Atenção Gestor. Os nossos agentes pararam o seu trem que serve a empresa " + data["contract_name"] + ".\n\n"
 	full_text += data["reason"] + "\n\n"
 	
 	if data["can_bribe"]:
@@ -463,9 +469,9 @@ func start_boss_package_call() -> void:
 	name_label.text = "[ TRANSMISSÃO: BEAR (DIRETORIA) ]"
 	name_label.add_theme_color_override("font_color", Color.LIGHT_GRAY)
 	
-	full_text = "Diretor! Vi que a nossa primeira rota está finalmente operando!\n\n"
+	full_text = "Gestor! Vi que a nossa primeira rota está finalmente operando!\n\n"
 	full_text += "A partir de agora, os clientes começarão a deixar encomendas avulsas na Estação de Triagem.\n"
-	full_text += "Vá até lá de vez em quando e valide os pacotes. Não deixe a esteira acumular!"
+	full_text += "Vá até lá toda manhã e valide os pacotes. Não deixe a esteira acumular!"
 	
 	_type_next_char(false)
 
@@ -476,12 +482,44 @@ func start_loan_shark_call() -> void:
 	name_label.text = "[ TRANSMISSÃO DESCONHECIDA ]"
 	name_label.add_theme_color_override("font_color", Color.CRIMSON)
 
-	full_text = "Estou vendo que as coisas vão mal por aí, Diretor... Conta no vermelho, não é?\n\n"
+	full_text = "Estou vendo que as coisas vão mal por aí, Gestor... Conta no vermelho, não é?\n\n"
 	full_text += "Eu posso limpar a sua dívida e lhe deixar com $1500 na mão agora mesmo.\n"
 	full_text += "Em troca, cobrarei $150 por dia durante os próximos 20 dias.\n\n"
 	full_text += "Pega ou larga. Se disser não e falir, o problema é seu."
 
-	btn_accept.text = "[ ACEITAR EMPRÉSTIMO ]"
-	btn_reject.text = "[ RECUSAR E DESLIGAR ]"
+	btn_accept.text = "[ ACEITAR ]"
+	btn_reject.text = "[ RECUSAR ]"
 
+	_type_next_char(false)
+	
+	
+	#cutscenes chefe bear
+func start_victory_call() -> void:
+	_reset_ui()
+	current_mode = "VICTORY"
+	
+	character_portrait.texture = tex_bear
+	name_label.text = "[ TRANSMISSÃO: BEAR (DIRETORIA) ]"
+	name_label.add_theme_color_override("font_color", Color.LIGHT_GREEN)
+	
+	full_text = "Muito bem... Você conseguiu.\n"
+	full_text += "Olhando para os relatórios, vejo que superou a nossa meta de caixa de forma espetacular.\n"
+	full_text += "Seu avô vai ficar muito orgulhoso quando souber. Você passou no teste, o cargo de gestor é oficialmente seu!\n"
+	full_text += "Aproveite a sua vitória."
+	
+	_type_next_char(false)
+
+func start_defeat_call() -> void:
+	_reset_ui()
+	current_mode = "DEFEAT"
+	
+	character_portrait.texture = tex_bear
+	name_label.text = "[ TRANSMISSÃO: BEAR (DIRETORIA) ]"
+	name_label.add_theme_color_override("font_color", Color.RED)
+	
+	full_text = "O que você fez com a nossa empresa?!\n"
+	full_text += "O nosso caixa está destruído. As dívidas estão nos afogando. Você é uma vergonha para o seu avô!\n"
+	full_text += "Eu avisei que este mercado era cruel. Você falhou no teste. Pegue as suas coisas, você está DEMITIDO.\n"
+	full_text += "E não volte mais aqui."
+	
 	_type_next_char(false)

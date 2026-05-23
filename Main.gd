@@ -49,7 +49,7 @@ func _ready() -> void:
 	
 func _setup_game_over_ui() -> void:
 	game_over_layer = CanvasLayer.new()
-	game_over_layer.layer = 500 # Camada bem alta para ficar na frente de tudo
+	game_over_layer.layer = 500
 	add_child(game_over_layer)
 	
 	var bg = ColorRect.new()
@@ -61,20 +61,24 @@ func _setup_game_over_ui() -> void:
 	lbl_game_over.text = "MENSAGEM AQUI"
 	lbl_game_over.add_theme_font_size_override("font_size", 45)
 	lbl_game_over.add_theme_color_override("font_color", Color.WHITE)
+	
+	# Centralização rigorosa nos dois eixos
+	lbl_game_over.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl_game_over.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	lbl_game_over.position = Vector2(460, 350)
 	lbl_game_over.size = Vector2(1000, 200)
-	lbl_game_over.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	bg.add_child(lbl_game_over)
 	
 	btn_go_menu = Button.new()
 	btn_go_menu.text = "VOLTAR AO MENU PRINCIPAL"
-	btn_go_menu.position = Vector2(760, 600)
-	btn_go_menu.size = Vector2(400, 70)
+	
+	# Botão centralizado matematicamente: 1920 - 500 = 1420 / 2 = 710 no eixo X
+	btn_go_menu.size = Vector2(500, 80)
+	btn_go_menu.position = Vector2(710, 600) 
 	btn_go_menu.pressed.connect(_on_btn_go_menu_pressed)
 	bg.add_child(btn_go_menu)
 	
 	game_over_layer.visible = false
-	
 
 func _on_btn_go_menu_pressed() -> void:
 	game_over_layer.visible = false

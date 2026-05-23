@@ -124,37 +124,44 @@ func _process(delta: float) -> void:
 				dial_current_rot = 0.0
 			dial_rect.queue_redraw()
 
-	if GameManager.pendent_angry_call: 
-		GameManager.pendent_angry_call = false
-		phone_cutscene.start_angry_call()
+	if GameManager.pending_defeat_call:
+		GameManager.pending_defeat_call = false
+		phone_cutscene.start_defeat_call()
 	else:
-		if not GameManager.pending_fiscal_event.is_empty() and not GameManager.is_fiscal_calling:
-			GameManager.is_fiscal_calling = true # <--- A TRAVA DO FISCAL É ATIVADA AQUI
-			phone_cutscene.start_fiscal_audit(GameManager.pending_fiscal_event)
+		if GameManager.pending_victory_call:
+			GameManager.pending_victory_call = false
+			phone_cutscene.start_victory_call()
 		else:
-			if GameManager.pending_boss_package_call and not GameManager.boss_package_intro_done:
-				GameManager.pending_boss_package_call = false
-				GameManager.boss_package_intro_done = true
-				phone_cutscene.start_boss_package_call()
+			if GameManager.pendent_angry_call: 
+				GameManager.pendent_angry_call = false
+				phone_cutscene.start_angry_call()
 			else:
-				if GameManager.pending_shark_call and not GameManager.shark_declined and not GameManager.has_loan_shark and not GameManager.is_shark_calling:
-					GameManager.pending_shark_call = false
-					GameManager.is_shark_calling = true
-					if phone_cutscene.has_method("start_loan_shark_call"):
-						phone_cutscene.start_loan_shark_call()
+				if not GameManager.pending_fiscal_event.is_empty() and not GameManager.is_fiscal_calling:
+					GameManager.is_fiscal_calling = true 
+					phone_cutscene.start_fiscal_audit(GameManager.pending_fiscal_event)
 				else:
-					if GameManager.pending_shark_paper:
-						GameManager.pending_shark_paper = false
-						_spawn_shark_paper()
+					if GameManager.pending_boss_package_call and not GameManager.boss_package_intro_done:
+						GameManager.pending_boss_package_call = false
+						GameManager.boss_package_intro_done = true
+						phone_cutscene.start_boss_package_call()
 					else:
-						if not GameManager.intro_played:
-							GameManager.intro_played = true
-							phone_cutscene.start_boss_intro()
+						if GameManager.pending_shark_call and not GameManager.shark_declined and not GameManager.has_loan_shark and not GameManager.is_shark_calling:
+							GameManager.pending_shark_call = false
+							GameManager.is_shark_calling = true
+							if phone_cutscene.has_method("start_loan_shark_call"):
+								phone_cutscene.start_loan_shark_call()
+						else:
+							if GameManager.pending_shark_paper:
+								GameManager.pending_shark_paper = false
+								_spawn_shark_paper()
+							else:
+								if not GameManager.intro_played:
+									GameManager.intro_played = true
+									phone_cutscene.start_boss_intro()
 		
 	if GameManager.pending_shark_paper:
 			GameManager.pending_shark_paper = false
 			_spawn_shark_paper()
-
 
 
 
