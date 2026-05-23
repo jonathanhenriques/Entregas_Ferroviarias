@@ -124,14 +124,38 @@ func _process(delta: float) -> void:
 				dial_current_rot = 0.0
 			dial_rect.queue_redraw()
 
-	if GameManager.pending_radio_event:
-		var time = float(Time.get_ticks_msec()) / 1000.0
-		if sin(time * 10.0) > 0:
-			radio_led.color = Color.RED
-		else:
-			radio_led.color = Color.DARK_RED
+	if GameManager.pendent_angry_call: 
+		GameManager.pendent_angry_call = false
+		phone_cutscene.start_angry_call()
 	else:
-		radio_led.color = Color(0.2, 0.05, 0.05)
+		if not GameManager.pending_fiscal_event.is_empty():
+			phone_cutscene.start_fiscal_audit(GameManager.pending_fiscal_event)
+		else:
+			if GameManager.pending_boss_package_call and not GameManager.boss_package_intro_done:
+				GameManager.pending_boss_package_call = false
+				GameManager.boss_package_intro_done = true
+				phone_cutscene.start_boss_package_call()
+			else:
+				if GameManager.pending_shark_call and not GameManager.shark_declined and not GameManager.has_loan_shark:
+					GameManager.pending_shark_call = false
+					if phone_cutscene.has_method("start_loan_shark_call"):
+						phone_cutscene.start_loan_shark_call()
+				else:
+					if GameManager.pending_shark_paper:
+						GameManager.pending_shark_paper = false
+						_spawn_shark_paper()
+					else:
+						if not GameManager.intro_played:
+							GameManager.intro_played = true
+							phone_cutscene.start_boss_intro()
+		
+	if GameManager.pending_shark_paper:
+			GameManager.pending_shark_paper = false
+			_spawn_shark_paper()
+
+
+
+
 
 
 func _setup_ui() -> void:
@@ -1714,16 +1738,17 @@ func _on_next_day_pressed() -> void:
 	var bp_cost = 0
 	var new_c = 0
 	var rej_c = 0
+	var shark_income = 0
 
 	for p in spawned_papers:
 		if not is_instance_valid(p): continue
 		
-		# Conta rejeições
+		# 1. Conta rejeições (Se a ação for reject, ignoramos todo o resto)
 		if p.has_meta("action") and p.get_meta("action") == "reject":
 			rej_c += 1
+			continue
 			
-		# Processa a Extensão de Prazo
-		# Processa a Extensão de Prazo
+		# 2. Processa a Extensão de Prazo e Renovações
 		if p.has_meta("is_extension") and p.get_meta("is_extension"):
 			if p.has_meta("action") and p.get_meta("action") == "approve":
 				var s_idx = p.get_meta("selected_idx", -1)
@@ -1733,7 +1758,6 @@ func _on_next_day_pressed() -> void:
 					
 					if rtype == "penalty":
 						var cost = p.get_meta("cost", 0)
-						# Se for multa, só estende se a empresa tiver dinheiro na conta
 						if GameManager.money >= cost:
 							GameManager.money -= cost
 							c["days_left"] += 5
@@ -1753,49 +1777,87 @@ func _on_next_day_pressed() -> void:
 						c["delayed_days"] = 0
 						ext_c += 1
 						
-					# Limpa o estado para poder rolar a roleta de novo no futuro!
 					c.erase("renewal_type")
 					
-		# Processa a Planta de Obras
-		# Processa os Contratos de Carga
-		elif p.has_meta("action") and p.get_meta("action") == "approve":
-			new_c += 1
-			var c_data = p.get_meta("company_data")
-			var is_urg = p.get_meta("is_urgent")
-			var reward = p.get_meta("reward")
-			var is_risk = p.get_meta("is_risk")
-			
-			# --- PROGRAMAÇÃO DEFENSIVA: Extração segura para salvar no GameManager ---
-			var comp_name = c_data.get("company_name", c_data.get("name", "Empresa Desconhecida"))
-			var route_id = c_data.get("route_id", "0")
-			var c_type = c_data.get("type", "Comum")
-			var cargo_name = c_data.get("cargo", "Carga Geral")
-			var duration_est = c_data.get("duration", 5) # Importante para a multa!
-			
-			var new_contract = {
-				"company_name": comp_name,
-				"route_id": route_id,
-				"type": c_type,
-				"cargo": cargo_name,
-				"reward": reward,
-				"duration": duration_est
-			}
-			# -------------------------------------------------------------------------
-			
-			if is_urg:
-				new_contract["is_urgent"] = true
-				income += reward 
-				new_contract["days_left"] = 1
-				GameManager.active_contracts.append(new_contract)
+		# 3. Processa a Planta de Obras
+		elif p.has_meta("is_blueprint") and p.get_meta("is_blueprint"):
+			if p.has_meta("action") and p.get_meta("action") == "approve":
+				var bp = GameManager.pending_blueprint
+				var cd = bp.get("routes_to_cooldown", [])
+				
+				bp_cost += bp.get("total_cost", 0)
+				GameManager.money -= bp.get("total_cost", 0)
+				
+				for route_id in cd:
+					GameManager.company_cooldowns[route_id] = 5
+					var base_days = bp.get("est_days", 1) 
+					GameManager.routes_under_construction[route_id] = base_days + 1
+					
+				GameManager.saved_routes.append_array(bp.get("draft_paths", []))
+				var keep_routes = []
+				for old_r in GameManager.saved_routes:
+					var is_del = false
+					for del_r in bp.get("deleted_paths", []):
+						if _are_routes_equal(old_r, del_r): is_del = true
+					if not is_del: keep_routes.append(old_r)
+				GameManager.saved_routes = keep_routes
+				
+				var new_broken = []
+				for bt in GameManager.broken_tiles:
+					if not bp.get("repair_tiles", []).has(bt): new_broken.append(bt)
+				GameManager.broken_tiles = new_broken
+				GameManager.pending_blueprint.clear()
+		
+		# 4. Processa o Contrato do Agiota
+		elif p.has_meta("is_shark") and p.get_meta("is_shark"):
+			if p.has_meta("action") and p.get_meta("action") == "approve":
+				shark_income = 1500
+				income += 1500
+				GameManager.has_loan_shark = true
+				GameManager.loan_shark_days_left = 20
+				GameManager.shark_declined = false
 			else:
-				new_contract["days_left"] = randi_range(duration_est, duration_est + 5)
-				GameManager.active_contracts.append(new_contract)
+				GameManager.shark_declined = true			
+		
+		# 5. Processa os Contratos de Carga
+		elif p.has_meta("action") and p.get_meta("action") == "approve":
+			if p.has_meta("company_data") and typeof(p.get_meta("company_data")) == TYPE_DICTIONARY:
+				new_c += 1
+				var c_data = p.get_meta("company_data")
+				var is_urg = p.get_meta("is_urgent", false)
+				var reward = p.get_meta("reward", 0)
+				var is_risk = p.get_meta("is_risk", false)
 				
-			if is_risk:
-				new_contract["pending_route_days"] = c_data.get("temp_wait_days", 3)
+				var comp_name = c_data.get("company_name", c_data.get("name", "Empresa Desconhecida"))
+				var route_id = c_data.get("route_id", "0")
+				var c_type = c_data.get("type", "Comum")
+				var cargo_name = c_data.get("cargo", "Carga Geral")
+				var duration_est = c_data.get("duration", 5) 
 				
-			GameManager.company_cooldowns[route_id] = 4
+				var new_contract = {
+					"company_name": comp_name,
+					"route_id": route_id,
+					"type": c_type,
+					"cargo": cargo_name,
+					"reward": reward,
+					"duration": duration_est
+				}
+				
+				if is_urg:
+					new_contract["is_urgent"] = true
+					income += reward 
+					new_contract["days_left"] = 1
+					GameManager.active_contracts.append(new_contract)
+				else:
+					new_contract["days_left"] = randi_range(duration_est, duration_est + 5)
+					GameManager.active_contracts.append(new_contract)
+					
+				if is_risk:
+					new_contract["pending_route_days"] = c_data.get("temp_wait_days", 3)
+					
+				GameManager.company_cooldowns[route_id] = 4
 
+	# === Fim do Processamento dos Papéis ===
 	for p in spawned_papers:
 		if is_instance_valid(p): p.queue_free()
 	spawned_papers.clear()
@@ -1804,7 +1866,9 @@ func _on_next_day_pressed() -> void:
 	current_agenda_page = 0
 	
 	pending_upfront_income = income
-	_start_eod_animation(new_c, rej_c, ext_c, bp_cost)
+	_start_eod_animation(new_c, rej_c, ext_c, bp_cost, shark_income)
+	
+	
 	
 	
 func _on_visibility_changed() -> void:
@@ -1884,7 +1948,7 @@ func _are_routes_equal(r1: Array, r2: Array) -> bool:
 		if r1[i] != r2[i]: return false
 	return true
 
-func _start_eod_animation(new_c: int, rej_c: int, ext_c: int, bp_cost: int) -> void:
+func _start_eod_animation(new_c: int, rej_c: int, ext_c: int, bp_cost: int, shark_income: int = 0) -> void:
 	skip_eod_anim = false
 	eod_layer.visible = true
 	btn_eod_sleep.visible = false
@@ -1919,8 +1983,14 @@ func _start_eod_animation(new_c: int, rej_c: int, ext_c: int, bp_cost: int) -> v
 	_add_eod_line("[ FINANÇAS ]", "", c_gray, false)
 	_add_eod_line("Saldo Inicial", "$" + str(GameManager.money + bp_cost), c_light, false)
 	
-	if pending_upfront_income > 0:
-		_add_eod_line("Receitas à Vista", "+$" + str(pending_upfront_income), c_green, false)
+	# --- NOVO: SEPARANDO AS RECEITAS EXTRAS (Contratos vs Agiota) ---
+	var contract_income = pending_upfront_income - shark_income
+	if contract_income > 0:
+		_add_eod_line("Receitas à Vista", "+$" + str(contract_income), c_green, false)
+		
+	if shark_income > 0:
+		_add_eod_line("Empréstimo (Agiota)", "+$" + str(shark_income), c_green, false)
+	# ----------------------------------------------------------------
 		
 	var inc = GameManager.get_daily_income()
 	if inc > 0:
@@ -1941,20 +2011,34 @@ func _start_eod_animation(new_c: int, rej_c: int, ext_c: int, bp_cost: int) -> v
 	if GameManager.daily_gang_toll > 0:
 		_add_eod_line("Extorsão (Gangues)", "-$" + str(GameManager.daily_gang_toll), c_red, false)
 		
+	# --- NOVO: A PARCELA INFERNAL DO AGIOTA ---
+	if GameManager.has_loan_shark:
+		_add_eod_line("Parcela Fixa (Agiota)", "-$150", c_red, false)
+	# ------------------------------------------
+		
 	_add_eod_line("-----------------------", "---------", c_gray, false)
 	
 	var final_money = GameManager.money + pending_upfront_income + inc - GameManager.daily_maintenance - GameManager.BASE_COST - GameManager.daily_gang_toll - GameManager.daily_crew_cost - GameManager.daily_lobby_cost
+	
+	# O cálculo visual final precisa descontar a parcela do agiota (já que o GameManager também vai debitar)
+	if GameManager.has_loan_shark:
+		final_money -= 150
+		
 	var final_color = c_green
 	if final_money < 0:
 		final_color = c_red
 		
 	_add_eod_line("SALDO PROJETADO", "$" + str(final_money), final_color, false)
 	
+	if GameManager.money < 0:
+		_add_eod_line("", "", c_light, false)
+		_add_eod_line("[!] AVISO: SALDO NEGATIVO! [!]", "", c_red, true)
+		_add_eod_line("A empresa falirá em -$2000!", "", c_red, true)
+	
 	for line in eod_lines_container.get_children():
 		line.visible = false
 		
 	_play_eod_lines()
-
 
 
 
@@ -2181,3 +2265,53 @@ func _update_calendar() -> void:
 			day_box.add_child(ex)
 			
 		grid.add_child(day_box)
+
+
+
+func _spawn_shark_paper() -> void:
+	var paper = ColorRect.new()
+	paper.color = Color(0.25, 0.25, 0.28) 
+	paper.size = Vector2(340, 420)
+	paper.pivot_offset = paper.size / 2.0
+	paper.position = Vector2(500 + randf_range(-30, 30), 200 + randf_range(-30, 30))
+	paper.rotation_degrees = randf_range(-4, 4)
+
+	var border = ReferenceRect.new()
+	border.set_anchors_preset(Control.PRESET_FULL_RECT)
+	border.border_color = Color(0.6, 0.2, 0.2) 
+	border.border_width = 4
+	paper.add_child(border)
+
+	var content = Control.new()
+	content.name = "content"
+	content.set_anchors_preset(Control.PRESET_FULL_RECT)
+	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	paper.add_child(content)
+
+	var text_lbl = Label.new()
+	text_lbl.add_theme_color_override("font_color", Color(0.9, 0.9, 0.9))
+	text_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	text_lbl.size = paper.size - Vector2(40, 40)
+	text_lbl.position = Vector2(20, 20)
+	
+	var txt = "CONTRATO EXTRAOFICIAL DE CRÉDITO\n\n"
+	txt += "Emissor: Confidencial\n"
+	txt += "Beneficiário: Cia. de Entregas Ferroviárias\n\n"
+	txt += "TERMOS DO ACORDO:\n"
+	txt += "- Adiantamento Imediato: +$1500\n"
+	txt += "- Taxa de Cobrança Diária: -$150\n"
+	txt += "- Período de Vigência: 20 Dias\n\n"
+	txt += "A falta de fundos para arcar com as parcelas diárias não anula este contrato. Cuidado.\n\n"
+	txt += "Carimbe [APROVAR] para receber o fundo imediato.\n"
+	txt += "Carimbe [REJEITAR] para rasgar a proposta."
+	
+	text_lbl.text = txt
+	content.add_child(text_lbl)
+
+	paper.set_meta("is_paper", true)
+	paper.set_meta("is_shark", true)
+	paper.set_meta("action", "")
+
+	_make_draggable(paper, "paper")
+	ui_layer.add_child(paper)
+	spawned_papers.append(paper)

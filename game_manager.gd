@@ -54,6 +54,7 @@ var loan_shark_days_left: int = 0
 var pending_shark_call: bool = false
 var shark_declined: bool = false
 var last_audit_day: int = -99
+var pending_shark_paper: bool = false # NOVO: Diz para a mesa criar o contrato físico
 
 var daily_gang_toll: int = 0
 var daily_crew_cost: int = 0
@@ -434,16 +435,6 @@ func process_package_approval(pkg: Dictionary) -> void:
 	var cost_per_kg = 0.5 # A empresa gasta 50 centavos por cada Kg real despachado
 	var net_profit = pkg["base_reward"] - (pkg["true_weight"] * cost_per_kg)
 	money += int(net_profit)
-
-# FASE 1: Lógica do Agiota
-func accept_loan_shark() -> void:
-	has_loan_shark = true
-	loan_shark_days_left = 20
-	# Limpa o saldo negativo atual (ex: -1500 vira 0) e adiciona +1500 para respirar
-	money += abs(money) + 1500 
-
-func reject_loan_shark() -> void:
-	shark_declined = true
 
 
 

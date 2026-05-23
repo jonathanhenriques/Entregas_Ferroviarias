@@ -358,14 +358,25 @@ func _on_accept() -> void:
 	if current_mode == "CANCEL_WARNING":
 		cancel_confirmed.emit(pending_cancel_idx)
 	else:
-		contract_accepted.emit(offered_reward)
+		if current_mode == "LOAN_SHARK":
+			# Manda o papel pra mesa em vez de dar o dinheiro na hora
+			GameManager.pending_shark_paper = true
+			call_closed.emit()
+		else:
+			contract_accepted.emit(offered_reward)
 
 func _on_reject() -> void:
 	visible = false
 	if current_mode == "CANCEL_WARNING":
 		cancel_aborted.emit()
 	else:
-		contract_rejected.emit()
+		if current_mode == "LOAN_SHARK":
+			GameManager.shark_declined = true
+			call_closed.emit()
+		else:
+			contract_rejected.emit()
+	
+	
 	
 func _on_close() -> void:
 	visible = false
@@ -451,33 +462,3 @@ func start_loan_shark_call() -> void:
 	btn_reject.visible = true
 
 	_type_next_char(false)
-
-func _on_accept_pressed() -> void:
-	if current_mode == "PROPOSAL":
-		contract_accepted.emit(offered_reward)
-		visible = false
-		call_closed.emit()
-	elif current_mode == "FISCAL":
-		fiscal_choice_made.emit(true, offered_reward) 
-		visible = false
-		call_closed.emit()
-	elif current_mode == "LOAN_SHARK":
-		if GameManager.has_method("accept_loan_shark"):
-			GameManager.accept_loan_shark()
-		visible = false
-		call_closed.emit()
-
-func _on_reject_pressed() -> void:
-	if current_mode == "PROPOSAL":
-		contract_rejected.emit()
-		visible = false
-		call_closed.emit()
-	elif current_mode == "FISCAL":
-		fiscal_choice_made.emit(false, offered_reward) 
-		visible = false
-		call_closed.emit()
-	elif current_mode == "LOAN_SHARK":
-		if GameManager.has_method("reject_loan_shark"):
-			GameManager.reject_loan_shark()
-		visible = false
-		call_closed.emit()
