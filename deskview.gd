@@ -511,11 +511,12 @@ func _setup_ui() -> void:
 	dial_rect.gui_input.connect(_on_dial_gui_input)
 	phone_rect.add_child(dial_rect)
 	
-		# --- LINHA INFERIOR (Calendário) ---
 
+	# --- LINHA INFERIOR (Calendário) ---
 	calendar_rect = ColorRect.new()
 	calendar_rect.color = Color(0.9, 0.9, 0.9)
-	calendar_rect.size = Vector2(220, 160)
+	# Aumentado para 220x280 para caber todos os 31 dias + título
+	calendar_rect.size = Vector2(220, 280) 
 	calendar_rect.position = Vector2(1150, 520)
 	ui_layer.add_child(calendar_rect)
 	_make_draggable(calendar_rect, "panel")
@@ -2240,7 +2241,8 @@ func _update_calendar() -> void:
 	grid.add_theme_constant_override("v_separation", 8)
 	calendar_rect.add_child(grid)
 	
-	for i in range(1, 16): 
+	# Loop corrigido para 31 dias (range 1 até 32)
+	for i in range(1, 32): 
 		var day_box = ColorRect.new()
 		day_box.custom_minimum_size = Vector2(32, 24)
 		day_box.color = Color.WHITE if i != GameManager.current_day else Color(0.9, 0.4, 0.4)
@@ -2275,8 +2277,6 @@ func _update_calendar() -> void:
 			day_box.add_child(ex)
 			
 		grid.add_child(day_box)
-
-
 
 func _spawn_shark_paper() -> void:
 	var paper = ColorRect.new()
