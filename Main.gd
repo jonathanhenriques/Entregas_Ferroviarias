@@ -8,6 +8,8 @@ var lbl_hud_money: Label
 
 var map_node: Node2D
 var desk_node: Node2D
+var inspection_node: Node2D # <--- ADICIONE ESTA LINHA
+
 
 var game_over_layer: CanvasLayer
 var lbl_game_over: Label
@@ -39,9 +41,11 @@ var letter_fast_forward: bool = false
 func _ready() -> void:
 	map_node = $MapView
 	desk_node = $DeskView
+	inspection_node = $InspectionDesk # <--- ADICIONE ESTA LINHA
 	
 	map_node.visible = false
 	desk_node.visible = false
+	inspection_node.visible = false # <--- ADICIONE ESTA LINHA
 		
 	_setup_esc_menu()
 	_setup_main_menu()
@@ -225,15 +229,29 @@ func _on_letter_input(event: InputEvent) -> void:
 						letter_layer.visible = false
 						go_to_desk()
 
-func go_to_map() -> void:
-	desk_node.visible = false
-	map_node.visible = true
-	if is_esc_open: _toggle_esc_menu() 
-
 func go_to_desk() -> void:
+	if map_node: map_node.visible = false
+	if inspection_node: inspection_node.visible = false
+	if desk_node: desk_node.visible = true
+	
+	if has_method("_toggle_esc_menu") and get("is_esc_open"): 
+		call("_toggle_esc_menu")
+
+func go_to_map() -> void:
+	if desk_node: desk_node.visible = false
+	if inspection_node: inspection_node.visible = false
+	if map_node: map_node.visible = true
+	
+	if has_method("_toggle_esc_menu") and get("is_esc_open"): 
+		call("_toggle_esc_menu")
+
+func go_to_inspection() -> void:
 	map_node.visible = false
-	desk_node.visible = true
+	desk_node.visible = false
+	inspection_node.visible = true
 	if is_esc_open: _toggle_esc_menu()
+
+
 
 func _unhandled_input(event: InputEvent) -> void:
 	if menu_layer.visible or letter_layer.visible: return

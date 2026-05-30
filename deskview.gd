@@ -190,6 +190,13 @@ func _setup_ui() -> void:
 	btn_organize.size = Vector2(150, 40)
 	btn_organize.pressed.connect(_on_organize_pressed)
 	ui_layer.add_child(btn_organize)
+	
+	var btn_go_inspection = Button.new()
+	btn_go_inspection.text = "Ir para a Triagem ->"
+	btn_go_inspection.position = Vector2(1650, 40)
+	btn_go_inspection.size = Vector2(230, 40)
+	btn_go_inspection.pressed.connect(_on_go_inspection_pressed)
+	ui_layer.add_child(btn_go_inspection)
 
 	diretrizes_rect = ColorRect.new()
 	diretrizes_rect.color = Color(0.6, 0.15, 0.15) 
@@ -2325,3 +2332,9 @@ func _spawn_shark_paper() -> void:
 	_make_draggable(paper, "paper")
 	ui_layer.add_child(paper)
 	spawned_papers.append(paper)
+
+
+func _on_go_inspection_pressed() -> void:
+	var main_node = get_parent()
+	if main_node.has_method("go_to_inspection"):
+		main_node.go_to_inspection()
