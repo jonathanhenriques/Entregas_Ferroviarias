@@ -10,6 +10,8 @@ signal game_over(is_victory: bool, message: String)
 # SINAIS DA TRIAGEM
 signal package_queue_updated(count: int)
 signal strike_received(total_strikes: int, reason: String)
+signal shift_ended()
+
 
 var pending_fiscal_event: Dictionary = {}
 var current_level: int = 1
@@ -138,7 +140,7 @@ func _process(delta: float) -> void:
 			pending_boss_package_call = true
 			
 		if boss_package_intro_done and not shift_active and packages_generated_today == 0:
-			shift_time_left = 120.0 + (get_daily_package_limit() * 10.0) 
+			shift_time_left = 180.0 
 			shift_active = true
 			for i in range(get_daily_package_limit()):
 				_generate_package()
@@ -148,11 +150,15 @@ func _process(delta: float) -> void:
 			shift_time_left -= delta
 			if shift_time_left <= 0:
 				shift_active = false
+				shift_time_left = 0.0
+				shift_ended.emit()
+				
 				if package_queue.size() > 0:
 					if has_method("add_strike"): 
-						add_strike("O trem partiu e " + str(package_queue.size()) + " encomendas ficaram na plataforma!")
-					# Removido o package_queue.clear() que apagava as encomendas no meio do dia
+						add_strike("O relógio bateu zero e " + str(package_queue.size()) + " encomendas ficaram atrasadas na plataforma!")
 					package_queue_updated.emit(package_queue.size())
+
+
 
 func end_day(upfront_income: int = 0) -> void:
 	money += upfront_income
@@ -370,17 +376,19 @@ func _generate_package() -> void:
 		item = "Malote de Cartas"
 		base_weight = randf_range(0.1, 1.5)
 		true_stamp = "Selo Branco"
-	elif cat == "Perecivel":
-		item = ["Carne Fresca", "Leite Pasteurizado"].pick_random()
-		base_weight = randf_range(10.0, 30.0)
-		true_stamp = "Selo Verde"
-	elif cat == "Valioso":
-		item = "Caixa de Joias"
-		base_weight = randf_range(2.0, 8.0)
-		true_stamp = "Selo Azul"
+	else:
+		if cat == "Perecivel":
+			item = ["Carne Fresca", "Leite Pasteurizado"].pick_random()
+			base_weight = randf_range(10.0, 30.0)
+			true_stamp = "Selo Verde"
+		else:
+			if cat == "Valioso":
+				item = "Caixa de Joias"
+				base_weight = randf_range(2.0, 8.0)
+				true_stamp = "Selo Azul"
 
 	base_weight = snapped(base_weight, 0.1)
-	var base_reward = randi_range(30, 70)
+	var base_reward = randi_range(30, 70) + int(base_weight * 1.5)
 
 	var pkg = {
 		"id": randi(),
@@ -399,21 +407,28 @@ func _generate_package() -> void:
 	}
 
 	var fraud_chance = 0.35
-	if cat == "Cartas": fraud_chance = 0.10
-	if current_day <= 3: fraud_chance = 0.0 # Sem fraude no tutorial
+	if cat == "Cartas": 
+		fraud_chance = 0.10
+	
+	if current_day <= 3: 
+		fraud_chance = 0.0 
 
 	if randf() < fraud_chance:
 		var f_type = randi() % 3
 		if f_type == 0:
 			pkg["true_weight"] = snapped(base_weight + randf_range(10.0, 40.0), 0.1) 
-		elif f_type == 1:
-			pkg["stamp_used"] = "Selo Branco" 
-		elif f_type == 2:
-			pkg["is_contraband"] = true 
-			pkg["true_weight"] = snapped(base_weight + randf_range(15.0, 25.0), 0.1)
+		else:
+			if f_type == 1:
+				pkg["stamp_used"] = "Selo Branco" 
+			else:
+				if f_type == 2:
+					pkg["is_contraband"] = true 
+					pkg["true_weight"] = snapped(base_weight + randf_range(15.0, 25.0), 0.1)
 
 	packages_generated_today += 1
 	package_queue.append(pkg)
+
+
 
 func add_strike(reason: String) -> void:
 	strikes += 1
