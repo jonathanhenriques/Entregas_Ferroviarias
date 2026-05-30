@@ -39,33 +39,7 @@ var draft_paths: Array = []
 var deleted_paths: Array = []
 var repair_tiles: Array = [] 
 
-# === VARIÁVEIS DA ESTAÇÃO DE TRIAGEM ===
-var inspection_bg: ColorRect
-var desk_bg: ColorRect 
-var lbl_queue_count: Label
-var btn_lever: Button
-var btn_xray: Button
-var scale_needle: ColorRect
-var lbl_scale_digital: Label
-var box_visual: ColorRect
-var box_stamp: ColorRect
-var box_xray_poly: Polygon2D
-var clip_content: Label
-var clip_weight: Label
-var clip_stamp: Label
-var btn_approve_pkg: Button
-var btn_reject_pkg: Button
-var lbl_strike_warning: Label
 
-var current_package: Dictionary = {}
-var is_xray_on: bool = false
-
-# === VARIÁVEIS Da esteira ===
-var clock_base: ColorRect
-var clock_hand: ColorRect
-var strike_panel: ColorRect
-var strike_lights: Array = []
-var rules_bg: ColorRect
 
 var panel_overlay: ColorRect
 
@@ -111,11 +85,10 @@ func _ready() -> void:
 	_update_network_status()
 	
 	visibility_changed.connect(_on_visibility_changed)
-	GameManager.package_queue_updated.connect(_on_queue_updated)
-	GameManager.strike_received.connect(_on_strike_received)
-	
-	_on_queue_updated(GameManager.package_queue.size())
 	_update_status_panel()
+
+
+
 
 func _validate_saved_routes() -> void:
 	var valid_routes = []
@@ -146,10 +119,8 @@ func _on_visibility_changed() -> void:
 			btn_edit_mode.text = "[ MODO OBRAS ]"
 			btn_edit_mode.disabled = false
 			btn_edit_mode.add_theme_color_override("font_color", Color.YELLOW)
-			
-		if GameManager.pendent_strike_warning != "":
-			_show_strike_warning(GameManager.pendent_strike_warning)
-			GameManager.pendent_strike_warning = ""
+
+
 
 func _check_disasters() -> void:
 	if not GameManager.pending_disaster_check: return
@@ -235,429 +206,42 @@ func _setup_ui() -> void:
 	add_child(ui_layer)
 
 	var map_limit_x = grid_width * TILE_SIZE 
-	var right_panel_width = 1920 - map_limit_x 
+	var right_center_x = map_limit_x + ((1920 - map_limit_x) / 2.0)
 	
-	inspection_bg = ColorRect.new()
-	inspection_bg.color = Color(0.12, 0.14, 0.16)
-	inspection_bg.size = Vector2(right_panel_width, 1080)
-	inspection_bg.position = Vector2(map_limit_x, 0)
-	ui_layer.add_child(inspection_bg)
-	
-	var insp_border = ReferenceRect.new()
-	insp_border.set_anchors_preset(Control.PRESET_FULL_RECT)
-	insp_border.border_color = Color(0.3, 0.3, 0.35)
-	insp_border.border_width = 4
-	inspection_bg.add_child(insp_border)
-
-	# --- NOVO PAINEL DE MULTAS ---
-	strike_panel = ColorRect.new()
-	strike_panel.color = Color(0.15, 0.15, 0.18)
-	strike_panel.size = Vector2(200, 60)
-	strike_panel.position = Vector2(20, 20)
-	inspection_bg.add_child(strike_panel)
-
-	var strike_border = ReferenceRect.new()
-	strike_border.set_anchors_preset(Control.PRESET_FULL_RECT)
-	strike_border.border_color = Color(0.3, 0.3, 0.3)
-	strike_border.border_width = 3
-	strike_panel.add_child(strike_border)
-
-	strike_lights.clear()
-	for i in range(3):
-		var light = ColorRect.new()
-		light.color = Color(0.3, 0.3, 0.1) 
-		light.size = Vector2(20, 20)
-		light.position = Vector2(15 + (i * 30), 20)
-		strike_panel.add_child(light)
-		strike_lights.append(light)
-
-	var lbl_multa = Label.new()
-	lbl_multa.text = "= MULTA"
-	lbl_multa.add_theme_color_override("font_color", Color.WHITE)
-	lbl_multa.add_theme_font_size_override("font_size", 16)
-	lbl_multa.position = Vector2(115, 20)
-	strike_panel.add_child(lbl_multa)
-	
-	lbl_queue_count = Label.new()
-	lbl_queue_count.text = "FILA: 0 ENCOMENDAS"
-	lbl_queue_count.add_theme_font_size_override("font_size", 16)
-	lbl_queue_count.add_theme_color_override("font_color", Color(0.8, 0.8, 0.3))
-	lbl_queue_count.position = Vector2(25, 100)
-	inspection_bg.add_child(lbl_queue_count)
-
-	# --- RELÓGIO ANALÓGICO E CONTADORES ---
-	clock_base = ColorRect.new()
-	clock_base.color = Color(0.85, 0.85, 0.85)
-	clock_base.size = Vector2(80, 80)
-	clock_base.position = Vector2(480, 20)
-	inspection_bg.add_child(clock_base)
-
-	var clock_border = ReferenceRect.new()
-	clock_border.set_anchors_preset(Control.PRESET_FULL_RECT)
-	clock_border.border_color = Color(0.2, 0.2, 0.2)
-	clock_border.border_width = 4
-	clock_base.add_child(clock_border)
-
-	var clock_center = Vector2(40, 40)
-	for i in range(12):
-		var angle = i * (PI / 6.0)
-		var tick = ColorRect.new()
-		tick.color = Color.BLACK
-		if i % 3 == 0:
-			tick.size = Vector2(4, 10)
-			tick.pivot_offset = Vector2(2, 5)
-		else:
-			tick.size = Vector2(2, 6)
-			tick.pivot_offset = Vector2(1, 3)
-		tick.position = (clock_center + Vector2(sin(angle), -cos(angle)) * 35) - tick.pivot_offset
-		tick.rotation = angle
-		clock_base.add_child(tick)
-
-	clock_hand = ColorRect.new()
-	clock_hand.color = Color.RED
-	clock_hand.size = Vector2(4, 35)
-	clock_hand.pivot_offset = Vector2(2, 30)
-	clock_hand.position = clock_center - Vector2(2, 30)
-	clock_base.add_child(clock_hand)
-
-	lbl_timer = Label.new()
-	lbl_timer.text = "PARTIDA EM: 00:00"
-	lbl_timer.add_theme_font_size_override("font_size", 18)
-	lbl_timer.add_theme_color_override("font_color", Color(0.9, 0.2, 0.2))
-	lbl_timer.position = Vector2(450, 110)
-	inspection_bg.add_child(lbl_timer)
-	
-	
-
-	var scale_base = ColorRect.new()
-	scale_base.color = Color(0.7, 0.75, 0.7)
-	scale_base.size = Vector2(160, 130)
-	scale_base.position = Vector2(240, 10)
-	inspection_bg.add_child(scale_base)
-	
-	var scale_circle = ColorRect.new() 
-	scale_circle.color = Color(0.9, 0.9, 0.9)
-	scale_circle.size = Vector2(140, 110)
-	scale_circle.position = Vector2(10, 10)
-	scale_base.add_child(scale_circle)
-	
-	var scale_center = Vector2(70, 70)
-	for i in range(11):
-		var angle = lerp(-PI * 0.8, PI * 0.8, i / 10.0)
-		var tick = ColorRect.new()
-		tick.color = Color.BLACK
-		tick.size = Vector2(4, 10)
-		tick.pivot_offset = Vector2(2, 5)
-		tick.position = (scale_center + Vector2(sin(angle), -cos(angle)) * 50) - tick.pivot_offset
-		tick.rotation = angle
-		scale_circle.add_child(tick)
-
-	scale_needle = ColorRect.new()
-	scale_needle.color = Color(0.8, 0.1, 0.1)
-	scale_needle.size = Vector2(4, 60)
-	scale_needle.pivot_offset = Vector2(2, 50)
-	scale_needle.position = scale_center - Vector2(2, 50)
-	scale_needle.rotation = -PI * 0.8
-	scale_circle.add_child(scale_needle)
-	
-	lbl_scale_digital = Label.new()
-	lbl_scale_digital.text = "0.0 kg"
-	lbl_scale_digital.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl_scale_digital.add_theme_color_override("font_color", Color.BLACK)
-	lbl_scale_digital.position = Vector2(0, 80)
-	lbl_scale_digital.size = Vector2(140, 30)
-	scale_circle.add_child(lbl_scale_digital)
-
-	var conveyor = ColorRect.new()
-	conveyor.color = Color(0.10, 0.11, 0.12)
-	conveyor.size = Vector2(640, 160)
-	conveyor.position = Vector2(0, 150)
-	inspection_bg.add_child(conveyor)
-	
-	for i in range(15):
-		var roller = ColorRect.new()
-		roller.color = Color(0.2, 0.22, 0.25)
-		roller.size = Vector2(10, 160)
-		roller.position = Vector2(i * 45, 0)
-		conveyor.add_child(roller)
-
-	box_visual = ColorRect.new()
-	box_visual.size = Vector2(140, 120)
-	box_visual.position = Vector2(-200, 170) 
-	box_visual.visible = false
-	inspection_bg.add_child(box_visual)
-	
-	box_stamp = ColorRect.new()
-	box_stamp.size = Vector2(30, 30)
-	box_stamp.position = Vector2(90, 20)
-	box_visual.add_child(box_stamp)
-	
-	box_xray_poly = Polygon2D.new()
-	box_xray_poly.color = Color(0.05, 0.2, 0.05, 0.9)
-	box_xray_poly.visible = false
-	box_visual.add_child(box_xray_poly)
-
-	var scanner_arch = ColorRect.new()
-	scanner_arch.color = Color(0.12, 0.12, 0.15, 0.85)
-	scanner_arch.size = Vector2(180, 200)
-	scanner_arch.position = Vector2(230, 130)
-	inspection_bg.add_child(scanner_arch)
-
-	lbl_strike_warning = Label.new()
-	lbl_strike_warning.add_theme_color_override("font_color", Color.RED)
-	lbl_strike_warning.add_theme_font_size_override("font_size", 18)
-	lbl_strike_warning.size = Vector2(600, 40)
-	lbl_strike_warning.position = Vector2(20, 320)
-	lbl_strike_warning.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl_strike_warning.visible = false
-	inspection_bg.add_child(lbl_strike_warning)
-
-	desk_bg = ColorRect.new()
-	desk_bg.color = Color(0.4, 0.28, 0.2) 
-	desk_bg.size = Vector2(right_panel_width, 730)
-	desk_bg.position = Vector2(0, 350)
-	inspection_bg.add_child(desk_bg)
-	
-	var desk_border = ReferenceRect.new()
-	desk_border.set_anchors_preset(Control.PRESET_FULL_RECT)
-	desk_border.border_color = Color(0.2, 0.1, 0.05)
-	desk_border.border_width = 8
-	desk_bg.add_child(desk_border)
-	
-	#Base dos botoes de encomenda
-	var control_panel = ColorRect.new()
-	control_panel.color = Color(0.2, 0.22, 0.25)
-	control_panel.size = Vector2(620, 205)
-	control_panel.position = Vector2(10, 10)
-	desk_bg.add_child(control_panel)
-	
-	# nao sei o que é
-	var cp_border = ReferenceRect.new()
-	cp_border.set_anchors_preset(Control.PRESET_FULL_RECT)
-	cp_border.border_color = Color(0.1, 0.1, 0.12)
-	cp_border.border_width = 4
-	control_panel.add_child(cp_border)
-	
-	#parafusos da base dos botoes
-	for pos in [Vector2(10, 10), Vector2(600, 10), Vector2(10, 185), Vector2(600, 185)]:
-		var screw = ColorRect.new()
-		screw.color = Color(0.05, 0.05, 0.05)
-		screw.size = Vector2(10, 10)
-		screw.position = pos
-		control_panel.add_child(screw)
-
-	var base_style = StyleBoxFlat.new()
-	base_style.border_width_left = 4
-	base_style.border_width_right = 4
-	base_style.border_width_top = 4
-	base_style.border_width_bottom = 12
-	base_style.border_color = Color(0.65, 0.65, 0.7) 
-	base_style.corner_radius_top_left = 35
-	base_style.corner_radius_top_right = 35
-	base_style.corner_radius_bottom_left = 35
-	base_style.corner_radius_bottom_right = 35
-	base_style.shadow_color = Color(0, 0, 0, 0.6)
-	base_style.shadow_size = 4
-	base_style.shadow_offset = Vector2(0, 4)
-
-	var pressed_style = base_style.duplicate()
-	pressed_style.border_width_bottom = 4
-	pressed_style.border_color = Color(0.5, 0.5, 0.55)
-	pressed_style.shadow_offset = Vector2(0, 1)
-	
-	var disabled_style = base_style.duplicate()
-	disabled_style.bg_color = Color(0.25, 0.25, 0.25)
-	disabled_style.border_color = Color(0.4, 0.4, 0.4)
-	disabled_style.border_width_bottom = 4
-	disabled_style.shadow_size = 0
-	disabled_style.shadow_offset = Vector2(0, 0)
-
-	btn_lever = Button.new()
-	btn_lever.text = "CHAMAR ENCOMENDA"
-	btn_lever.size = Vector2(220, 70)
-	btn_lever.position = Vector2(30, 30)
-	var btn_lever_normal = base_style.duplicate()
-	btn_lever_normal.bg_color = Color(0.8, 0.5, 0.1) 
-	var btn_lever_pressed = pressed_style.duplicate()
-	btn_lever_pressed.bg_color = Color(0.6, 0.35, 0.05)
-	btn_lever.add_theme_stylebox_override("normal", btn_lever_normal)
-	btn_lever.add_theme_stylebox_override("pressed", btn_lever_pressed)
-	btn_lever.add_theme_stylebox_override("disabled", disabled_style)
-	btn_lever.add_theme_color_override("font_color", Color.WHITE)
-	btn_lever.add_theme_color_override("font_outline_color", Color(0.2, 0.1, 0.0))
-	btn_lever.add_theme_constant_override("outline_size", 4)
-	btn_lever.pressed.connect(_on_btn_lever_pressed)
-	desk_bg.add_child(btn_lever)
-
-	btn_xray = Button.new()
-	btn_xray.text = "LIGAR RAIO-X\n(Custo: $15)"
-	btn_xray.size = Vector2(220, 70)
-	btn_xray.position = Vector2(400, 30)
-	var btn_xray_normal = base_style.duplicate()
-	btn_xray_normal.bg_color = Color(0.2, 0.45, 0.8) 
-	var btn_xray_pressed = pressed_style.duplicate()
-	btn_xray_pressed.bg_color = Color(0.1, 0.3, 0.6)
-	btn_xray.add_theme_stylebox_override("normal", btn_xray_normal)
-	btn_xray.add_theme_stylebox_override("pressed", btn_xray_pressed)
-	btn_xray.add_theme_stylebox_override("disabled", disabled_style)
-	btn_xray.add_theme_color_override("font_color", Color.WHITE)
-	btn_xray.add_theme_color_override("font_outline_color", Color(0.05, 0.1, 0.2))
-	btn_xray.add_theme_constant_override("outline_size", 4)
-	btn_xray.pressed.connect(_on_btn_xray_pressed)
-	desk_bg.add_child(btn_xray)
-
-	btn_approve_pkg = Button.new()
-	btn_approve_pkg.text = "CARREGAR NO TREM"
-	btn_approve_pkg.size = Vector2(220, 70)
-	btn_approve_pkg.position = Vector2(30, 115) 
-	var btn_app_normal = base_style.duplicate()
-	btn_app_normal.bg_color = Color(0.2, 0.65, 0.25) 
-	var btn_app_pressed = pressed_style.duplicate()
-	btn_app_pressed.bg_color = Color(0.1, 0.45, 0.15)
-	btn_approve_pkg.add_theme_stylebox_override("normal", btn_app_normal)
-	btn_approve_pkg.add_theme_stylebox_override("pressed", btn_app_pressed)
-	btn_approve_pkg.add_theme_stylebox_override("disabled", disabled_style)
-	btn_approve_pkg.add_theme_color_override("font_color", Color.WHITE)
-	btn_approve_pkg.add_theme_color_override("font_outline_color", Color(0.05, 0.2, 0.05))
-	btn_approve_pkg.add_theme_constant_override("outline_size", 4)
-	btn_approve_pkg.pressed.connect(_on_approve_pkg_pressed)
-	desk_bg.add_child(btn_approve_pkg)
-	
-	btn_reject_pkg = Button.new()
-	btn_reject_pkg.text = "DEVOLVER REMETENTE\n(Fraude)"
-	btn_reject_pkg.size = Vector2(220, 70)
-	btn_reject_pkg.position = Vector2(400, 115) 
-	var btn_rej_normal = base_style.duplicate()
-	btn_rej_normal.bg_color = Color(0.8, 0.2, 0.2) 
-	var btn_rej_pressed = pressed_style.duplicate()
-	btn_rej_pressed.bg_color = Color(0.55, 0.1, 0.1)
-	btn_reject_pkg.add_theme_stylebox_override("normal", btn_rej_normal)
-	btn_reject_pkg.add_theme_stylebox_override("pressed", btn_rej_pressed)
-	btn_reject_pkg.add_theme_stylebox_override("disabled", disabled_style)
-	btn_reject_pkg.add_theme_color_override("font_color", Color.WHITE)
-	btn_reject_pkg.add_theme_color_override("font_outline_color", Color(0.2, 0.05, 0.05))
-	btn_reject_pkg.add_theme_constant_override("outline_size", 4)
-	btn_reject_pkg.pressed.connect(_on_reject_pkg_pressed)
-	desk_bg.add_child(btn_reject_pkg)
-
-	# --- DOCUMENTO 1: MANIFESTO ---
-	var clipboard_bg = ColorRect.new()
-	clipboard_bg.color = Color(0.85, 0.8, 0.65)
-	clipboard_bg.size = Vector2(200, 380)
-	clipboard_bg.position = Vector2(10, 230) 
-	desk_bg.add_child(clipboard_bg)
-	
-	var clip_metal = ColorRect.new()
-	clip_metal.color = Color(0.4, 0.4, 0.45)
-	clip_metal.size = Vector2(100, 20)
-	clip_metal.position = Vector2(50, 5)
-	clipboard_bg.add_child(clip_metal)
-	
-	var clip_title = Label.new()
-	clip_title.text = "MANIFESTO DE CARGA"
-	clip_title.add_theme_color_override("font_color", Color.BLACK)
-	clip_title.add_theme_font_size_override("font_size", 14)
-	clip_title.position = Vector2(10, 40)
-	clipboard_bg.add_child(clip_title)
-
-	clip_content = Label.new()
-	clip_content.add_theme_color_override("font_color", Color.BLACK)
-	clip_content.position = Vector2(10, 80)
-	clipboard_bg.add_child(clip_content)
-	
-	clip_weight = Label.new()
-	clip_weight.add_theme_color_override("font_color", Color.BLACK)
-	clip_weight.position = Vector2(10, 120)
-	clipboard_bg.add_child(clip_weight)
-	
-	clip_stamp = Label.new()
-	clip_stamp.add_theme_color_override("font_color", Color.BLACK)
-	clip_stamp.position = Vector2(10, 160)
-	clipboard_bg.add_child(clip_stamp)
-
-	# --- DOCUMENTO 2: MANUAL ---
-	var manual_bg = ColorRect.new()
-	manual_bg.color = Color(0.7, 0.7, 0.8)
-	manual_bg.size = Vector2(200, 380)
-	manual_bg.position = Vector2(220, 230)
-	desk_bg.add_child(manual_bg)
-
-	var man_title = Label.new()
-	man_title.text = "MANUAL DE INSPEÇÃO"
-	man_title.add_theme_color_override("font_color", Color.BLACK)
-	man_title.position = Vector2(10, 20)
-	manual_bg.add_child(man_title)
-
-	var man_text = Label.new()
-	man_text.text = "*Selos:\n- Branco: Cartas.\n- Verde: Perecíveis.\n- Azul: Jóias.\n* Atenção ao Peso Real!\n* Use Raio-X em Jóias para\nevitar armas ocultas\nR$15 Por uso."
-	man_text.add_theme_color_override("font_color", Color.DARK_SLATE_GRAY)
-	man_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	man_text.size = Vector2(180, 300)
-	man_text.position = Vector2(10, 60)
-	manual_bg.add_child(man_text)
-
-	# --- DOCUMENTO 3: REGRAS E PUNIÇÕES (NOVO) ---
-	rules_bg = ColorRect.new()
-	rules_bg.color = Color(0.85, 0.9, 0.85)
-	rules_bg.size = Vector2(200, 380)
-	rules_bg.position = Vector2(430, 230)
-	desk_bg.add_child(rules_bg)
-
-	var rules_title = Label.new()
-	rules_title.text = "TABELA DE INFRAÇÕES"
-	rules_title.add_theme_color_override("font_color", Color.BLACK)
-	rules_title.position = Vector2(10, 20)
-	rules_bg.add_child(rules_title)
-
-	var rules_text = Label.new()
-	rules_text.text = "- 3 Advertências = Multa de $500 pelo Fiscal.\n- Omitir Raio-X em Contrabando = Multa de $1500.\n- Rejeitar carga válida resulta em Reclamações.\n- Aprovar fraude soma Advertências na hora."
-	rules_text.add_theme_color_override("font_color", Color.DARK_GREEN)
-	rules_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	rules_text.size = Vector2(180, 300)
-	rules_text.position = Vector2(10, 70)
-	rules_bg.add_child(rules_text)
-
-	# --- OVERLAYS DO MAPA ---
 	panel_overlay = ColorRect.new()
-	panel_overlay.color = Color(0, 0, 0, 0.8) 
+	panel_overlay.color = Color(0, 0, 0, 0.8)
 	panel_overlay.size = Vector2(1920 - map_limit_x, 1080)
 	panel_overlay.position = Vector2(map_limit_x, 0)
+	panel_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel_overlay.visible = false
 	ui_layer.add_child(panel_overlay)
 
-	var ui_area_width = 250
-	var btn_x = map_limit_x - ui_area_width - 20 
-	var start_y = (grid_height * TILE_SIZE) - 200 
-	
-	btn_go_desk = Button.new()
-	btn_go_desk.text = "<- Ir para o Escritório"
-	btn_go_desk.position = Vector2(btn_x, start_y)
-	btn_go_desk.size = Vector2(ui_area_width, 40)
-	btn_go_desk.pressed.connect(_on_go_desk_pressed)
-	ui_layer.add_child(btn_go_desk)
-	
 	btn_edit_mode = Button.new()
 	btn_edit_mode.text = "[ MODO OBRAS ]"
-	btn_edit_mode.position = Vector2(btn_x, start_y + 50)
-	btn_edit_mode.size = Vector2(ui_area_width, 40)
+	btn_edit_mode.position = Vector2(right_center_x - 120, 40)
+	btn_edit_mode.size = Vector2(240, 50)
 	btn_edit_mode.add_theme_color_override("font_color", Color.YELLOW)
 	btn_edit_mode.pressed.connect(_on_edit_mode_pressed)
 	ui_layer.add_child(btn_edit_mode)
 
+	btn_go_desk = Button.new()
+	btn_go_desk.text = "[ VOLTAR A MESA ]"
+	btn_go_desk.position = Vector2(right_center_x - 120, 100)
+	btn_go_desk.size = Vector2(240, 50)
+	btn_go_desk.pressed.connect(_on_go_desk_pressed)
+	ui_layer.add_child(btn_go_desk)
+
 	btn_maint = Button.new()
-	btn_maint.text = "[/!\\] Orçamento"
-	btn_maint.position = Vector2(btn_x, start_y + 100)
-	btn_maint.size = Vector2(ui_area_width, 40)
-	btn_maint.add_theme_color_override("font_color", Color.ORANGE)
+	btn_maint.text = "[ LIVRO DE MANUTENÇÃO ]"
+	btn_maint.position = Vector2(right_center_x - 120, 160)
+	btn_maint.size = Vector2(240, 50)
 	btn_maint.pressed.connect(_on_btn_maint_pressed)
 	ui_layer.add_child(btn_maint)
 
-	var right_center_x = map_limit_x + (right_panel_width / 2.0)
-
 	edit_panel = ColorRect.new()
-	edit_panel.color = Color(0.1, 0.1, 0.15, 0.95)
-	edit_panel.position = Vector2(right_center_x - 170, 200) 
-	edit_panel.size = Vector2(340, 560) 
+	edit_panel.color = Color(0.15, 0.15, 0.15, 0.95)
+	edit_panel.position = Vector2(right_center_x - 170, 200)
+	edit_panel.size = Vector2(340, 560)
 	edit_panel.visible = false
 	ui_layer.add_child(edit_panel)
 	
@@ -666,25 +250,25 @@ func _setup_ui() -> void:
 	border.border_color = Color.GOLDENROD
 	border.border_width = 3
 	edit_panel.add_child(border)
-
+	
 	edit_info = Label.new()
 	edit_info.position = Vector2(20, 20)
-	edit_info.size = Vector2(300, 460) 
+	edit_info.size = Vector2(300, 460)
 	edit_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	edit_info.add_theme_font_size_override("font_size", 15)
 	edit_panel.add_child(edit_info)
-
+	
 	btn_confirm = Button.new()
 	btn_confirm.text = "GERAR PLANTA"
-	btn_confirm.position = Vector2(20, 490) 
+	btn_confirm.position = Vector2(20, 490)
 	btn_confirm.size = Vector2(145, 50)
 	btn_confirm.add_theme_color_override("font_color", Color.SKY_BLUE)
 	btn_confirm.pressed.connect(_on_confirm_edit_pressed)
 	edit_panel.add_child(btn_confirm)
-
+	
 	btn_cancel = Button.new()
 	btn_cancel.text = "DESCARTAR TUDO"
-	btn_cancel.position = Vector2(175, 490) 
+	btn_cancel.position = Vector2(175, 490)
 	btn_cancel.size = Vector2(145, 50)
 	btn_cancel.add_theme_color_override("font_color", Color.INDIAN_RED)
 	btn_cancel.pressed.connect(_on_cancel_edit_pressed)
@@ -696,290 +280,142 @@ func _setup_ui() -> void:
 	maint_panel.position = Vector2(right_center_x - 200, 250)
 	maint_panel.visible = false
 	ui_layer.add_child(maint_panel)
-
+	
 	var border_maint = ReferenceRect.new()
 	border_maint.set_anchors_preset(Control.PRESET_FULL_RECT)
 	border_maint.border_color = Color.ORANGE
 	border_maint.border_width = 3
 	maint_panel.add_child(border_maint)
-
+	
 	var lbl_mtitle = Label.new()
 	lbl_mtitle.text = "LIVRO DE MANUTENÇÃO DA MALHA"
 	lbl_mtitle.position = Vector2(20, 20)
 	lbl_mtitle.add_theme_color_override("font_color", Color.ORANGE)
 	maint_panel.add_child(lbl_mtitle)
-
+	
 	var lbl_i = Label.new()
 	lbl_i.text = "Infra Pesada (Pontes/Túneis)"
 	lbl_i.position = Vector2(20, 60)
 	maint_panel.add_child(lbl_i)
+	
 	sld_infra = HSlider.new()
 	sld_infra.position = Vector2(20, 85)
 	sld_infra.size = Vector2(180, 20)
-	sld_infra.min_value = 0
 	sld_infra.max_value = 100
-	sld_infra.step = 5
+	sld_infra.value = 100
 	sld_infra.value_changed.connect(_on_sld_infra_changed)
 	maint_panel.add_child(sld_infra)
+	
 	lbl_infra_val = Label.new()
-	lbl_infra_val.position = Vector2(210, 82)
+	lbl_infra_val.position = Vector2(210, 85)
 	maint_panel.add_child(lbl_infra_val)
-
+	
 	var lbl_t = Label.new()
-	lbl_t.text = "Trilhos (Velocidade/Quebras)"
-	lbl_t.position = Vector2(20, 115)
+	lbl_t.text = "Trilhos e Dormentes"
+	lbl_t.position = Vector2(20, 110)
 	maint_panel.add_child(lbl_t)
+	
 	sld_tracks = HSlider.new()
-	sld_tracks.position = Vector2(20, 140)
+	sld_tracks.position = Vector2(20, 135)
 	sld_tracks.size = Vector2(180, 20)
-	sld_tracks.min_value = 0
 	sld_tracks.max_value = 100
-	sld_tracks.step = 5
+	sld_tracks.value = 100
 	sld_tracks.value_changed.connect(_on_sld_tracks_changed)
 	maint_panel.add_child(sld_tracks)
+	
 	lbl_tracks_val = Label.new()
-	lbl_tracks_val.position = Vector2(210, 137)
+	lbl_tracks_val.position = Vector2(210, 135)
 	maint_panel.add_child(lbl_tracks_val)
-
+	
 	var lbl_e = Label.new()
-	lbl_e.text = "Controle Ambiental (Incêndios)"
-	lbl_e.position = Vector2(20, 170)
+	lbl_e.text = "Conservação Ambiental"
+	lbl_e.position = Vector2(20, 160)
 	maint_panel.add_child(lbl_e)
+	
 	sld_env = HSlider.new()
-	sld_env.position = Vector2(20, 195)
+	sld_env.position = Vector2(20, 185)
 	sld_env.size = Vector2(180, 20)
-	sld_env.min_value = 0
 	sld_env.max_value = 100
-	sld_env.step = 5
+	sld_env.value = 100
 	sld_env.value_changed.connect(_on_sld_env_changed)
 	maint_panel.add_child(sld_env)
+	
 	lbl_env_val = Label.new()
-	lbl_env_val.position = Vector2(210, 192)
+	lbl_env_val.position = Vector2(210, 185)
 	maint_panel.add_child(lbl_env_val)
-
+	
 	var lbl_s = Label.new()
-	lbl_s.text = "Segurança (Patrulha de Gangues)"
-	lbl_s.position = Vector2(20, 225)
+	lbl_s.text = "Segurança Privada (Antigangues)"
+	lbl_s.position = Vector2(20, 220)
 	maint_panel.add_child(lbl_s)
+	
 	sld_sec = HSlider.new()
-	sld_sec.position = Vector2(20, 250)
+	sld_sec.position = Vector2(20, 245)
 	sld_sec.size = Vector2(180, 20)
-	sld_sec.min_value = 0
 	sld_sec.max_value = 100
-	sld_sec.step = 5
+	sld_sec.value = 100
 	sld_sec.value_changed.connect(_on_sld_sec_changed)
 	maint_panel.add_child(sld_sec)
+	
 	lbl_sec_val = Label.new()
-	lbl_sec_val.position = Vector2(210, 247)
+	lbl_sec_val.position = Vector2(210, 245)
 	maint_panel.add_child(lbl_sec_val)
-
+	
 	var lbl_c = Label.new()
-	lbl_c.text = "Salários da Equipe"
-	lbl_c.position = Vector2(20, 280)
+	lbl_c.text = "Folha de Pagamento (Equipe)"
+	lbl_c.position = Vector2(20, 270)
 	maint_panel.add_child(lbl_c)
+	
 	sld_crew = HSlider.new()
-	sld_crew.position = Vector2(20, 305)
+	sld_crew.position = Vector2(20, 295)
 	sld_crew.size = Vector2(180, 20)
-	sld_crew.min_value = 0
 	sld_crew.max_value = 100
-	sld_crew.step = 5
+	sld_crew.value = 100
 	sld_crew.value_changed.connect(_on_sld_crew_changed)
 	maint_panel.add_child(sld_crew)
+	
 	lbl_crew_val = Label.new()
-	lbl_crew_val.position = Vector2(210, 302)
+	lbl_crew_val.position = Vector2(210, 295)
 	maint_panel.add_child(lbl_crew_val)
-
+	
 	var lbl_l = Label.new()
-	lbl_l.text = "Relações Governamentais (Lobby)"
-	lbl_l.position = Vector2(20, 335)
+	lbl_l.text = "Lobby Governamental (Fiscais)"
+	lbl_l.position = Vector2(20, 320)
 	maint_panel.add_child(lbl_l)
+	
 	sld_lobby = HSlider.new()
-	sld_lobby.position = Vector2(20, 360)
+	sld_lobby.position = Vector2(20, 345)
 	sld_lobby.size = Vector2(180, 20)
-	sld_lobby.min_value = 0
 	sld_lobby.max_value = 100
-	sld_lobby.step = 5
+	sld_lobby.value = 100
 	sld_lobby.value_changed.connect(_on_sld_lobby_changed)
 	maint_panel.add_child(sld_lobby)
+	
 	lbl_lobby_val = Label.new()
-	lbl_lobby_val.position = Vector2(210, 357)
+	lbl_lobby_val.position = Vector2(210, 345)
 	maint_panel.add_child(lbl_lobby_val)
-
+	
 	btn_close_maint = Button.new()
 	btn_close_maint.text = "FECHAR LIVRO"
-	btn_close_maint.position = Vector2(20, 400)
+	btn_close_maint.position = Vector2(20, 390)
 	btn_close_maint.size = Vector2(360, 40)
-	btn_close_maint.pressed.connect(_on_btn_close_maint_pressed)
+	btn_close_maint.add_theme_color_override("font_color", Color.ORANGE)
+	btn_close_maint.pressed.connect(_on_btn_maint_pressed)
 	maint_panel.add_child(btn_close_maint)
 
-	_clear_inspection_desk()
-	_setup_map_legend()
 
 
 
 
 
-func _on_queue_updated(count: int) -> void:
-	lbl_queue_count.text = "FILA: " + str(count) + " ENCOMENDAS"
-	if count > 0 and current_package.is_empty():
-		btn_lever.disabled = false
-	else:
-		btn_lever.disabled = true
-
-func _on_btn_lever_pressed() -> void:
-	if not current_package.is_empty() or GameManager.package_queue.size() == 0: return
-	
-	btn_lever.disabled = true
-	current_package = GameManager.package_queue.pop_front()
-	GameManager.package_queue_updated.emit(GameManager.package_queue.size())
-	
-	is_xray_on = false
-	box_visual.color = Color(0.7, 0.55, 0.4) 
-	box_xray_poly.visible = false
-	btn_xray.disabled = false
-	
-	clip_content.text = "Declarado:\n" + current_package["declared_item"]
-	clip_weight.text = "\nPeso Decl.: " + str(current_package["declared_weight"]) + " kg"
-	clip_stamp.text = "\nSelo: " + current_package["stamp_used"]
-	
-	if current_package["stamp_used"] == "Selo Branco": 
-		box_stamp.color = Color.WHITE
-	else:
-		if current_package["stamp_used"] == "Selo Verde": 
-			box_stamp.color = Color(0.2, 0.8, 0.2)
-		else:
-			if current_package["stamp_used"] == "Selo Azul": 
-				box_stamp.color = Color(0.2, 0.2, 0.8)
-	
-	# Animação HORIZONTAL: Surge da esquerda (-200, 170) para o meio (250, 170)
-	box_visual.position = Vector2(-200, 170)
-	box_visual.visible = true
-	var tw = create_tween()
-	tw.tween_property(box_visual, "position", Vector2(250, 170), 0.5).set_ease(Tween.EASE_OUT)
-	
-	var target_w = current_package["true_weight"]
-	var angle = lerp(-PI * 0.8, PI * 0.8, clamp(target_w / 50.0, 0.0, 1.0))
-	tw.parallel().tween_property(scale_needle, "rotation", angle, 0.5).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
-	
-	await tw.finished
-	lbl_scale_digital.text = str(target_w) + " kg"
-	btn_approve_pkg.disabled = false
-	btn_reject_pkg.disabled = false
-
-func _on_btn_xray_pressed() -> void:
-	if current_package.is_empty() or is_xray_on or GameManager.money < 15: return
-	
-	GameManager.money -= 15
-	is_xray_on = true
-	btn_xray.disabled = true
-	
-	box_visual.color = Color(0.1, 0.8, 0.2, 0.85) 
-	box_stamp.color = Color.TRANSPARENT 
-	
-	var points = PackedVector2Array()
-	if current_package.get("is_contraband", false):
-		# Silhueta de armas
-		points = PackedVector2Array([Vector2(20, 60), Vector2(80, 60), Vector2(80, 50), Vector2(120, 50), Vector2(120, 60), Vector2(140, 60), Vector2(140, 70), Vector2(60, 70), Vector2(40, 90), Vector2(20, 90)])
-	else:
-		if current_package.get("true_category", "") == "Cartas":
-			# Silhueta de envelopes
-			points = PackedVector2Array([Vector2(30, 50), Vector2(110, 50), Vector2(110, 90), Vector2(30, 90)])
-		else:
-			if current_package.get("true_category", "") == "Perecivel": 
-				# Silhueta de garrafas/carne
-				points = PackedVector2Array([Vector2(60, 30), Vector2(80, 30), Vector2(80, 60), Vector2(100, 80), Vector2(100, 110), Vector2(40, 110), Vector2(40, 80), Vector2(60, 60)])
-			else:
-				if current_package.get("true_category", "") == "Valioso": 
-					# Silhueta joias
-					points = PackedVector2Array([Vector2(70, 40), Vector2(100, 70), Vector2(70, 100), Vector2(40, 70)])
-		
-	box_xray_poly.polygon = points
-	box_xray_poly.visible = true
-
-func _on_approve_pkg_pressed() -> void:
-	_process_decision(true)
-
-func _on_reject_pkg_pressed() -> void:
-	_process_decision(false)
-
-func _process_decision(approved: bool) -> void:
-	btn_approve_pkg.disabled = true
-	btn_reject_pkg.disabled = true
-	btn_xray.disabled = true
-	
-	var is_fraud = current_package.get("is_contraband", false) or current_package["true_weight"] != current_package["declared_weight"] or current_package["stamp_used"] != current_package["true_stamp"]
-
-	if approved:
-		if current_package.get("is_contraband", false):
-			if not GameManager.first_fiscal_warning_done:
-				GameManager.first_fiscal_warning_done = true
-				GameManager.pendent_strike_warning = "AVISO OFICIAL: Aprovou carga ilegal. Como é a primeira vez, a multa foi perdoada. Cuidado!"
-				_show_strike_warning(GameManager.pendent_strike_warning)
-			else:
-				var fine = 1500
-				GameManager.pending_fiscal_event = {
-					"reason": "CONTRABANDO: O seu posto aprovou carga ilegal oculta! O Raio-X deveria ter sido usado!",
-					"fine": fine,
-					"can_bribe": (GameManager.maint_pct_lobby >= 0.7),
-					"bribe_cost": int(fine * 0.15),
-					"contract_name": "Remetente Avulso"
-				}
-		else:
-			if is_fraud:
-				if not GameManager.first_fiscal_warning_done:
-					GameManager.first_fiscal_warning_done = true
-					GameManager.pendent_strike_warning = "AVISO OFICIAL: Aprovou carga com peso ou selo fraudado. A coima foi perdoada desta vez!"
-					_show_strike_warning(GameManager.pendent_strike_warning)
-				else:
-					if GameManager.has_method("add_strike"): GameManager.add_strike("Voce enviou uma carga com peso ou selo fraudado!")
-			else:
-				# NOVO CÁLCULO DE LUCRO (Recompensa - Custo do Peso Real)
-				if GameManager.has_method("process_package_approval"):
-					GameManager.process_package_approval(current_package)
-	else:
-		if not is_fraud:
-			if GameManager.has_method("add_strike"): GameManager.add_strike("Voce bloqueou uma carga valida. O cliente abriu uma queixa!")
-	
-	var tw = create_tween()
-	if approved:
-		tw.tween_property(box_visual, "position", Vector2(700, 170), 0.5) 
-	else:
-		tw.tween_property(box_visual, "position", Vector2(-200, 170), 0.5) 
-
-	await tw.finished
-	current_package = {}
-	_clear_inspection_desk()
-	_on_queue_updated(GameManager.package_queue.size())
 
 
 
-func _sync_strike_lights(total: int) -> void:
-	for i in range(3):
-		if is_instance_valid(strike_lights[i]):
-			if i < total:
-				strike_lights[i].color = Color(0.9, 0.8, 0.1) # Luz acesa (Amarelo)
-			else:
-				strike_lights[i].color = Color(0.3, 0.3, 0.1) # Luz apagada (Escura)
 
-	if total >= 3:
-		# Reseta as luzes do painel rapidamente, já que o GameManager cobrou a multa
-		await get_tree().create_timer(2.0).timeout
-		for i in range(3):
-			if is_instance_valid(strike_lights[i]):
-				strike_lights[i].color = Color(0.3, 0.3, 0.1)
 
-func _show_strike_warning(msg: String) -> void:
-	lbl_strike_warning.text = "[!] " + msg
-	lbl_strike_warning.visible = true
-	var tw = create_tween()
-	tw.tween_property(lbl_strike_warning, "modulate:a", 0.0, 0.5).set_delay(4.0)
-	await tw.finished
-	lbl_strike_warning.visible = false
-	lbl_strike_warning.modulate.a = 1.0
 
-func _on_strike_received(total: int, reason: String) -> void:
-	_sync_strike_lights(total)
-	_show_strike_warning(reason + " (" + str(total) + "/3 Ocorrências)")
+
+
 
 
 
@@ -1361,21 +797,7 @@ func _update_edit_panel() -> void:
 # === LÓGICA DA TRIAGEM ===
 func _process(delta: float) -> void:
 	if not visible: return
-	
-	if is_instance_valid(lbl_timer):
-		if GameManager.shift_active and GameManager.boss_package_intro_done:
-			var m = int(GameManager.shift_time_left) / 60
-			var s = int(GameManager.shift_time_left) % 60
-			lbl_timer.text = "PARTIDA EM: %02d:%02d" % [m, s]
-			
-			if is_instance_valid(clock_hand):
-				# Relógio analógico dá uma volta completa a cada 60 segundos
-				clock_hand.rotation = (GameManager.shift_time_left / 60.0) * TAU
-		else:
-			lbl_timer.text = "AGUARDANDO TREM"
-			if is_instance_valid(clock_hand):
-				clock_hand.rotation = 0
-	
+
 	var needs_redraw = false
 	for i in range(GameManager.active_contracts.size()):
 		var c = GameManager.active_contracts[i]
@@ -1385,9 +807,11 @@ func _process(delta: float) -> void:
 
 		if (is_op or is_under_construction) and has_physical_route:
 			needs_redraw = true
-			if not active_trains.has(i): _spawn_train(i, c)
+			if not active_trains.has(i): 
+				_spawn_train(i, c)
 			else:
-				if is_op and not is_edit_mode: _move_train(i, delta)
+				if is_op and not is_edit_mode: 
+					_move_train(i, delta)
 		else:
 			if active_trains.has(i):
 				active_trains.erase(i)
@@ -1400,20 +824,6 @@ func _process(delta: float) -> void:
 			needs_redraw = true
 
 	if needs_redraw: queue_redraw()
-
-func _clear_inspection_desk() -> void:
-	box_visual.visible = false
-	is_xray_on = false
-	scale_needle.rotation = -PI * 0.8
-	lbl_scale_digital.text = "0.0 kg"
-	clip_content.text = "Aguardando carga..."
-	clip_weight.text = ""
-	clip_stamp.text = ""
-	btn_approve_pkg.disabled = true
-	btn_reject_pkg.disabled = true
-	btn_xray.disabled = true
-	if has_method("_sync_strike_lights"):
-		_sync_strike_lights(GameManager.strikes)
 
 
 
@@ -2003,17 +1413,16 @@ func _setup_status_panel() -> void:
 	status_panel.add_child(status_vbox)
 
 func _update_status_panel() -> void:
-	if not is_instance_valid(status_vbox): return
 	for child in status_vbox.get_children():
 		child.queue_free()
 		
-	var routes_to_check = [
+	var routes = [
 		{"id": "Azul-Vermelha", "name": "Azul <-> Vermelha"},
 		{"id": "Azul-Verde", "name": "Azul <-> Verde"},
 		{"id": "Vermelha-Verde", "name": "Vermelha <-> Verde"}
 	]
 	
-	for r in routes_to_check:
+	for r in routes:
 		var rid = r["id"]
 		var rname = r["name"]
 		var status_text = ""
@@ -2029,24 +1438,26 @@ func _update_status_panel() -> void:
 		if is_constructing:
 			status_text = "Interditada (Em Obras)"
 			color = Color.CRIMSON
-		elif is_broken:
-			status_text = "Interditada (Falha na Via)"
-			color = Color.CRIMSON
-		elif not is_built:
-			status_text = "Inexistente"
-			color = Color.DIM_GRAY
 		else:
-			var active_trains_count = 0
-			for c in GameManager.active_contracts:
-				if c["route_id"] == rid and GameManager.is_contract_operating(c):
-					active_trains_count += 1
-					
-			if active_trains_count > 0:
-				status_text = "Operacional (" + str(active_trains_count) + " Trem(s))"
-				color = Color.LIME_GREEN
+			if is_broken:
+				status_text = "Interditada (Falha na Via)"
+				color = Color.CRIMSON
 			else:
-				status_text = "Ociosa (Sem Contratos)"
-				color = Color.GOLD
+				if not is_built:
+					status_text = "Inexistente"
+					color = Color.DIM_GRAY
+				else:
+					var active_trains_count = 0
+					for c in GameManager.active_contracts:
+						if c["route_id"] == rid and GameManager.is_contract_operating(c):
+							active_trains_count += 1
+							
+					if active_trains_count > 0:
+						status_text = "Operacional (" + str(active_trains_count) + " Trem(s))"
+						color = Color.LIME_GREEN
+					else:
+						status_text = "Ociosa (Sem Contratos)"
+						color = Color.GOLD
 				
 		var hbox = HBoxContainer.new()
 		var icon = ColorRect.new()
