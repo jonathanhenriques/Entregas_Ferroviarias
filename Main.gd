@@ -1,5 +1,11 @@
 extends Node2D
 
+# === VARIÁVEIS DO HUD GLOBAL ===
+var global_hud: CanvasLayer
+var lbl_hud_day: Label
+var lbl_hud_time: Label
+var lbl_hud_money: Label
+
 var map_node: Node2D
 var desk_node: Node2D
 
@@ -45,6 +51,7 @@ func _ready() -> void:
 	GameManager.game_over.connect(_on_game_over)
 	
 	menu_layer.visible = true
+	_setup_global_hud()
 	
 	
 func _setup_game_over_ui() -> void:
@@ -328,3 +335,76 @@ func _on_game_over(is_victory: bool, message: String) -> void:
 		
 	lbl_game_over.text = message
 	game_over_layer.visible = true
+
+
+# === SISTEMA DO HUD GLOBAL (GERADO VIA CÓDIGO) ===
+func _setup_global_hud() -> void:
+	global_hud = CanvasLayer.new()
+	global_hud.layer = 100
+	add_child(global_hud)
+	
+	var panel = ColorRect.new()
+	panel.color = Color(0.05, 0.05, 0.05, 0.95)
+	panel.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	panel.custom_minimum_size = Vector2(0, 50)
+	global_hud.add_child(panel)
+	
+	var hbox = HBoxContainer.new()
+	hbox.set_anchors_preset(Control.PRESET_FULL_RECT)
+	hbox.add_theme_constant_override("separation", 150)
+	hbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	panel.add_child(hbox)
+	
+	lbl_hud_day = Label.new()
+	lbl_hud_day.add_theme_font_size_override("font_size", 24)
+	lbl_hud_day.add_theme_color_override("font_color", Color.WHITE)
+	hbox.add_child(lbl_hud_day)
+	
+	lbl_hud_time = Label.new()
+	lbl_hud_time.add_theme_font_size_override("font_size", 28)
+	lbl_hud_time.add_theme_color_override("font_color", Color.YELLOW)
+	hbox.add_child(lbl_hud_time)
+	
+	lbl_hud_money = Label.new()
+	lbl_hud_money.add_theme_font_size_override("font_size", 24)
+	lbl_hud_money.add_theme_color_override("font_color", Color.LIGHT_GREEN)
+	hbox.add_child(lbl_hud_money)
+	
+	GameManager.day_changed.connect(_on_hud_day_changed)
+	GameManager.money_changed.connect(_on_hud_money_changed)
+	
+	_on_hud_day_changed(GameManager.current_day)
+	_on_hud_money_changed(GameManager.money)
+	_update_hud_time()
+
+func _on_hud_day_changed(day: int) -> void:
+	if lbl_hud_day:
+		lbl_hud_day.text = "[ DIA " + str(day) + " ]"
+
+func _on_hud_money_changed(amount: int) -> void:
+	if lbl_hud_money:
+		lbl_hud_money.text = "[ CAIXA: $" + str(amount) + " ]"
+
+func _update_hud_time() -> void:
+	if not lbl_hud_time:
+		return
+		
+	if not GameManager.shift_active:
+		lbl_hud_time.text = "[ RELÓGIO: INATIVO ]"
+		lbl_hud_time.add_theme_color_override("font_color", Color.DIM_GRAY)
+	else:
+		var total_seconds = int(GameManager.shift_time_left)
+		var minutes = total_seconds / 60
+		var seconds = total_seconds % 60
+		var time_str = str(minutes) + ":" + str(seconds).pad_zeros(2)
+		lbl_hud_time.text = "[ RELÓGIO: " + time_str + " ]"
+		
+		if total_seconds <= 30:
+			lbl_hud_time.add_theme_color_override("font_color", Color.CRIMSON)
+		else:
+			lbl_hud_time.add_theme_color_override("font_color", Color.YELLOW)
+
+
+
+func _process(delta: float) -> void:
+	_update_hud_time()
