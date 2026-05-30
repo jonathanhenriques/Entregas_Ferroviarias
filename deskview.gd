@@ -1720,10 +1720,13 @@ func _on_blueprint_page_toggle(lbl: Label, btn: Button) -> void:
 
 func _update_report_text() -> void:
 	var inc = GameManager.get_daily_income()
-	var exp = GameManager.daily_maintenance + GameManager.BASE_COST + GameManager.daily_gang_toll + GameManager.daily_crew_cost + GameManager.daily_lobby_cost
+	var exp = GameManager.daily_maintenance + GameManager.BASE_COST + GameManager.daily_gang_toll + GameManager.daily_crew_cost + GameManager.daily_lobby_cost + GameManager.daily_parcel_train_cost
 	var net = inc - exp
 	
 	var t = "RELATÓRIO ADMINISTRATIVO\n\nDia: " + str(GameManager.current_day) + "\nCaixa: $" + str(GameManager.money) + "\n\nReceita: +$" + str(inc) + "\nManutenção da Via: -$" + str(GameManager.daily_maintenance) + "\nTaxas e Base: -$" + str(GameManager.BASE_COST)
+	
+	# NOVO: O Trem aparecendo no relatório da mesa
+	t += "\nTrem de Encomendas: -$" + str(GameManager.daily_parcel_train_cost)
 	
 	if GameManager.daily_crew_cost > 0:
 		t += "\nSalários (Equipe): -$" + str(GameManager.daily_crew_cost)
@@ -1737,7 +1740,6 @@ func _update_report_text() -> void:
 	
 	btn_next_day.disabled = false
 	btn_next_day.text = "Processar Saídas e Finalizar Dia"
-
 
 
 func _on_next_day_pressed() -> void:
@@ -2000,14 +2002,12 @@ func _start_eod_animation(new_c: int, rej_c: int, ext_c: int, bp_cost: int, shar
 	_add_eod_line("[ FINANÇAS ]", "", c_gray, false)
 	_add_eod_line("Saldo Inicial", "$" + str(GameManager.money + bp_cost), c_light, false)
 	
-	# --- NOVO: SEPARANDO AS RECEITAS EXTRAS (Contratos vs Agiota) ---
 	var contract_income = pending_upfront_income - shark_income
 	if contract_income > 0:
 		_add_eod_line("Receitas à Vista", "+$" + str(contract_income), c_green, false)
 		
 	if shark_income > 0:
 		_add_eod_line("Empréstimo (Agiota)", "+$" + str(shark_income), c_green, false)
-	# ----------------------------------------------------------------
 		
 	var inc = GameManager.get_daily_income()
 	if inc > 0:
@@ -2021,6 +2021,9 @@ func _start_eod_animation(new_c: int, rej_c: int, ext_c: int, bp_cost: int, shar
 		
 	_add_eod_line("Custos Base da Garagem", "-$" + str(GameManager.BASE_COST), c_red, false)
 	
+	# NOVO: O Trem aparecendo no Fim de Dia!
+	_add_eod_line("Trem de Encomendas", "-$" + str(GameManager.daily_parcel_train_cost), c_red, false)
+	
 	if GameManager.daily_crew_cost > 0:
 		_add_eod_line("Salários da Equipe", "-$" + str(GameManager.daily_crew_cost), c_red, false)
 	if GameManager.daily_lobby_cost > 0:
@@ -2028,16 +2031,14 @@ func _start_eod_animation(new_c: int, rej_c: int, ext_c: int, bp_cost: int, shar
 	if GameManager.daily_gang_toll > 0:
 		_add_eod_line("Extorsão (Gangues)", "-$" + str(GameManager.daily_gang_toll), c_red, false)
 		
-	# --- NOVO: A PARCELA INFERNAL DO AGIOTA ---
 	if GameManager.has_loan_shark:
 		_add_eod_line("Parcela Fixa (Agiota)", "-$150", c_red, false)
-	# ------------------------------------------
 		
 	_add_eod_line("-----------------------", "---------", c_gray, false)
 	
-	var final_money = GameManager.money + pending_upfront_income + inc - GameManager.daily_maintenance - GameManager.BASE_COST - GameManager.daily_gang_toll - GameManager.daily_crew_cost - GameManager.daily_lobby_cost
+	# NOVO: A matemática visual atualizada
+	var final_money = GameManager.money + pending_upfront_income + inc - GameManager.daily_maintenance - GameManager.BASE_COST - GameManager.daily_parcel_train_cost - GameManager.daily_gang_toll - GameManager.daily_crew_cost - GameManager.daily_lobby_cost
 	
-	# O cálculo visual final precisa descontar a parcela do agiota (já que o GameManager também vai debitar)
 	if GameManager.has_loan_shark:
 		final_money -= 150
 		
@@ -2048,7 +2049,6 @@ func _start_eod_animation(new_c: int, rej_c: int, ext_c: int, bp_cost: int, shar
 	_add_eod_line("SALDO PROJETADO", "$" + str(final_money), final_color, false)
 	
 	if GameManager.money < 0:
-		#_add_eod_line("", "", c_light, false)
 		_add_eod_line("[!] AVISO: SALDO NEGATIVO! [!] ", "", c_red, true)
 		_add_eod_line("A empresa falirá em -$2000!", "", c_red, true)
 	
@@ -2056,7 +2056,6 @@ func _start_eod_animation(new_c: int, rej_c: int, ext_c: int, bp_cost: int, shar
 		line.visible = false
 		
 	_play_eod_lines()
-
 
 
 func _play_eod_lines() -> void:

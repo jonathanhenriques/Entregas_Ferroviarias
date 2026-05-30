@@ -73,6 +73,8 @@ var daily_gang_toll: int = 0
 var daily_crew_cost: int = 0
 var daily_lobby_cost: int = 0
 
+var daily_parcel_train_cost: int = 50
+
 var active_contracts: Array = []
 const MAX_CONTRACTS: int = 3 
 const BASE_COST: int = 25 
@@ -165,6 +167,7 @@ func end_day(upfront_income: int = 0) -> void:
 	money += get_daily_income()
 	money -= daily_maintenance
 	money -= BASE_COST
+	money -= daily_parcel_train_cost # <--- O TREM DE ENCOMENDAS É COBRADO AQUI
 	money -= daily_gang_toll 
 	money -= daily_crew_cost
 	money -= daily_lobby_cost
