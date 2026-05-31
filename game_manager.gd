@@ -53,6 +53,10 @@ var pendent_strike_warning: String = ""
 var package_timer: float = 0.0
 const PACKAGE_INTERVAL: float = 20.0 
 
+# === NOVAS VARIÁVEIS LOGÍSTICAS (FROTA E ARMAZÉM) ===
+var fleet: Array = []
+var warehouse: Array = []
+
 # === NOVAS VARIÁVEIS (TUTORIAL, AGIOTA E TEMPORIZADOR) ===
 var is_first_route_built: bool = false
 var first_fiscal_warning_done: bool = false
@@ -596,6 +600,32 @@ func reset_game() -> void:
 	pending_fiscal_event.clear()
 	
 	package_queue.clear()
+	
+	# --- NOVA LÓGICA: CRIAÇÃO DA FROTA INICIAL ---
+	warehouse.clear()
+	fleet.clear()
+	
+	var trem_1 = {
+		"id": 1,
+		"name": "Expresso Regional",
+		"max_weight": 400.0,
+		"current_weight": 0.0,
+		"loaded_packages": [],
+		"route_plan": []
+	}
+	
+	var trem_2 = {
+		"id": 2,
+		"name": "Cargueiro Pesado",
+		"max_weight": 800.0,
+		"current_weight": 0.0,
+		"loaded_packages": [],
+		"route_plan": []
+	}
+	
+	fleet.append(trem_1)
+	fleet.append(trem_2)
+	# ---------------------------------------------
 	strikes = 0
 	pendent_strike_warning = ""
 	package_timer = 0.0
@@ -661,7 +691,10 @@ func save_game() -> void:
 		"broken_tiles": _vec_array_to_dict_array(broken_tiles),
 		"pending_blueprint": _serialize_blueprint(pending_blueprint),
 		"package_queue": package_queue, "strikes": strikes,
-		"pendent_strike_warning": pendent_strike_warning
+		"pendent_strike_warning": pendent_strike_warning,
+		# --- SALVANDO FROTA E ARMAZÉM ---
+		"fleet": fleet,
+		"warehouse": warehouse
 	}
 	var file = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	file.store_string(JSON.stringify(data))
@@ -716,6 +749,10 @@ func load_game() -> bool:
 		package_queue = data.get("package_queue", [])
 		strikes = data.get("strikes", 0)
 		pendent_strike_warning = data.get("pendent_strike_warning", "")
+		
+		# --- CARREGANDO FROTA E ARMAZÉM ---
+		fleet = data.get("fleet", [])
+		warehouse = data.get("warehouse", [])
 		
 		today_broken_contracts = 0
 		today_penalties = 0
