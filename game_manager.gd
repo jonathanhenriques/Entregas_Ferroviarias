@@ -63,6 +63,9 @@ var first_fiscal_warning_done: bool = false
 var shift_time_left: float = 0.0
 var shift_active: bool = false
 
+# --- NOVO: CONTROLE DE TURNOS ---
+var day_phase: int = 0 # 0 = Manhã (B2C), 1 = Escritório, 2 = Tarde (B2B), 3 = Mapa (Noite)
+
 var boss_package_intro_done: bool = false
 var pending_boss_package_call: bool = false
 var packages_generated_today: int = 0
@@ -145,7 +148,8 @@ func _process(delta: float) -> void:
 		if not boss_package_intro_done and not pending_boss_package_call:
 			pending_boss_package_call = true
 			
-		if boss_package_intro_done and not shift_active and packages_generated_today == 0:
+		# --- NOVO: O TURNO COM TEMPO SÓ INICIA NA FASE 0 (MANHÃ) ---
+		if boss_package_intro_done and not shift_active and day_phase == 0 and packages_generated_today == 0:
 			shift_time_left = 180.0 
 			shift_active = true
 			for i in range(get_daily_package_limit()):
@@ -290,14 +294,17 @@ func end_day(upfront_income: int = 0) -> void:
 	if package_queue.size() > 0:
 		pending_badger_package_warning = true
 	
-	# Removido completamente o package_queue.clear()
 	packages_generated_today = 0
 	shift_active = false
 	package_queue_updated.emit(package_queue.size())
 	
 	contracts_updated.emit()
 	current_day += 1
-	save_game() 
+	
+	# --- NOVO: REINICIA O TURNO PARA A MANHÃ NO PRÓXIMO DIA ---
+	day_phase = 0 
+	
+	save_game()
 	
 	if not is_game_ended:
 		if money <= -2000: 
