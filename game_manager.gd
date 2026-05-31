@@ -418,7 +418,9 @@ func _generate_package() -> void:
 		"stamp_used": true_stamp,
 		"days_in_queue": 0,
 		"base_reward": base_reward,
-		"reward": base_reward 
+		"reward": base_reward,
+		# --- NOVO: DESTINO DA CARGA ---
+		"destination": "Qualquer Rota" 
 	}
 
 	var fraud_chance = 0.35
@@ -499,9 +501,14 @@ func _roll_fiscal_audit() -> void:
 # FASE 1: A Nova Punição Inteligente (Custo de Frete) que ligaremos na Fase 4
 func process_package_approval(pkg: Dictionary) -> void:
 	var cost_per_kg = 0.5 # A empresa gasta 50 centavos por cada Kg real despachado
+	
+	# --- NOVO: ISENÇÃO DE TAXA POR QUILO PARA CONTRATOS B2B ---
+	if pkg.get("true_category", "") == "Lote B2B":
+		cost_per_kg = 0.0 
+	# ---------------------------------------------------------
+	
 	var net_profit = pkg["base_reward"] - (pkg["true_weight"] * cost_per_kg)
 	money += int(net_profit)
-
 
 
 func _generate_daily_generics() -> void:
@@ -528,7 +535,8 @@ func _generate_daily_generics() -> void:
 		"base_reward": randi_range(min_reward, min_reward + 80), 
 		"phone": "555-" + str(randi_range(1000, 9999)), 
 		"cargo": cg.pick_random(),
-		"weight": randi_range(500, 15000),
+		# --- NOVO: PESOS ADEQUADOS PARA A FROTA INICIAL ---
+		"weight": randi_range(100, 1000),
 		"duration": randi_range(5, 10),
 		"route_id": r["id"], 
 		"route_name": r["n"]

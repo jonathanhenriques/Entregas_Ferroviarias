@@ -73,6 +73,12 @@ var lbl_crew_val: Label
 var lbl_lobby_val: Label
 var btn_close_maint: Button
 
+# --- NOVO: PAINEL DE DESPACHO LOGÍSTICO ---
+var dispatch_panel: ColorRect
+var dispatch_vbox: VBoxContainer
+var btn_dispatch: Button
+var is_dispatching: bool = false
+
 func _ready() -> void:
 	_validate_saved_routes()
 	_generate_biomes()
@@ -110,6 +116,13 @@ func _on_visibility_changed() -> void:
 		_check_disasters()
 		_update_network_status()
 		_update_status_panel()
+		
+		# --- NOVO: MOSTRA O PAINEL DE DESPACHO À NOITE ---
+		if GameManager.day_phase == 2 and GameManager.package_queue.is_empty():
+			dispatch_panel.visible = true
+			_populate_dispatch_panel()
+		if not (GameManager.day_phase == 2 and GameManager.package_queue.is_empty()):
+			dispatch_panel.visible = false
 		
 		if not GameManager.pending_blueprint.is_empty():
 			btn_edit_mode.text = "[ PLANTA PENDENTE ]"
@@ -402,22 +415,41 @@ func _setup_ui() -> void:
 	btn_close_maint.add_theme_color_override("font_color", Color.ORANGE)
 	btn_close_maint.pressed.connect(_on_btn_maint_pressed)
 	maint_panel.add_child(btn_close_maint)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+	# --- NOVO: UI DO PAINEL DE DESPACHO ---
+	dispatch_panel = ColorRect.new()
+	dispatch_panel.color = Color(0.1, 0.15, 0.2, 0.95)
+	dispatch_panel.size = Vector2(500, 400)
+	dispatch_panel.position = Vector2(710, 100) 
+	ui_layer.add_child(dispatch_panel)
+	
+	var dp_border = ReferenceRect.new()
+	dp_border.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dp_border.border_color = Color(0.3, 0.6, 0.9)
+	dp_border.border_width = 3
+	dispatch_panel.add_child(dp_border)
+	
+	var dp_title = Label.new()
+	dp_title.text = "PLANO DE VIAGEM (DESPACHO DIÁRIO)"
+	dp_title.position = Vector2(0, 15)
+	dp_title.size = Vector2(500, 30)
+	dp_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	dispatch_panel.add_child(dp_title)
+	
+	dispatch_vbox = VBoxContainer.new()
+	dispatch_vbox.position = Vector2(20, 60)
+	dispatch_vbox.size = Vector2(460, 260)
+	dispatch_panel.add_child(dispatch_vbox)
+	
+	btn_dispatch = Button.new()
+	btn_dispatch.text = "[ INICIAR OPERAÇÃO DIÁRIA ]"
+	btn_dispatch.size = Vector2(460, 50)
+	btn_dispatch.position = Vector2(20, 330)
+	btn_dispatch.add_theme_color_override("font_color", Color.LIME_GREEN)
+	btn_dispatch.pressed.connect(_on_btn_dispatch_pressed)
+	dispatch_panel.add_child(btn_dispatch)
+	
+	dispatch_panel.visible = false
+	# --------------------------------------
 
 # === LÓGICA DO MAPA (Sem alterações) ===
 
@@ -794,37 +826,13 @@ func _update_edit_panel() -> void:
 	btn_confirm.disabled = not is_valid
 
 
-# === LÓGICA DA TRIAGEM ===
 func _process(delta: float) -> void:
 	if not visible: return
-
-	var needs_redraw = false
-	for i in range(GameManager.active_contracts.size()):
-		var c = GameManager.active_contracts[i]
-		var is_op = GameManager.is_contract_operating(c)
-		var is_under_construction = (GameManager.routes_under_construction.get(c["route_id"], 0) > 0)
-		var has_physical_route = (c["route_id"] in GameManager.network_connections)
-
-		if (is_op or is_under_construction) and has_physical_route:
-			needs_redraw = true
-			if not active_trains.has(i): 
-				_spawn_train(i, c)
-			else:
-				if is_op and not is_edit_mode: 
-					_move_train(i, delta)
-		else:
-			if active_trains.has(i):
-				active_trains.erase(i)
-				needs_redraw = true
-
-	var keys = active_trains.keys()
-	for k in keys:
-		if k >= GameManager.active_contracts.size():
-			active_trains.erase(k)
-			needs_redraw = true
-
-	if needs_redraw: queue_redraw()
-
+	
+	# --- NOVO: TRAVA DE TRANSIÇÃO FÍSICA ---
+	# O loop antigo foi removido. A lógica de movimento será feita pelo is_dispatching.
+	if is_dispatching:
+		pass # Implementaremos o percurso real no próximo passo.
 
 
 func _spawn_train(contract_index: int, contract: Dictionary) -> void:
@@ -1473,3 +1481,63 @@ func _update_status_panel() -> void:
 		hbox.add_child(icon)
 		hbox.add_child(lbl)
 		status_vbox.add_child(hbox)
+		
+		
+		
+# --- NOVO: LÓGICA DO PLANO DE VIAGEM ---
+func _populate_dispatch_panel() -> void:
+	for child in dispatch_vbox.get_children():
+		child.queue_free()
+		
+	var loaded_trains = 0
+	
+	for i in range(GameManager.fleet.size()):
+		var train = GameManager.fleet[i]
+		if train["loaded_packages"].size() > 0:
+			loaded_trains += 1
+			var hbox = HBoxContainer.new()
+			
+			var lbl = Label.new()
+			
+			# --- NOVO: LÊ O DESTINO DAS CARGAS DENTRO DO TREM ---
+			var cargo_dest = "Qualquer"
+			for pkg in train["loaded_packages"]:
+				if pkg.get("destination", "Qualquer Rota") != "Qualquer Rota":
+					cargo_dest = pkg["destination"]
+					
+			lbl.text = train["name"] + " (" + str(train["current_weight"]) + "kg)\nExige: " + cargo_dest
+			lbl.custom_minimum_size = Vector2(230, 50)
+			lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			lbl.add_theme_font_size_override("font_size", 13)
+			hbox.add_child(lbl)
+			
+			var opt = OptionButton.new()
+			opt.custom_minimum_size = Vector2(220, 40)
+			opt.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			
+			# Aqui usamos um OptionButton (Dropdown) para selecionar o trajeto daquele trem
+			opt.add_item("Azul <-> Vermelha", 0)
+			opt.add_item("Azul <-> Verde", 1)
+			opt.add_item("Vermelha <-> Verde", 2)
+			
+			hbox.add_child(opt)
+			
+			# Salvamos temporariamente o botão no trem para podermos ler a escolha depois
+			train["ui_option_button"] = opt 
+			dispatch_vbox.add_child(hbox)
+			
+	if loaded_trains == 0:
+		var lbl = Label.new()
+		lbl.text = "Nenhum trem carregado. Termine a Triagem."
+		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		dispatch_vbox.add_child(lbl)
+		btn_dispatch.disabled = true
+		
+	if loaded_trains > 0:
+		btn_dispatch.disabled = false
+
+func _on_btn_dispatch_pressed() -> void:
+	dispatch_panel.visible = false
+	is_dispatching = true
+	# O motor físico dos trens será religado na próxima etapa!
+	print("Trens Despachados. Iniciando simulação física...")

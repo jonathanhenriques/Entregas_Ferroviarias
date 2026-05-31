@@ -23,6 +23,7 @@ var btn_lever: Button
 var btn_xray: Button
 var btn_approve_pkg: Button
 var btn_reject_pkg: Button
+var btn_skip_timer: Button # NOVO
 
 # --- NOVO: UI DA FROTA ---
 var fleet_panel: ColorRect
@@ -71,6 +72,15 @@ func _setup_ui() -> void:
 	lbl_queue_count.add_theme_color_override("font_color", Color(0.8, 0.8, 0.3))
 	lbl_queue_count.position = Vector2(40, 140)
 	ui_layer.add_child(lbl_queue_count)
+	
+	# --- NOVO: BOTÃO DE ENCERRAR TURNO DA MANHÃ ---
+	btn_skip_timer = Button.new()
+	btn_skip_timer.text = "ENCERRAR TURNO Cedo"
+	btn_skip_timer.position = Vector2(40, 190)
+	btn_skip_timer.size = Vector2(250, 40)
+	btn_skip_timer.add_theme_color_override("font_color", Color.ORANGE)
+	btn_skip_timer.pressed.connect(_on_skip_timer_pressed)
+	ui_layer.add_child(btn_skip_timer)
 	
 	# Painel de Multas (Canto Superior Direito)
 	var strike_panel = ColorRect.new()
@@ -419,6 +429,12 @@ func _clear_inspection_desk() -> void:
 func _on_queue_updated(count: int) -> void:
 	lbl_queue_count.text = "FILA: " + str(count) + " ENCOMENDAS"
 	
+	# --- NOVO: VISIBILIDADE DO BOTÃO DE PULAR ---
+	if GameManager.day_phase == 0:
+		btn_skip_timer.visible = true
+	if GameManager.day_phase != 0:
+		btn_skip_timer.visible = false
+	
 	# --- NOVO: ALAVANCA FUNCIONA NA MANHÃ (COM TEMPO) OU À TARDE (B2B, SEM TEMPO) ---
 	var can_pull = false
 	if GameManager.shift_active or GameManager.day_phase == 2:
@@ -451,7 +467,8 @@ func _on_btn_lever_pressed() -> void:
 	box_xray_poly.visible = false
 	btn_xray.disabled = false
 	
-	clip_content.text = "Declarado:\n" + current_package["declared_item"]
+	# --- NOVO: MOSTRA O DESTINO NA PRANCHETA ---
+	clip_content.text = "Declarado:\n" + current_package["declared_item"] + "\n\nDestino: " + current_package.get("destination", "Qualquer")
 	clip_weight.text = "\nPeso Decl.: " + str(current_package["declared_weight"]) + " kg"
 	clip_stamp.text = "\nSelo: " + current_package["stamp_used"]
 	
@@ -644,3 +661,9 @@ func _on_dispatch_to_warehouse() -> void:
 	GameManager.warehouse.append(current_package.duplicate())
 	
 	_process_decision(true)
+
+
+# --- NOVO: PULAR TEMPO ---
+func _on_skip_timer_pressed() -> void:
+	if GameManager.shift_active:
+		GameManager.shift_time_left = 0.0

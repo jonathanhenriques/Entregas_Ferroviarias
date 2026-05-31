@@ -1512,7 +1512,8 @@ func _on_company_selected(data: Dictionary) -> void:
 	folder_title.text = "CLIENTE: " + data["name"]
 	folder_route.text = "Exige Rota: " + data["route_name"]
 	
-	if not data.has("weight"): data["weight"] = randi_range(1000, 15000)
+	# --- NOVO: LIMITA O PESO MÁXIMO DE BACKUP ---
+	if not data.has("weight"): data["weight"] = randi_range(100, 1000)
 	if not data.has("duration"): data["duration"] = randi_range(5, 10)
 	
 	std_label.text = "[ CONTRATO PADRÃO ]\n\n"
@@ -1895,7 +1896,9 @@ func _on_next_day_pressed() -> void:
 					"stamp_used": "Selo Azul",
 					"days_in_queue": 0,
 					"base_reward": reward,
-					"reward": reward 
+					"reward": reward,
+					# --- NOVO: DESTINO DA CARGA B2B ---
+					"destination": c_data.get("route_name", "Qualquer Rota")
 				}
 				GameManager.package_queue.append(b2b_pkg)
 				# --------------------------------------------------
