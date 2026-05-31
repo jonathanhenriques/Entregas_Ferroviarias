@@ -24,6 +24,10 @@ var btn_xray: Button
 var btn_approve_pkg: Button
 var btn_reject_pkg: Button
 
+# --- NOVO: UI DA FROTA ---
+var fleet_panel: ColorRect
+var fleet_vbox: VBoxContainer
+
 # HUD e Alertas
 var lbl_queue_count: Label
 var strike_lights: Array = []
@@ -298,6 +302,40 @@ func _setup_ui() -> void:
 	btn_reject_pkg.add_theme_color_override("font_color", Color.WHITE)
 	btn_reject_pkg.pressed.connect(_on_reject_pkg_pressed)
 	control_panel.add_child(btn_reject_pkg)
+	
+	
+	# --- NOVO: PAINEL DE FROTA ---
+	fleet_panel = ColorRect.new()
+	fleet_panel.color = Color(0.15, 0.18, 0.2, 0.95)
+	fleet_panel.size = Vector2(450, 250)
+	fleet_panel.position = Vector2(1400, 380) # Fica exatamente em cima do control_panel
+	ui_layer.add_child(fleet_panel)
+	
+	var fp_border = ReferenceRect.new()
+	fp_border.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fp_border.border_color = Color(0.4, 0.6, 0.8)
+	fp_border.border_width = 4
+	fleet_panel.add_child(fp_border)
+	
+	var fp_title = Label.new()
+	fp_title.text = "DESTINO DA CARGA"
+	fp_title.add_theme_font_size_override("font_size", 20)
+	fp_title.position = Vector2(0, 10)
+	fp_title.size = Vector2(450, 30)
+	fp_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	fleet_panel.add_child(fp_title)
+	
+	fleet_vbox = VBoxContainer.new()
+	fleet_vbox.position = Vector2(20, 50)
+	fleet_vbox.size = Vector2(410, 180)
+	fleet_vbox.add_theme_constant_override("separation", 10)
+	fleet_panel.add_child(fleet_vbox)
+	
+	fleet_panel.visible = false
+	# -----------------------------
+	
+	
+	
 
 	lbl_strike_warning = Label.new()
 	lbl_strike_warning.add_theme_color_override("font_color", Color.RED)
@@ -364,6 +402,11 @@ func _clear_inspection_desk() -> void:
 	btn_approve_pkg.disabled = true
 	btn_reject_pkg.disabled = true
 	btn_xray.disabled = true
+	
+	# Esconde o painel novo ao limpar a mesa
+	if is_instance_valid(fleet_panel):
+		fleet_panel.visible = false
+		
 	_sync_strike_lights(GameManager.strikes)
 
 func _on_queue_updated(count: int) -> void:
@@ -417,7 +460,12 @@ func _on_btn_lever_pressed() -> void:
 	
 	await tw.finished
 	lbl_scale_digital.text = str(target_w) + " kg"
-	btn_approve_pkg.disabled = false
+	
+	# --- NOVO: MOSTRA A FROTA EM VEZ DO BOTÃO APROVAR ---
+	btn_approve_pkg.visible = false 
+	fleet_panel.visible = true
+	_update_fleet_panel()
+	
 	btn_reject_pkg.disabled = false
 
 func _on_btn_xray_pressed() -> void:
@@ -527,3 +575,56 @@ func _show_strike_warning(msg: String) -> void:
 func _on_strike_received(total: int, reason: String) -> void:
 	_sync_strike_lights(total)
 	_show_strike_warning(reason)
+	
+	
+# --- NOVO: LÓGICA DE ALOCAÇÃO B2B/B2C ---
+func _update_fleet_panel() -> void:
+	for child in fleet_vbox.get_children():
+		child.queue_free()
+		
+	# Cria botões dinâmicos lendo a sua frota no GameManager
+	for i in range(GameManager.fleet.size()):
+		var train = GameManager.fleet[i]
+		var btn = Button.new()
+		
+		# Verifica se a caixa cabe no trem
+		var is_full = train["current_weight"] + current_package.get("true_weight", 0) > train["max_weight"]
+		var t_text = train["name"] + " (" + str(train["current_weight"]) + "/" + str(train["max_weight"]) + " kg)"
+		
+		if is_full:
+			t_text += " [ EXCESSO ]"
+			btn.disabled = true
+			btn.add_theme_color_override("font_color", Color.INDIAN_RED)
+		if not is_full:
+			btn.add_theme_color_override("font_color", Color.WHITE)
+			
+		btn.text = "EMBARCAR: " + t_text
+		btn.custom_minimum_size = Vector2(410, 50)
+		btn.pressed.connect(_on_dispatch_to_train.bind(i))
+		fleet_vbox.add_child(btn)
+		
+	# Botão de mandar para o armazém (sempre disponível)
+	var btn_wh = Button.new()
+	btn_wh.text = "RETER NO ARMAZÉM"
+	btn_wh.custom_minimum_size = Vector2(410, 50)
+	btn_wh.add_theme_color_override("font_color", Color.GOLDENROD)
+	btn_wh.pressed.connect(_on_dispatch_to_warehouse)
+	fleet_vbox.add_child(btn_wh)
+
+func _on_dispatch_to_train(train_index: int) -> void:
+	fleet_panel.visible = false
+	
+	# --- NOVO: SOMANDO O PESO E SALVANDO NO TREM ---
+	var weight = current_package.get("true_weight", 0.0)
+	GameManager.fleet[train_index]["current_weight"] += weight
+	GameManager.fleet[train_index]["loaded_packages"].append(current_package.duplicate())
+	
+	_process_decision(true)
+	
+func _on_dispatch_to_warehouse() -> void:
+	fleet_panel.visible = false
+	
+	# --- NOVO: SALVANDO A CARGA NO ARMAZÉM ---
+	GameManager.warehouse.append(current_package.duplicate())
+	
+	_process_decision(true)
