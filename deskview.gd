@@ -1739,7 +1739,12 @@ func _update_report_text() -> void:
 	report_label.text = t
 	
 	btn_next_day.disabled = false
-	btn_next_day.text = "Processar Saídas e Finalizar Dia"
+	
+	# --- NOVO: TEXTO DO BOTÃO DINÂMICO ---
+	if GameManager.day_phase == 1:
+		btn_next_day.text = "Aprovar Contratos e Iniciar Turno da Tarde"
+	if GameManager.day_phase != 1:
+		btn_next_day.text = "Processar Saídas e Finalizar Dia"
 
 
 func _on_next_day_pressed() -> void:
@@ -1875,6 +1880,25 @@ func _on_next_day_pressed() -> void:
 					new_contract["pending_route_days"] = c_data.get("temp_wait_days", 3)
 					
 				GameManager.company_cooldowns[route_id] = 4
+				
+				# --- NOVO: GERA O PACOTE GIGANTE B2B NA ESTEIRA ---
+				var b2b_pkg = {
+					"id": randi(),
+					"true_category": "Lote B2B",
+					"true_item": cargo_name + " (" + comp_name + ")",
+					"true_weight": float(c_data.get("weight", 100)),
+					"true_stamp": "Selo Azul",
+					"is_contraband": false,
+					"declared_category": "Lote B2B",
+					"declared_item": cargo_name + " (" + comp_name + ")",
+					"declared_weight": float(c_data.get("weight", 100)),
+					"stamp_used": "Selo Azul",
+					"days_in_queue": 0,
+					"base_reward": reward,
+					"reward": reward 
+				}
+				GameManager.package_queue.append(b2b_pkg)
+				# --------------------------------------------------
 
 	# === Fim do Processamento dos Papéis ===
 	for p in spawned_papers:
@@ -1885,6 +1909,21 @@ func _on_next_day_pressed() -> void:
 	current_agenda_page = 0
 	
 	pending_upfront_income = income
+	
+	# --- NOVO: TRANSIÇÃO PARA A TARDE (FASE 2) ---
+	if GameManager.day_phase == 1:
+		GameManager.day_phase = 2
+		GameManager.money += pending_upfront_income
+		pending_upfront_income = 0
+		_update_report_text()
+		
+		# Força o jogador a ir para a triagem
+		var main_node = get_parent()
+		if main_node.has_method("go_to_inspection"):
+			main_node.go_to_inspection()
+		return
+	# ---------------------------------------------
+	
 	_start_eod_animation(new_c, rej_c, ext_c, bp_cost, shark_income)
 	
 	

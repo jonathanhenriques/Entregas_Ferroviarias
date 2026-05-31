@@ -354,7 +354,8 @@ func _setup_ui() -> void:
 	ui_layer.add_child(overlay_block)
 	
 	lbl_block = Label.new()
-	lbl_block.text = "EXPEDIENTE ENCERRADO\nA esteira está bloqueada até amanhã."
+	# --- NOVO: TEXTO ADAPTADO PARA O FIM DO TURNO B2C ---
+	lbl_block.text = "TURNO DA MANHÃ ENCERRADO\nVá para a sua mesa no escritório processar os contratos."
 	lbl_block.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl_block.add_theme_font_size_override("font_size", 48)
 	lbl_block.add_theme_color_override("font_color", Color.CRIMSON)
@@ -377,14 +378,20 @@ func _on_visibility_changed() -> void:
 		ui_layer.visible = visible
 	if visible:
 		_on_queue_updated(GameManager.package_queue.size())
-		if not GameManager.shift_active and GameManager.boss_package_intro_done:
-			_on_shift_ended()
-		else:
-			overlay_block.visible = false
+		
+		# --- NOVO: CONTROLE DE BLOQUEIO BASEADO NO TURNO ---
+		overlay_block.visible = false
+		if not GameManager.shift_active:
+			if GameManager.boss_package_intro_done:
+				if GameManager.day_phase != 2:
+					_on_shift_ended()
+		# ---------------------------------------------------
 		
 		if GameManager.pendent_strike_warning != "":
 			_show_strike_warning(GameManager.pendent_strike_warning)
 			GameManager.pendent_strike_warning = ""
+
+
 
 func _on_go_desk_pressed() -> void:
 	var main_node = get_parent()
@@ -411,10 +418,19 @@ func _clear_inspection_desk() -> void:
 
 func _on_queue_updated(count: int) -> void:
 	lbl_queue_count.text = "FILA: " + str(count) + " ENCOMENDAS"
-	if count > 0 and current_package.is_empty() and GameManager.shift_active:
+	
+	# --- NOVO: ALAVANCA FUNCIONA NA MANHÃ (COM TEMPO) OU À TARDE (B2B, SEM TEMPO) ---
+	var can_pull = false
+	if GameManager.shift_active or GameManager.day_phase == 2:
+		can_pull = true
+		
+	if count > 0 and current_package.is_empty() and can_pull:
 		btn_lever.disabled = false
 	else:
 		btn_lever.disabled = true
+
+
+
 
 func _on_shift_ended() -> void:
 	overlay_block.visible = true

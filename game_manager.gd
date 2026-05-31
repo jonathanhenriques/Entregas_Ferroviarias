@@ -161,6 +161,7 @@ func _process(delta: float) -> void:
 			if shift_time_left <= 0:
 				shift_active = false
 				shift_time_left = 0.0
+				day_phase = 1 # --- NOVO: AVANÇA PARA A FASE 1 (ESCRITÓRIO) ---
 				shift_ended.emit()
 				
 				if package_queue.size() > 0:
