@@ -117,11 +117,11 @@ func _on_visibility_changed() -> void:
 		_update_network_status()
 		_update_status_panel()
 		
-		# --- NOVO: MOSTRA O PAINEL DE DESPACHO À NOITE ---
-		if GameManager.day_phase == 2 and GameManager.package_queue.is_empty():
+		# --- NOVO: ABERTURA FORÇADA DO PAINEL DE DESPACHO À NOITE ---
+		if GameManager.day_phase == 2:
 			dispatch_panel.visible = true
 			_populate_dispatch_panel()
-		if not (GameManager.day_phase == 2 and GameManager.package_queue.is_empty()):
+		if GameManager.day_phase != 2:
 			dispatch_panel.visible = false
 		
 		if not GameManager.pending_blueprint.is_empty():
@@ -826,13 +826,45 @@ func _update_edit_panel() -> void:
 	btn_confirm.disabled = not is_valid
 
 
+
 func _process(delta: float) -> void:
 	if not visible: return
 	
-	# --- NOVO: TRAVA DE TRANSIÇÃO FÍSICA ---
-	# O loop antigo foi removido. A lógica de movimento será feita pelo is_dispatching.
+	# --- NOVO: MOTOR DE MOVIMENTO E ANIMAÇÃO ---
 	if is_dispatching:
-		pass # Implementaremos o percurso real no próximo passo.
+		var all_finished = true
+		var needs_redraw = false
+		
+		for index in active_trains.keys():
+			var train_anim = active_trains[index]
+			if train_anim["finished"]: 
+				continue
+			
+			all_finished = false
+			needs_redraw = true
+			
+			if train_anim.has("delay") and train_anim["delay"] > 0:
+				train_anim["delay"] -= delta
+				continue
+				
+			var path_len = 0.0
+			for i in range(train_anim["path"].size() - 1): 
+				path_len += train_anim["path"][i].distance_to(train_anim["path"][i+1])
+				
+			train_anim["progress"] += train_anim["speed"] * delta
+			
+			# Trem chegou ao destino
+			if train_anim["progress"] >= path_len:
+				train_anim["progress"] = path_len
+				train_anim["finished"] = true
+		
+		if needs_redraw:
+			queue_redraw()
+			
+		# Se todos os trens chegaram, encerra a operação
+		if all_finished and active_trains.size() > 0:
+			_finish_dispatch_operation()
+
 
 
 func _spawn_train(contract_index: int, contract: Dictionary) -> void:
@@ -1595,6 +1627,98 @@ func _on_discard_train_cargo(train_index: int, fine: int) -> void:
 
 func _on_btn_dispatch_pressed() -> void:
 	dispatch_panel.visible = false
-	is_dispatching = true
-	# O motor físico dos trens será religado na próxima etapa!
-	print("Trens Despachados. Iniciando simulação física...")
+	active_trains.clear()
+	
+	# Mapeia os tiles válidos para o caminho (incluindo as cidades)
+	var valid_tiles = {}
+	for r in confirmed_routes:
+		for cell in r: 
+			valid_tiles[cell] = true
+	if city_a != Vector2i(-1, -1): valid_tiles[city_a] = true
+	if city_b != Vector2i(-1, -1): valid_tiles[city_b] = true
+	if city_c != Vector2i(-1, -1): valid_tiles[city_c] = true
+
+	var palette = [Color.CRIMSON, Color.ROYAL_BLUE, Color.GOLDENROD, Color.DARK_VIOLET, Color.DARK_ORANGE]
+	
+	# Prepara a animação para cada trem carregado
+	for i in range(GameManager.fleet.size()):
+		var train = GameManager.fleet[i]
+		if train["loaded_packages"].size() > 0:
+			var opt = train.get("ui_option_button")
+			var route_str = opt.get_item_text(opt.get_selected_id())
+			train["temp_route_str"] = route_str # Salva para o Livro de Registros depois
+			
+			var start_city = Vector2i(-1, -1)
+			var target_city = Vector2i(-1, -1)
+			
+			# Descobre de onde pra onde o trem vai baseado na escolha
+			if "Azul" in route_str and "Vermelha" in route_str:
+				start_city = city_a
+				target_city = city_b
+			if "Azul" in route_str and "Verde" in route_str:
+				start_city = city_a
+				target_city = city_c
+			if "Vermelha" in route_str and "Verde" in route_str:
+				start_city = city_b
+				target_city = city_c
+				
+			# Traça o caminho usando o algoritmo BFS que já existe no jogo
+			var path_cells = _bfs_get_path_array(start_city, target_city, valid_tiles)
+			if path_cells.size() >= 2:
+				var path_points = []
+				for cell in path_cells: 
+					path_points.append(Vector2(cell.x * TILE_SIZE + TILE_SIZE/2.0, cell.y * TILE_SIZE + TILE_SIZE/2.0))
+				
+				active_trains[i] = {
+					"path": path_points,
+					"progress": 0.0,
+					"direction": 1,
+					"speed": 180.0, # Velocidade da animação no mapa
+					"color": palette[i % palette.size()],
+					"delay": i * 1.5, # Trens saem em fila (1.5s de diferença)
+					"finished": false
+				}
+
+	# Trava de segurança: se algum erro impedir os trens de existirem, pula a animação
+	if active_trains.size() == 0:
+		_finish_dispatch_operation()
+	if active_trains.size() > 0:
+		is_dispatching = true
+
+
+
+# --- NOVO: FINALIZAÇÃO DA VIAGEM E PREENCHIMENTO DO LIVRO ---
+func _finish_dispatch_operation() -> void:
+	is_dispatching = false
+	active_trains.clear()
+	queue_redraw()
+	
+	# Processa a frota
+	for train in GameManager.fleet:
+		if train["loaded_packages"].size() > 0:
+			var route_str = train.get("temp_route_str", "Desconhecida")
+			
+			# Escreve cada pacote entregue no Livro de Registros
+			for pkg in train["loaded_packages"]:
+				# --- NOVO: LÊ O LUCRO E PAGA O JOGADOR NA ENTREGA ---
+				var profit_final = pkg.get("net_profit", pkg["base_reward"])
+				var record = {
+					"day": GameManager.current_day,
+					"train_name": train["name"],
+					"route": route_str,
+					"item": pkg["declared_item"],
+					"weight": pkg["true_weight"],
+					"profit": profit_final
+				}
+				GameManager.delivery_history.append(record)
+				GameManager.money += profit_final # O dinheiro entra no caixa do jogador aqui!
+				
+			# Esvazia os vagões para o dia seguinte
+			train["loaded_packages"].clear()
+			train["current_weight"] = 0.0
+			train.erase("temp_route_str")
+			
+	# Devolve o jogador para a mesa para finalizar o dia e cobrar a manutenção
+	var main_node = get_parent()
+	if main_node.has_method("go_to_desk"):
+		main_node.go_to_desk()

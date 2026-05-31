@@ -1809,14 +1809,25 @@ func _update_report_text() -> void:
 	t += "\n----------------\nLucro: $" + str(net)
 	report_label.text = t
 	
+	# --- NOVO: TRAVA DE EXPEDIENTE (ANTI-SOFTLOCK) ---
 	btn_next_day.disabled = false
-	
-	# --- NOVO: TEXTO DO BOTÃO DINÂMICO ---
 	if GameManager.day_phase == 1:
 		btn_next_day.text = "Aprovar Contratos e Iniciar Turno da Tarde"
-	if GameManager.day_phase != 1:
+		
+	if GameManager.day_phase == 2:
+		var has_cargo = false
+		for train in GameManager.fleet:
+			if train["loaded_packages"].size() > 0:
+				has_cargo = true
+				
+		if has_cargo:
+			btn_next_day.disabled = true
+			btn_next_day.text = "[ VÁ PARA O MAPA DESPACHAR OS TRENS ]"
+		if not has_cargo:
+			btn_next_day.text = "Processar Saídas e Finalizar Dia"
+			
+	if GameManager.day_phase == 0:
 		btn_next_day.text = "Processar Saídas e Finalizar Dia"
-
 
 func _on_next_day_pressed() -> void:
 	if phone_cutscene and phone_cutscene.visible: return
@@ -1928,12 +1939,14 @@ func _on_next_day_pressed() -> void:
 				var c_type = c_data.get("type", "Comum")
 				var cargo_name = c_data.get("cargo", "Carga Geral")
 				var duration_est = c_data.get("duration", 5) 
-				
+				# --- NOVO: SALVANDO DADOS VITAIS NO CONTRATO B2B ---
 				var new_contract = {
 					"company_name": comp_name,
 					"route_id": route_id,
+					"route_name": c_data.get("route_name", "Qualquer Rota"),
 					"type": c_type,
 					"cargo": cargo_name,
+					"weight": float(c_data.get("weight", 400.0)),
 					"reward": reward,
 					"duration": duration_est
 				}
@@ -1952,25 +1965,7 @@ func _on_next_day_pressed() -> void:
 					
 				GameManager.company_cooldowns[route_id] = 4
 				
-				# --- NOVO: GERA O PACOTE GIGANTE B2B NA ESTEIRA ---
-				var b2b_pkg = {
-					"id": randi(),
-					"true_category": "Lote B2B",
-					"true_item": cargo_name + " (" + comp_name + ")",
-					"true_weight": float(c_data.get("weight", 100)),
-					"true_stamp": "Selo Azul",
-					"is_contraband": false,
-					"declared_category": "Lote B2B",
-					"declared_item": cargo_name + " (" + comp_name + ")",
-					"declared_weight": float(c_data.get("weight", 100)),
-					"stamp_used": "Selo Azul",
-					"days_in_queue": 0,
-					"base_reward": reward,
-					"reward": reward,
-					# --- NOVO: DESTINO DA CARGA B2B ---
-					"destination": c_data.get("route_name", "Qualquer Rota")
-				}
-				GameManager.package_queue.append(b2b_pkg)
+				
 				# --------------------------------------------------
 
 	# === Fim do Processamento dos Papéis ===
@@ -1983,11 +1978,33 @@ func _on_next_day_pressed() -> void:
 	
 	pending_upfront_income = income
 	
-	# --- NOVO: TRANSIÇÃO PARA A TARDE (FASE 2) ---
+	# --- NOVO: GERAÇÃO DIÁRIA DE CAIXAS PARA A TARDE (FASE 2) ---
 	if GameManager.day_phase == 1:
 		GameManager.day_phase = 2
 		GameManager.money += pending_upfront_income
 		pending_upfront_income = 0
+		
+		# GERA OS PACOTES B2B DE TODOS OS CONTRATOS ATIVOS
+		for c in GameManager.active_contracts:
+			if GameManager.is_contract_operating(c):
+				var b2b_pkg = {
+					"id": randi(),
+					"true_category": "Lote B2B",
+					"true_item": c.get("cargo", "Carga Geral") + " (" + c.get("company_name", "Empresa") + ")",
+					"true_weight": c.get("weight", 400.0),
+					"true_stamp": "Selo Azul",
+					"is_contraband": false,
+					"declared_category": "Lote B2B",
+					"declared_item": c.get("cargo", "Carga Geral") + " (" + c.get("company_name", "Empresa") + ")",
+					"declared_weight": c.get("weight", 400.0),
+					"stamp_used": "Selo Azul",
+					"days_in_queue": 0,
+					"base_reward": c.get("reward", 0),
+					"reward": c.get("reward", 0),
+					"destination": c.get("route_name", "Qualquer Rota")
+				}
+				GameManager.package_queue.append(b2b_pkg)
+				
 		_update_report_text()
 		
 		# --- NOVO: DESPEJA O ARMAZÉM NO FIM DA FILA DA ESTEIRA ---

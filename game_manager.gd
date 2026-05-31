@@ -176,7 +176,7 @@ func _process(delta: float) -> void:
 
 func end_day(upfront_income: int = 0) -> void:
 	money += upfront_income
-	money += get_daily_income()
+	
 	money -= daily_maintenance
 	money -= BASE_COST
 	money -= daily_parcel_train_cost # <--- O TREM DE ENCOMENDAS É COBRADO AQUI
@@ -510,8 +510,8 @@ func process_package_approval(pkg: Dictionary) -> void:
 		cost_per_kg = 0.0 
 	# ---------------------------------------------------------
 	
-	var net_profit = pkg["base_reward"] - (pkg["true_weight"] * cost_per_kg)
-	money += int(net_profit)
+	var net_profit = int(pkg["base_reward"] - (pkg["true_weight"] * cost_per_kg))
+	pkg["net_profit"] = net_profit # --- NOVO: Salva o valor no pacote para pagar na entrega
 
 
 func _generate_daily_generics() -> void:
