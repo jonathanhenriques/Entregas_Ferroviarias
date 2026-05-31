@@ -1484,12 +1484,13 @@ func _update_status_panel() -> void:
 		
 		
 		
-# --- NOVO: LÓGICA DO PLANO DE VIAGEM ---
+# --- NOVO: LÓGICA DO PLANO DE VIAGEM COM PUNIÇÃO E MULTA ---
 func _populate_dispatch_panel() -> void:
 	for child in dispatch_vbox.get_children():
 		child.queue_free()
 		
 	var loaded_trains = 0
+	var has_blocked_train = false # NOVO: Trava o botão de despacho se houver erro logístico
 	
 	for i in range(GameManager.fleet.size()):
 		var train = GameManager.fleet[i]
@@ -1497,32 +1498,71 @@ func _populate_dispatch_panel() -> void:
 			loaded_trains += 1
 			var hbox = HBoxContainer.new()
 			
-			var lbl = Label.new()
-			
-			# --- NOVO: LÊ O DESTINO DAS CARGAS DENTRO DO TREM ---
 			var cargo_dest = "Qualquer"
+			var total_cargo_value = 0 # Usado para calcular a multa
+			
 			for pkg in train["loaded_packages"]:
+				total_cargo_value += pkg.get("base_reward", 0)
 				if pkg.get("destination", "Qualquer Rota") != "Qualquer Rota":
 					cargo_dest = pkg["destination"]
 					
-			lbl.text = train["name"] + " (" + str(train["current_weight"]) + "kg)\nExige: " + cargo_dest
+			var is_route_ok = true
+			var route_status_msg = ""
+			
+			if cargo_dest != "Qualquer":
+				var route_id_check = cargo_dest.replace(" <-> ", "-") # Converte o texto visual para o ID do motor
+				var is_built = route_id_check in GameManager.network_connections
+				var is_building = GameManager.routes_under_construction.get(route_id_check, 0) > 0
+				
+				if is_building:
+					is_route_ok = false
+					route_status_msg = " [ EM OBRAS ]"
+				if not is_building:
+					if not is_built:
+						is_route_ok = false
+						route_status_msg = " [ INEXISTENTE ]"
+
+			var lbl = Label.new()
+			lbl.text = train["name"] + " (" + str(train["current_weight"]) + "kg)\nExige: " + cargo_dest + route_status_msg
 			lbl.custom_minimum_size = Vector2(230, 50)
 			lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 			lbl.add_theme_font_size_override("font_size", 13)
+			
+			if not is_route_ok:
+				lbl.add_theme_color_override("font_color", Color.INDIAN_RED)
 			hbox.add_child(lbl)
 			
 			var opt = OptionButton.new()
-			opt.custom_minimum_size = Vector2(220, 40)
+			opt.custom_minimum_size = Vector2(170, 40)
 			opt.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			
-			# Aqui usamos um OptionButton (Dropdown) para selecionar o trajeto daquele trem
-			opt.add_item("Azul <-> Vermelha", 0)
-			opt.add_item("Azul <-> Verde", 1)
-			opt.add_item("Vermelha <-> Verde", 2)
+			if is_route_ok:
+				opt.add_item("Azul <-> Vermelha", 0)
+				opt.add_item("Azul <-> Verde", 1)
+				opt.add_item("Vermelha <-> Verde", 2)
+				# Tenta pré-selecionar a rota que a carga exige
+				for j in range(opt.get_item_count()):
+					if opt.get_item_text(j) == cargo_dest:
+						opt.select(j)
+			
+			if not is_route_ok:
+				opt.add_item("ROTA BLOQUEADA", 0)
+				opt.disabled = true
+				has_blocked_train = true
 			
 			hbox.add_child(opt)
 			
-			# Salvamos temporariamente o botão no trem para podermos ler a escolha depois
+			# --- NOVO: BOTÃO DE DESCARTAR CARGA (VÁLVULA DE ESCAPE) ---
+			if not is_route_ok:
+				var fine_value = int(total_cargo_value * 0.4)
+				var btn_discard = Button.new()
+				btn_discard.text = "DESCARTAR\n(-$" + str(fine_value) + ")"
+				btn_discard.custom_minimum_size = Vector2(110, 40)
+				btn_discard.add_theme_color_override("font_color", Color.RED)
+				btn_discard.add_theme_font_size_override("font_size", 12)
+				btn_discard.pressed.connect(_on_discard_train_cargo.bind(i, fine_value))
+				hbox.add_child(btn_discard)
+			
 			train["ui_option_button"] = opt 
 			dispatch_vbox.add_child(hbox)
 			
@@ -1534,7 +1574,24 @@ func _populate_dispatch_panel() -> void:
 		btn_dispatch.disabled = true
 		
 	if loaded_trains > 0:
-		btn_dispatch.disabled = false
+		if has_blocked_train:
+			btn_dispatch.disabled = true
+			btn_dispatch.text = "[ FROTA BLOQUEADA POR ERRO DE ROTA ]"
+			btn_dispatch.add_theme_color_override("font_color", Color.GRAY)
+		if not has_blocked_train:
+			btn_dispatch.disabled = false
+			btn_dispatch.text = "[ INICIAR OPERAÇÃO DIÁRIA ]"
+			btn_dispatch.add_theme_color_override("font_color", Color.LIME_GREEN)
+
+
+func _on_discard_train_cargo(train_index: int, fine: int) -> void:
+	GameManager.money -= fine
+	var train = GameManager.fleet[train_index]
+	train["loaded_packages"].clear()
+	train["current_weight"] = 0.0
+	_populate_dispatch_panel() # Recarrega a tela imediatamente após descartar
+
+
 
 func _on_btn_dispatch_pressed() -> void:
 	dispatch_panel.visible = false

@@ -468,7 +468,31 @@ func _on_btn_lever_pressed() -> void:
 	btn_xray.disabled = false
 	
 	# --- NOVO: MOSTRA O DESTINO NA PRANCHETA ---
-	clip_content.text = "Declarado:\n" + current_package["declared_item"] + "\n\nDestino: " + current_package.get("destination", "Qualquer")
+	# --- NOVO: LÊ DESTINO E CHECA O STATUS DA VIA PARA ALERTA VISUAL ---
+	var dest = current_package.get("destination", "Qualquer Rota")
+	var status_txt = "[ VIA LIVRE ]"
+	var status_color = Color.DARK_GREEN
+	
+	if dest == "Qualquer Rota":
+		status_txt = ""
+		status_color = Color.BLACK
+	
+	if dest != "Qualquer Rota":
+		var dest_id = dest.replace(" <-> ", "-") # Converte o texto visual para o ID do motor
+		var is_built = dest_id in GameManager.network_connections
+		var is_building = GameManager.routes_under_construction.get(dest_id, 0) > 0
+		
+		if is_building:
+			status_txt = "[ ALERTA: EM OBRAS ]"
+			status_color = Color.DARK_ORANGE
+		if not is_building:
+			if not is_built:
+				status_txt = "[ ALERTA: VIA INEXISTENTE ]"
+				status_color = Color.DARK_RED
+
+	clip_content.text = "Declarado:\n" + current_package["declared_item"] + "\n\nDestino: " + dest + "\n" + status_txt
+	clip_content.add_theme_color_override("font_color", status_color)
+	# -------------------------------------------------------------------
 	clip_weight.text = "\nPeso Decl.: " + str(current_package["declared_weight"]) + " kg"
 	clip_stamp.text = "\nSelo: " + current_package["stamp_used"]
 	

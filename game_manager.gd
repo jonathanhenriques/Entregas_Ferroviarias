@@ -57,6 +57,9 @@ const PACKAGE_INTERVAL: float = 20.0
 var fleet: Array = []
 var warehouse: Array = []
 
+# --- NOVO: HISTÓRICO DE ENTREGAS ---
+var delivery_history: Array = []
+
 # === NOVAS VARIÁVEIS (TUTORIAL, AGIOTA E TEMPORIZADOR) ===
 var is_first_route_built: bool = false
 var first_fiscal_warning_done: bool = false
@@ -620,6 +623,7 @@ func reset_game() -> void:
 	# --- NOVA LÓGICA: CRIAÇÃO DA FROTA INICIAL ---
 	warehouse.clear()
 	fleet.clear()
+	delivery_history.clear()
 	
 	var trem_1 = {
 		"id": 1,
@@ -708,9 +712,10 @@ func save_game() -> void:
 		"pending_blueprint": _serialize_blueprint(pending_blueprint),
 		"package_queue": package_queue, "strikes": strikes,
 		"pendent_strike_warning": pendent_strike_warning,
-		# --- SALVANDO FROTA E ARMAZÉM ---
+		# --- SALVANDO FROTA, ARMAZÉM E HISTÓRICO ---
 		"fleet": fleet,
-		"warehouse": warehouse
+		"warehouse": warehouse,
+		"delivery_history": delivery_history
 	}
 	var file = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	file.store_string(JSON.stringify(data))
@@ -766,9 +771,10 @@ func load_game() -> bool:
 		strikes = data.get("strikes", 0)
 		pendent_strike_warning = data.get("pendent_strike_warning", "")
 		
-		# --- CARREGANDO FROTA E ARMAZÉM ---
+		# --- CARREGANDO FROTA, ARMAZÉM E HISTÓRICO ---
 		fleet = data.get("fleet", [])
 		warehouse = data.get("warehouse", [])
+		delivery_history = data.get("delivery_history", [])
 		
 		today_broken_contracts = 0
 		today_penalties = 0

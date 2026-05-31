@@ -2,6 +2,15 @@ extends Node2D
 
 var ui_layer: CanvasLayer
 
+# --- NOVO: VARIÁVEIS DO LIVRO DE REGISTROS ---
+var btn_open_ledger: Button
+var ledger_book: ColorRect
+var ledger_content: Label
+var btn_ledger_prev: Button
+var btn_ledger_next: Button
+var btn_ledger_close: Button
+var ledger_page: int = 0
+
 var agenda_rect: ColorRect
 var clipboard_rect: ColorRect
 
@@ -197,6 +206,67 @@ func _setup_ui() -> void:
 	btn_go_inspection.size = Vector2(230, 40)
 	btn_go_inspection.pressed.connect(_on_go_inspection_pressed)
 	ui_layer.add_child(btn_go_inspection)
+	
+	# --- NOVO: BOTÃO PARA ABRIR O LIVRO NA MESA ---
+	btn_open_ledger = Button.new()
+	btn_open_ledger.text = "LIVRO DE REGISTROS"
+	btn_open_ledger.position = Vector2(1650, 100) # Fica embaixo do botão de ir para a triagem
+	btn_open_ledger.size = Vector2(230, 40)
+	btn_open_ledger.pressed.connect(_on_open_ledger_pressed)
+	ui_layer.add_child(btn_open_ledger)
+	
+	# --- NOVO: UI DO LIVRO (PAGINADO) ---
+	ledger_book = ColorRect.new()
+	ledger_book.color = Color(0.15, 0.15, 0.18, 0.98)
+	ledger_book.size = Vector2(600, 700)
+	ledger_book.position = Vector2(660, 150) # Centro da tela
+	ledger_book.visible = false
+	ui_layer.add_child(ledger_book)
+	
+	var ledger_border = ReferenceRect.new()
+	ledger_border.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ledger_border.border_color = Color.GOLDENROD
+	ledger_border.border_width = 4
+	ledger_book.add_child(ledger_border)
+	
+	var ledger_title = Label.new()
+	ledger_title.text = "REGISTRO DE OPERAÇÕES LOGÍSTICAS"
+	ledger_title.position = Vector2(0, 20)
+	ledger_title.size = Vector2(600, 30)
+	ledger_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ledger_title.add_theme_color_override("font_color", Color.GOLDENROD)
+	ledger_book.add_child(ledger_title)
+	
+	ledger_content = Label.new()
+	ledger_content.position = Vector2(30, 80)
+	ledger_content.size = Vector2(540, 520)
+	ledger_content.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	ledger_content.add_theme_font_size_override("font_size", 16)
+	ledger_book.add_child(ledger_content)
+	
+	btn_ledger_prev = Button.new()
+	btn_ledger_prev.text = "<- Pág. Anterior"
+	btn_ledger_prev.position = Vector2(30, 620)
+	btn_ledger_prev.size = Vector2(150, 40)
+	btn_ledger_prev.pressed.connect(_on_ledger_prev_pressed)
+	ledger_book.add_child(btn_ledger_prev)
+	
+	btn_ledger_next = Button.new()
+	btn_ledger_next.text = "Próx. Pág ->"
+	btn_ledger_next.position = Vector2(420, 620)
+	btn_ledger_next.size = Vector2(150, 40)
+	btn_ledger_next.pressed.connect(_on_ledger_next_pressed)
+	ledger_book.add_child(btn_ledger_next)
+	
+	btn_ledger_close = Button.new()
+	btn_ledger_close.text = "FECHAR LIVRO"
+	btn_ledger_close.position = Vector2(225, 620)
+	btn_ledger_close.size = Vector2(150, 40)
+	btn_ledger_close.add_theme_color_override("font_color", Color.INDIAN_RED)
+	btn_ledger_close.pressed.connect(_on_close_ledger_pressed)
+	ledger_book.add_child(btn_ledger_close)
+	# ----------------------------------------------
+	
 
 	diretrizes_rect = ColorRect.new()
 	diretrizes_rect.color = Color(0.6, 0.15, 0.15) 
@@ -1920,6 +1990,12 @@ func _on_next_day_pressed() -> void:
 		pending_upfront_income = 0
 		_update_report_text()
 		
+		# --- NOVO: DESPEJA O ARMAZÉM NO FIM DA FILA DA ESTEIRA ---
+		if GameManager.warehouse.size() > 0:
+			GameManager.package_queue.append_array(GameManager.warehouse.duplicate())
+			GameManager.warehouse.clear()
+		# ---------------------------------------------------------
+		
 		# Força o jogador a ir para a triagem
 		var main_node = get_parent()
 		if main_node.has_method("go_to_inspection"):
@@ -2379,3 +2455,72 @@ func _on_go_inspection_pressed() -> void:
 	var main_node = get_parent()
 	if main_node.has_method("go_to_inspection"):
 		main_node.go_to_inspection()
+
+
+
+# --- NOVO: LÓGICA DO LIVRO DE REGISTROS ---
+func _on_open_ledger_pressed() -> void:
+	ledger_page = 0
+	ledger_book.visible = true
+	# Traz o livro para a frente de todos os outros painéis da mesa
+	ledger_book.get_parent().move_child(ledger_book, -1)
+	_update_ledger_display()
+	
+func _on_close_ledger_pressed() -> void:
+	ledger_book.visible = false
+	
+func _on_ledger_prev_pressed() -> void:
+	if ledger_page > 0:
+		ledger_page -= 1
+		_update_ledger_display()
+		
+func _on_ledger_next_pressed() -> void:
+	var items_per_page = 4
+	var total_items = GameManager.delivery_history.size()
+	var max_pages = 0
+	if total_items > 0:
+		max_pages = ceil(total_items / float(items_per_page)) - 1
+		
+	if ledger_page < max_pages:
+		ledger_page += 1
+		_update_ledger_display()
+		
+func _update_ledger_display() -> void:
+	var items_per_page = 4
+	var total_items = GameManager.delivery_history.size()
+	var max_pages = 0
+	if total_items > 0:
+		max_pages = ceil(total_items / float(items_per_page)) - 1
+	
+	if ledger_page > max_pages:
+		ledger_page = max_pages
+	if ledger_page < 0:
+		ledger_page = 0
+		
+	var is_first_page = (ledger_page == 0)
+	var is_last_page = (ledger_page >= max_pages)
+	
+	btn_ledger_prev.disabled = is_first_page
+	btn_ledger_next.disabled = is_last_page
+	
+	if total_items == 0:
+		ledger_content.text = "\n\nNenhuma entrega registrada.\nAs operações logísticas concluídas no mapa aparecerão detalhadas aqui."
+		return
+		
+	var start_idx = ledger_page * items_per_page
+	var end_idx = min(start_idx + items_per_page, total_items)
+	
+	var txt = "Página " + str(ledger_page + 1) + " de " + str(max_pages + 1) + "\n\n"
+	
+	# Lemos de trás para frente (mostra o mais recente primeiro)
+	for i in range(start_idx, end_idx):
+		var rev_i = total_items - 1 - i
+		var record = GameManager.delivery_history[rev_i]
+		
+		txt += "[ DIA " + str(record.get("day", 0)) + " ] - Trem: " + record.get("train_name", "Desconhecido") + "\n"
+		txt += "Rota Utilizada: " + record.get("route", "N/A") + "\n"
+		txt += "Carga Transportada: " + record.get("item", "Carga") + " (" + str(record.get("weight", 0)) + " kg)\n"
+		txt += "Receita Líquida: $" + str(record.get("profit", 0)) + "\n"
+		txt += "---------------------------------------------------\n"
+		
+	ledger_content.text = txt
