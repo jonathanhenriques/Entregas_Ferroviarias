@@ -86,8 +86,10 @@ var daily_lobby_cost: int = 0
 
 var daily_parcel_train_cost: int = 50
 
-# --- INÍCIO DA ADIÇÃO: FICHAS TELEFÔNICAS ---
 var phone_tokens: int = 3
+
+# --- INÍCIO DA ADIÇÃO: ARRAY DE ANÚNCIOS DO JORNAL ---
+var todays_ads: Array = []
 # --- FIM DA ADIÇÃO ---
 
 var active_contracts: Array = []
@@ -312,12 +314,12 @@ func end_day(upfront_income: int = 0) -> void:
 	contracts_updated.emit()
 	current_day += 1
 	
-	# --- INÍCIO DA ADIÇÃO: RECARGA DIÁRIA DE FICHAS ---
 	phone_tokens = 3 
-	# --- FIM DA ADIÇÃO ---
-	
-	# --- NOVO: REINICIA O TURNO PARA A MANHÃ NO PRÓXIMO DIA ---
 	day_phase = 0 
+	
+	# --- INÍCIO DA ADIÇÃO: GERA OS ANÚNCIOS PARA O NOVO DIA ---
+	generate_daily_ads()
+	# --- FIM DA ADIÇÃO ---
 	
 	save_game()
 	
@@ -919,3 +921,24 @@ func _deserialize_blueprint(data: Dictionary) -> Dictionary:
 		"tax_env": data["tax_env"], "tax_eng": data["tax_eng"], "tax_sec": data["tax_sec"],
 		"total_cost": data["total_cost"], "routes_to_cooldown": data.get("routes_to_cooldown", [])
 	}
+	
+	
+	
+# --- INÍCIO DA CORREÇÃO: FUNÇÃO GERADORA DE CLASSIFICADOS COMPLETOS ---
+func generate_daily_ads() -> void:
+	todays_ads.clear()
+	var level_data = LevelData.LEVELS[current_level]
+	if not level_data.has("companies"):
+		return
+		
+	# Usa duplicate(true) para podermos injetar dados sem alterar o level_data base
+	var available_companies = level_data["companies"].duplicate(true)
+	available_companies.shuffle()
+	
+	# Sorteia até 2 anúncios por dia e injeta peso/duração se não existir
+	for i in range(min(2, available_companies.size())):
+		var comp = available_companies[i]
+		if not comp.has("weight"): comp["weight"] = randi_range(100, 800)
+		if not comp.has("duration"): comp["duration"] = randi_range(5, 10)
+		todays_ads.append(comp)
+# --- FIM DA CORREÇÃO ---

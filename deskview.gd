@@ -69,8 +69,17 @@ var token_visuals: Array = []
 
 var current_dialed: String = ""
 var pending_company_data: Dictionary = {}
+
+# --- INÍCIO DA CORREÇÃO: VARIÁVEIS DECLARADAS ---
 var pending_is_urgent: bool = false
 var pending_is_risk: bool = false
+
+# Variáveis do Jornal Matinal
+var newspaper_layer: CanvasLayer
+var newspaper_bg: ColorRect
+var newspaper_paper: ColorRect
+var is_newspaper_open: bool = false
+# --- FIM DA CORREÇÃO ---
 
 var HOLE_ANGLES = [
 	0.0, -PI * 1.5, -PI * 1.3333, -PI * 1.1666, -PI,
@@ -127,6 +136,10 @@ func _ready() -> void:
 	_setup_cutscene()
 	_setup_eod_ui()
 	
+	# --- INÍCIO DA CORREÇÃO: INICIALIZA O JORNAL NA LARGADA ---
+	_setup_newspaper_ui()
+	# --- FIM DA CORREÇÃO ---
+	
 	GameManager.money_changed.connect(_on_stats_changed)
 	GameManager.maintenance_updated.connect(_on_stats_changed)
 	GameManager.contracts_updated.connect(_on_contracts_updated)
@@ -139,11 +152,7 @@ func _ready() -> void:
 	_update_diretrizes() 
 	_update_task_pad()
 	
-	# --- INÍCIO DA ADIÇÃO ---
 	_update_tokens_visual()
-	# --- FIM DA ADIÇÃO ---
-
-
 
 func _process(delta: float) -> void:
 	if not visible: return
@@ -771,31 +780,42 @@ func _process_call() -> void:
 	var route_valid = false
 	var reason = ""
 	
+	# === LÓGICA ANTI-SOFTLOCK: ROTA INEXISTENTE OU EM OBRAS ===
+	if not has_route or is_constructing:
+		GameManager.phone_tokens += 1 # Devolve a ficha
+		_update_tokens_visual()
+		phone_cutscene.start_rejection_call(pending_company_data["name"], "Sem trilhos, eu não trabalho! Construa a rota inteira primeiro e depois me ligue.")
+		folder_rect.visible = false
+		return
+		
+	# === VALIDAÇÃO DE REGRAS ESPECÍFICAS DA CARGA ===
 	if has_route:
-		if not is_constructing:
-			var stats = GameManager.network_stats.get(rid, {})
-			var max_d = pending_company_data.get("max_dist", 999)
-			var curr_d = stats.get("dist", 999)
-			var is_long = (ctype == "Expresso" and curr_d > max_d)
-			
-			if is_long:
-				reason = "A nossa carga EXPRESSA tem limite rigoroso de tempo!\nA sua via tem " + str(curr_d) + " km, mas exigimos um trajeto máximo de " + str(max_d) + " km!\nRefaça a rota de forma mais direta!"
-			if not is_long:
-				var is_vip_bad = (ctype == "VIP" and (stats.get("gangs", 0) > 0 or GameManager.active_contracts.size() > 0))
-				if is_vip_bad:
-					reason = "VIP exige segurança absoluta e exclusividade na malha!"
-				if not is_vip_bad:
-					var is_eco_bad = (ctype == "Ecologico" and stats.get("forests", 0) > 0)
-					if is_eco_bad:
-						reason = "Os seus trilhos desmataram a floresta! Não financiamos crimes ambientais!"
-					if not is_eco_bad:
-						route_valid = true
+		var stats = GameManager.network_stats.get(rid, {})
+		var max_d = pending_company_data.get("max_dist", 999)
+		var curr_d = stats.get("dist", 999)
+		var is_long = (ctype == "Expresso" and curr_d > max_d)
+		
+		if is_long:
+			reason = "A nossa carga EXPRESSA tem limite rigoroso de tempo!\nA sua via tem " + str(curr_d) + " km, mas exigimos um trajeto máximo de " + str(max_d) + " km!\nRefaça a rota de forma mais direta!"
+		elif ctype == "VIP" and (stats.get("gangs", 0) > 0 or GameManager.active_contracts.size() > 0):
+			reason = "VIP exige segurança absoluta e exclusividade na malha!"
+		elif ctype == "Ecologico" and stats.get("forests", 0) > 0:
+			reason = "Os seus trilhos desmataram a floresta! Não financiamos crimes ambientais!"
+		else:
+			route_valid = true
 
-	# Lógica Inteligente: Calcula quantos dias o jogo realmente precisa esperar
-	var wait_for_route = 0
-	if not has_route: wait_for_route = 3
-	if has_route and is_constructing: wait_for_route = GameManager.routes_under_construction[rid]
+	# === LÓGICA ANTI-SOFTLOCK: ROTA INVÁLIDA ===
+	if not route_valid:
+		GameManager.phone_tokens += 1 # Devolve a ficha
+		_update_tokens_visual()
+		phone_cutscene.start_rejection_call(pending_company_data["name"], reason)
+		var is_daily = "(Diário)" in pending_company_data["name"]
+		if not (is_daily and GameManager.current_day == 1):
+			GameManager.company_cooldowns[pending_company_data["name"]] = 1 
+		folder_rect.visible = false
+		return
 
+	# === SE PASSOU EM TUDO, VERIFICA SE A FROTA ESTÁ OCUPADA ===
 	var wait_for_fleet = 0
 	if GameManager.active_contracts.size() >= GameManager.MAX_CONTRACTS:
 		var min_days = 999
@@ -805,34 +825,21 @@ func _process_call() -> void:
 			if d < min_days: min_days = d
 		wait_for_fleet = min_days
 
-	var final_wait_days = wait_for_route
-	if wait_for_fleet > final_wait_days: final_wait_days = wait_for_fleet
+	pending_company_data["temp_wait_days"] = wait_for_fleet
 
-	# Salva o tempo dinâmico de espera no dicionário da empresa
-	pending_company_data["temp_wait_days"] = final_wait_days
-
-	if final_wait_days > 0:
+	if wait_for_fleet > 0:
 		pending_is_risk = true
-	if final_wait_days == 0:
+	else:
 		pending_is_risk = false
-
-	if has_route and not is_constructing and not route_valid:
-		phone_cutscene.start_rejection_call(pending_company_data["name"], reason)
-		var is_daily = "(Diário)" in pending_company_data["name"]
-		if not (is_daily and GameManager.current_day == 1):
-			GameManager.company_cooldowns[pending_company_data["name"]] = 1 
-		folder_rect.visible = false
-		return
 
 	var rew = pending_company_data["base_reward"]
 	if pending_is_urgent:
 		rew = GameManager.daily_urgencies.get(pending_company_data["name"], rew)
 		
 	if pending_is_risk:
-		phone_cutscene.start_risk_call(pending_company_data["name"], pending_company_data["route_name"], rew, final_wait_days)
-	if not pending_is_risk:
+		phone_cutscene.start_risk_call(pending_company_data["name"], pending_company_data["route_name"], rew, wait_for_fleet)
+	else:
 		phone_cutscene.start_call(pending_company_data["name"], pending_company_data["type"], pending_company_data["cargo"], rew, pending_is_urgent)
-
 
 
 
@@ -2494,7 +2501,6 @@ func _add_eod_line(left: String, right: String, color: Color, is_title: bool) ->
 
 	eod_lines_container.add_child(hbox)
 
-# --- INÍCIO DA ALTERAÇÃO 4.B (ZERANDO TUDO PARA O DIA SEGUINTE) ---
 func _on_eod_sleep_pressed() -> void:
 	eod_layer.visible = false
 	GameManager.end_day(pending_upfront_income)
@@ -2507,14 +2513,13 @@ func _on_eod_sleep_pressed() -> void:
 	daily_shark_income = 0
 	daily_upfront_income = 0
 	
-	# --- INÍCIO DA ADIÇÃO ---
 	_update_tokens_visual()
-	# --- FIM DA ADIÇÃO ---
-	
 	_update_calendar()
 	_on_organize_pressed()
-# --- FIM DA ALTERAÇÃO 4.B ---
-
+	
+	# --- INÍCIO DA ALTERAÇÃO: ABRE O JORNAL AO INVÉS DE DEIXAR A MESA LIVRE ---
+	_show_newspaper()
+	# --- FIM DA ALTERAÇÃO ---
 
 func _on_eod_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
@@ -2906,10 +2911,196 @@ func _on_active_contract_clicked(index: int) -> void:
 	_clamp_to_screen(folder_rect)
 
 
-# --- INÍCIO DA ADIÇÃO: FUNÇÃO DE CONTROLE DE VISIBILIDADE DAS FICHAS ---
 func _update_tokens_visual() -> void:
 	for i in range(token_visuals.size()):
 		if is_instance_valid(token_visuals[i]):
-			# Se o índice da moeda for menor que as fichas restantes no GameManager, ela continua na mesa
+			# Se o Ã­ndice da moeda for menor que as fichas restantes no GameManager, ela continua na mesa
 			token_visuals[i].visible = (i < GameManager.phone_tokens)
-# --- FIM DA ADIÇÃO ---
+
+
+
+func _setup_newspaper_ui() -> void:
+	newspaper_layer = CanvasLayer.new()
+	newspaper_layer.layer = 90 
+	newspaper_layer.visible = false
+	add_child(newspaper_layer)
+	
+	newspaper_bg = ColorRect.new()
+	newspaper_bg.color = Color(0, 0, 0, 0.7)
+	newspaper_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	newspaper_bg.gui_input.connect(_on_newspaper_bg_input)
+	newspaper_layer.add_child(newspaper_bg)
+	
+	newspaper_paper = ColorRect.new()
+	newspaper_paper.color = Color(0.9, 0.88, 0.8) 
+	newspaper_paper.size = Vector2(800, 600)
+	newspaper_paper.position = Vector2(560, 240) 
+	newspaper_layer.add_child(newspaper_paper)
+
+
+
+
+
+
+func _on_ad_clicked(event: InputEvent, ad_data: Dictionary) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		_spawn_ad_clipping(ad_data)
+		_hide_newspaper()
+
+
+
+# --- INÍCIO DA CORREÇÃO: VISUAL DO JORNAL COM INFORMAÇÕES COMPLETAS ---
+func _show_newspaper() -> void:
+	is_newspaper_open = true
+	GameManager.shift_active = true 
+	
+	for child in newspaper_paper.get_children():
+		child.queue_free()
+		
+	var title = Label.new()
+	title.text = "GAZETA FERROVIÁRIA"
+	title.add_theme_font_size_override("font_size", 42)
+	title.add_theme_color_override("font_color", Color(0.1, 0.1, 0.1))
+	title.position = Vector2(30, 20)
+	newspaper_paper.add_child(title)
+	
+	var subtitle = Label.new()
+	title.add_child(subtitle)
+	subtitle.text = "Edição do Dia " + str(GameManager.current_day)
+	subtitle.add_theme_font_size_override("font_size", 18)
+	subtitle.add_theme_color_override("font_color", Color(0.3, 0.3, 0.3))
+	subtitle.position = Vector2(0, 50)
+	
+	var line_sep = ColorRect.new()
+	line_sep.color = Color(0.1, 0.1, 0.1)
+	line_sep.size = Vector2(740, 6)
+	line_sep.position = Vector2(30, 85)
+	newspaper_paper.add_child(line_sep)
+	
+	var line_sep_thin = ColorRect.new()
+	line_sep_thin.color = Color(0.1, 0.1, 0.1)
+	line_sep_thin.size = Vector2(740, 2)
+	line_sep_thin.position = Vector2(30, 95)
+	newspaper_paper.add_child(line_sep_thin)
+	
+	# === COLUNAS DE TEXTO FALSO (LORE VISUAL) ===
+	var col_x = [30, 220] 
+	for c_x in col_x:
+		var start_y = 120
+		for p in range(3): 
+			var p_y = start_y + (p * 140)
+			var fake_title = ColorRect.new()
+			fake_title.color = Color(0.3, 0.3, 0.3)
+			fake_title.size = Vector2(randf_range(100, 150), 12)
+			fake_title.position = Vector2(c_x, p_y)
+			newspaper_paper.add_child(fake_title)
+			
+			for l in range(6):
+				var fake_line = ColorRect.new()
+				fake_line.color = Color(0.65, 0.65, 0.65) 
+				fake_line.size = Vector2(randf_range(130, 160), 6)
+				fake_line.position = Vector2(c_x, p_y + 25 + (l * 14))
+				newspaper_paper.add_child(fake_line)
+		
+	# === CLASSIFICADOS (BOTÕES AMARELOS LIMPOS E EXPANDIDOS) ===
+	var ad_y = 120
+	
+	for ad_data in GameManager.todays_ads:
+		var ad_btn = Button.new()
+		# Tamanho aumentado para caber todas as informações
+		ad_btn.size = Vector2(360, 140)
+		ad_btn.position = Vector2(400, ad_y)
+		
+		var style_normal = StyleBoxFlat.new()
+		style_normal.bg_color = Color(0.95, 0.9, 0.6)
+		style_normal.border_color = Color(0.8, 0.75, 0.4)
+		style_normal.border_width_bottom = 4
+		style_normal.border_width_right = 2
+		ad_btn.add_theme_stylebox_override("normal", style_normal)
+		
+		var style_hover = style_normal.duplicate()
+		style_hover.bg_color = Color(1.0, 0.95, 0.7)
+		ad_btn.add_theme_stylebox_override("hover", style_hover)
+		
+		var ad_lbl = Label.new()
+		ad_lbl.add_theme_color_override("font_color", Color.BLACK)
+		ad_lbl.add_theme_font_size_override("font_size", 14)
+		ad_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		
+		# Novo layout de texto rico em informações para o jogador não ligar no escuro
+		var txt = ">> PRECISAMOS DE FRETE <<\n"
+		txt += ad_data["name"] + " procura composições para escoar " + str(ad_data.get("weight", 0)) + "kg de " + ad_data["cargo"] + ".\n"
+		txt += "Rota Exigida: " + ad_data["route_name"] + "\n"
+		txt += "Pagamento: $" + str(ad_data["base_reward"]) + "/dia\n"
+		txt += "TEL: " + ad_data["phone"]
+		
+		ad_lbl.text = txt
+		ad_lbl.position = Vector2(15, 15)
+		ad_lbl.size = Vector2(330, 110)
+		ad_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE 
+		ad_btn.add_child(ad_lbl)
+		
+		var ad_bind = ad_data.duplicate()
+		ad_btn.pressed.connect(_on_ad_pressed.bind(ad_bind))
+		
+		newspaper_paper.add_child(ad_btn)
+		ad_y += 160 # Aumentado o espaço entre os botões
+
+	newspaper_layer.visible = true
+# --- FIM DA CORREÇÃO ---
+
+
+
+func _on_newspaper_bg_input(event: InputEvent) -> void:
+	# Clicou fora do jornal (fundo escuro)? Fecha o jornal!
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		_hide_newspaper()
+
+func _on_ad_pressed(ad_data: Dictionary) -> void:
+	# Nova função focada exclusivamente no botão, substituindo o frágil _on_ad_clicked
+	_spawn_ad_clipping(ad_data)
+	_hide_newspaper()
+
+func _hide_newspaper() -> void:
+	if is_newspaper_open:
+		is_newspaper_open = false
+		newspaper_layer.visible = false
+
+# --- INÍCIO DA CORREÇÃO: RECORTE COM DADOS COMPLETOS ---
+func _spawn_ad_clipping(ad_data: Dictionary) -> void:
+	var paper = ColorRect.new()
+	paper.color = Color(0.95, 0.95, 0.8) 
+	# Aumentado o tamanho físico do papel para caber o texto extra
+	paper.size = Vector2(260, 140)
+	paper.position = Vector2(600 + randf_range(-30, 30), 400 + randf_range(-30, 30))
+	paper.rotation_degrees = randf_range(-5, 5)
+
+	var lbl = Label.new()
+	lbl.add_theme_color_override("font_color", Color.BLACK)
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lbl.add_theme_font_size_override("font_size", 14)
+	
+	# Layout de texto do recorte
+	var txt = "RECORTE:\n"
+	txt += ad_data["name"] + "\n"
+	txt += "Rota: " + ad_data["route_name"] + "\n"
+	txt += "Carga: " + str(ad_data.get("weight", 0)) + "kg de " + ad_data["cargo"] + "\n"
+	txt += "Paga: $" + str(ad_data["base_reward"]) + "/dia\n"
+	txt += "Tel: " + ad_data["phone"]
+	
+	lbl.text = txt
+	lbl.position = Vector2(10, 10)
+	lbl.size = paper.size - Vector2(20, 20)
+	paper.add_child(lbl)
+
+	paper.set_meta("is_paper", true)
+	paper.set_meta("action", "")
+	_make_draggable(paper, "paper")
+	ui_layer.add_child(paper)
+	spawned_papers.append(paper)
+	
+	pending_company_data = ad_data
+	pending_is_urgent = false
+	current_dialed = ""
+	_update_phone_display()
+# --- FIM DA CORREÇÃO ---
