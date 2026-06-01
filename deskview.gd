@@ -1711,9 +1711,17 @@ func _on_company_selected(data: Dictionary) -> void:
 	if cancel_fine < 100:
 		cancel_fine = 100
 		
+	
 	std_label.text += "TERMOS FINANCEIROS:\n"
 	std_label.text += "Duração Vigente: " + str(duration_val) + " a " + str(duration_val + 3) + " dias úteis.\n"
 	std_label.text += "Tarifa de Frete: $" + str(data["base_reward"]) + ",00 / dia (Pagos mediante confirmação de entrega).\n"
+	
+	# --- INÍCIO DA ALTERAÇÃO ---
+	var upfront = data.get("upfront_bonus", 0)
+	if upfront > 0:
+		std_label.text += "SUBSÍDIO DE OBRAS: $" + str(upfront) + ",00 (Liberados à vista na assinatura do contrato).\n"
+	# --- FIM DA ALTERAÇÃO ---
+		
 	std_label.text += "Cláusula de Rescisão: Em caso de rompimento unilateral ou falha de infraestrutura, a contratada arcará com multa rescisória fixada em $" + str(cancel_fine) + ",00.\n\n"
 	
 	std_label.text += "Contato Direto: " + data["phone"]
@@ -1826,7 +1834,14 @@ func _spawn_proposal_paper(c_data: Dictionary, is_urg: bool, reward: int) -> voi
 	if not is_urg:
 		text += "[ CLASSIFICAÇÃO: " + display_type + " ]\n"
 		text += "Duração Vigente: " + str(c_data.get("duration", 5)) + " a " + str(c_data.get("duration", 10) + 3) + " Dias\n"
-		text += "Faturamento Diário: $" + str(reward) + ",00\n\n"
+		text += "Faturamento Diário: $" + str(reward) + ",00\n"
+		
+		# --- INÍCIO DA ALTERAÇÃO ---
+		var upfront = c_data.get("upfront_bonus", 0)
+		if upfront > 0:
+			text += "Subvenção Estatal à Vista: $" + str(upfront) + ",00\n"
+		text += "\n"
+		# --- FIM DA ALTERAÇÃO ---
 
 	text += "CLÁUSULA DE RESPONSABILIDADE:\n"
 	text += "A Cia. de Entregas Ferroviárias assume custódia integral sobre a carga (" + c_weight + " Kg). Extravios ou falhas de malha incorrerão em multas contratuais.\n\n"
@@ -2132,7 +2147,11 @@ func _on_next_day_pressed() -> void:
 					income += reward 
 					new_contract["days_left"] = 1
 					GameManager.active_contracts.append(new_contract)
-				else:
+				if not is_urg:
+					# --- INÍCIO DA ALTERAÇÃO (RECEBENDO O SUBSÍDIO) ---
+					income += c_data.get("upfront_bonus", 0)
+					# --- FIM DA ALTERAÇÃO ---
+					
 					new_contract["days_left"] = randi_range(duration_est, duration_est + 5)
 					GameManager.active_contracts.append(new_contract)
 					

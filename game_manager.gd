@@ -516,39 +516,93 @@ func process_package_approval(pkg: Dictionary) -> void:
 
 func _generate_daily_generics() -> void:
 	daily_generic_companies.clear()
-	var bases = ["Siderurgica", "Agropecuaria", "Mineracao", "Industrias Quimicas", "Logistica", "Construtora"]
-	var suffixes = ["Vale do Aco", "Nova Safra", "Atlas", "Apex", "Global", "Horizonte"]
-	var t = ["Ganha-Pao", "Expresso"]
-	var cg = ["Bobinas de Aco", "Fertilizantes", "Minerio de Ferro", "Pecas Usinadas", "Cimento", "Madeira Bruta"]
-	var possible_routes = [
-		{"id": "Azul-Vermelha", "n": "Azul <-> Vermelha"}, 
-		{"id": "Azul-Verde", "n": "Azul <-> Verde"}, 
-		{"id": "Vermelha-Verde", "n": "Vermelha <-> Verde"}
-	]
-	var r = possible_routes.pick_random()
-	var tp = t.pick_random()
-	
+	var bases = ["Siderúrgica", "Agropecuária", "Mineração", "Indústrias Químicas", "Logística", "Construtora"]
+	var suffixes = ["Vale do Aço", "Nova Safra", "Atlas", "Apex", "Global", "Horizonte"]
+	var t = ["Ganha-Pao", "Expresso", "Ganha-Pao"] 
+	var cg = ["Bobinas de Aço", "Fertilizantes", "Minério de Ferro", "Peças Usinadas", "Cimento", "Madeira Bruta"]
+
+	var all_cities = ["Mina", "Siderúrgica", "Fazenda", "Porto", "Fábrica", "Refinaria"]
+	var connected_cities = []
+	var disconnected_cities = []
+
+	# Lê a malha do jogador para saber onde ele já tem trilhos
+	if GameManager.network_connections.is_empty():
+		connected_cities = ["Mina", "Siderúrgica"]
+		disconnected_cities = ["Fazenda", "Porto", "Fábrica", "Refinaria"]
+		
+	if not GameManager.network_connections.is_empty():
+		for c in all_cities:
+			var is_connected = false
+			for r in GameManager.network_connections:
+				if c in r:
+					is_connected = true
+					break
+			if is_connected:
+				connected_cities.append(c)
+			if not is_connected:
+				disconnected_cities.append(c)
+
+	# Trava de segurança para não quebrar a geração matemática
+	if connected_cities.size() < 2:
+		connected_cities = ["Mina", "Siderúrgica"]
+		disconnected_cities = ["Fazenda", "Porto", "Fábrica", "Refinaria"]
+
 	var daily_costs = daily_maintenance + BASE_COST + daily_crew_cost + daily_lobby_cost + daily_gang_toll
 	var min_reward = int(daily_costs * 0.8) 
 	if min_reward < 80: min_reward = 80
 	
-	var comp = {
-		"name": bases.pick_random() + " " + suffixes.pick_random() + " (Diario)", 
-		"type": tp, 
-		"base_reward": randi_range(min_reward, min_reward + 80), 
-		"phone": "555-" + str(randi_range(1000, 9999)), 
-		"cargo": cg.pick_random(),
-		# --- ALTERAÇÃO AQUI: Teto do peso máximo reduzido de 1000 para 800 ---
-		"weight": randi_range(100, 800),
-		# ---------------------------------------------------------------------
-		"duration": randi_range(5, 10),
-		"route_id": r["id"], 
-		"route_name": r["n"]
-	}
-	if tp == "Expresso": comp["max_dist"] = 35 
-	daily_generic_companies.append(comp)
-	_roll_daily_urgencies()
+	# GERA 3 CONTRATOS SEGUROS (Só em cidades que você já conectou)
+	for i in range(3):
+		var city_a = connected_cities.pick_random()
+		var city_b = connected_cities.pick_random()
+		while city_b == city_a:
+			city_b = connected_cities.pick_random()
+			
+		var combo = [city_a, city_b]
+		combo.sort()
+		var r_id = combo[0] + "-" + combo[1]
+		var r_name = combo[0] + " <-> " + combo[1]
+		
+		var tp = t.pick_random()
+		var comp = {
+			"name": bases.pick_random() + " " + suffixes.pick_random() + " (Diário)", 
+			"type": tp, 
+			"base_reward": randi_range(min_reward, min_reward + 80), 
+			"phone": "555-" + str(randi_range(1000, 9999)), 
+			"cargo": cg.pick_random(),
+			"weight": randi_range(100, 800),
+			"duration": randi_range(5, 10),
+			"route_id": r_id, 
+			"route_name": r_name,
+			"upfront_bonus": 0
+		}
+		if tp == "Expresso": comp["max_dist"] = 35 
+		daily_generic_companies.append(comp)
 
+	# GERA 1 EDITAL DE EXPANSÃO (Conecta a sua malha a uma cidade adormecida)
+	if disconnected_cities.size() > 0:
+		var city_a = connected_cities.pick_random()
+		var city_b = disconnected_cities.pick_random()
+		var combo = [city_a, city_b]
+		combo.sort()
+		var r_id = combo[0] + "-" + combo[1]
+		var r_name = combo[0] + " <-> " + combo[1]
+		
+		var edital = {
+			"name": "Prefeitura Estadual (Edital)", 
+			"type": "Licitação Estatal", 
+			"base_reward": randi_range(min_reward, min_reward + 40), 
+			"phone": "GOV-" + str(randi_range(100, 999)), 
+			"cargo": "Materiais de Infraestrutura",
+			"weight": randi_range(400, 800),
+			"duration": randi_range(15, 20),
+			"route_id": r_id, 
+			"route_name": r_name,
+			"upfront_bonus": randi_range(1800, 2500) # O SUBSÍDIO SALVADOR
+		}
+		daily_generic_companies.append(edital)
+
+	_roll_daily_urgencies()
 
 func _roll_daily_urgencies() -> void:
 	daily_urgencies.clear()
