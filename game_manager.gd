@@ -538,8 +538,9 @@ func _generate_daily_generics() -> void:
 		"base_reward": randi_range(min_reward, min_reward + 80), 
 		"phone": "555-" + str(randi_range(1000, 9999)), 
 		"cargo": cg.pick_random(),
-		# --- NOVO: PESOS ADEQUADOS PARA A FROTA INICIAL ---
-		"weight": randi_range(100, 1000),
+		# --- ALTERAÇÃO AQUI: Teto do peso máximo reduzido de 1000 para 800 ---
+		"weight": randi_range(100, 800),
+		# ---------------------------------------------------------------------
 		"duration": randi_range(5, 10),
 		"route_id": r["id"], 
 		"route_name": r["n"]

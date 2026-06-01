@@ -210,19 +210,17 @@ func _setup_ui() -> void:
 	btn_go_inspection.pressed.connect(_on_go_inspection_pressed)
 	ui_layer.add_child(btn_go_inspection)
 	
-	# --- NOVO: BOTÃO PARA ABRIR O LIVRO NA MESA ---
 	btn_open_ledger = Button.new()
 	btn_open_ledger.text = "LIVRO DE REGISTROS"
-	btn_open_ledger.position = Vector2(1650, 100) # Fica embaixo do botão de ir para a triagem
+	btn_open_ledger.position = Vector2(1650, 100)
 	btn_open_ledger.size = Vector2(230, 40)
 	btn_open_ledger.pressed.connect(_on_open_ledger_pressed)
 	ui_layer.add_child(btn_open_ledger)
 	
-	# --- NOVO: UI DO LIVRO (PAGINADO) ---
 	ledger_book = ColorRect.new()
 	ledger_book.color = Color(0.15, 0.15, 0.18, 0.98)
 	ledger_book.size = Vector2(600, 700)
-	ledger_book.position = Vector2(660, 150) # Centro da tela
+	ledger_book.position = Vector2(660, 150)
 	ledger_book.visible = false
 	ui_layer.add_child(ledger_book)
 	
@@ -245,7 +243,7 @@ func _setup_ui() -> void:
 	ledger_content.size = Vector2(540, 520)
 	ledger_content.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	ledger_content.add_theme_font_size_override("font_size", 16)
-	ledger_content.mouse_filter = Control.MOUSE_FILTER_IGNORE # --- NOVO: IMPEDE A LABEL DE BLOQUEAR O CLIQUE ---
+	ledger_content.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ledger_book.add_child(ledger_content)
 	
 	btn_ledger_prev = Button.new()
@@ -269,8 +267,6 @@ func _setup_ui() -> void:
 	btn_ledger_close.add_theme_color_override("font_color", Color.INDIAN_RED)
 	btn_ledger_close.pressed.connect(_on_close_ledger_pressed)
 	ledger_book.add_child(btn_ledger_close)
-	# ----------------------------------------------
-	
 
 	diretrizes_rect = ColorRect.new()
 	diretrizes_rect.color = Color(0.6, 0.15, 0.15) 
@@ -297,7 +293,6 @@ func _setup_ui() -> void:
 	diretrizes_bar.add_theme_stylebox_override("fill", fg_bar)
 	diretrizes_rect.add_child(diretrizes_bar)
 
-	# PASTAS E FERRAMENTAS REORGANIZADAS PARA NÃO SOBREPOR
 	tool_pen = ColorRect.new()
 	tool_pen.color = Color(0.8, 0.8, 0.85) 
 	tool_pen.size = Vector2(12, 110)
@@ -311,9 +306,8 @@ func _setup_ui() -> void:
 	pen_tip.polygon = PackedVector2Array([ Vector2(0, 110), Vector2(12, 110), Vector2(6, 125) ])
 	tool_pen.add_child(pen_tip)
 
-	# --- CARIMBOS (Agora com visual de pegador) ---
 	stamp_reject = ColorRect.new()
-	stamp_reject.color = Color.TRANSPARENT # Base invisível para segurar as partes
+	stamp_reject.color = Color.TRANSPARENT
 	stamp_reject.size = Vector2(70, 90)
 	stamp_reject.position = Vector2(600, 120)
 	ui_layer.add_child(stamp_reject)
@@ -400,13 +394,10 @@ func _setup_ui() -> void:
 	trash_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui_layer.add_child(trash_rect)
 	
-	
-
-	# --- LINHA DO MEIO DA MESA (Arquivos e Pranchetas) ---
 	agenda_rect = ColorRect.new()
 	agenda_rect.color = Color(0.85, 0.8, 0.6) 
 	agenda_rect.size = Vector2(400, 520) 
-	agenda_rect.position = Vector2(40, 200) # Canto Esquerdo
+	agenda_rect.position = Vector2(40, 200)
 	ui_layer.add_child(agenda_rect)
 	_make_draggable(agenda_rect, "panel")
 	
@@ -451,7 +442,7 @@ func _setup_ui() -> void:
 	pad_extension = ColorRect.new()
 	pad_extension.color = Color(0.35, 0.4, 0.45)
 	pad_extension.size = Vector2(140, 180)
-	pad_extension.position = Vector2(480, 200) # Ao lado do arquivo
+	pad_extension.position = Vector2(480, 200)
 	pad_extension.visible = false 
 	ui_layer.add_child(pad_extension)
 	
@@ -473,7 +464,7 @@ func _setup_ui() -> void:
 	clipboard_rect = ColorRect.new()
 	clipboard_rect.color = Color(0.95, 0.95, 0.9) 
 	clipboard_rect.size = Vector2(350, 400)
-	clipboard_rect.position = Vector2(750, 200) # Meio da mesa
+	clipboard_rect.position = Vector2(750, 200)
 	ui_layer.add_child(clipboard_rect)
 	_make_draggable(clipboard_rect, "panel")
 	
@@ -500,7 +491,6 @@ func _setup_ui() -> void:
 
 	task_pad_rect = ColorRect.new()
 	task_pad_rect.color = Color(0.95, 0.92, 0.65)
-	# Aumentamos o tamanho e movemos um pouco para a esquerda para não encostar na lixeira
 	task_pad_rect.size = Vector2(380, 380)
 	task_pad_rect.position = Vector2(1100, 200) 
 	ui_layer.add_child(task_pad_rect)
@@ -523,13 +513,10 @@ func _setup_ui() -> void:
 	task_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	task_pad_rect.add_child(task_vbox)
 
-
-
-	# --- RÁDIO (Agora em formato de Walkie-Talkie, à direita do Telefone) ---
 	radio_rect = ColorRect.new()
-	radio_rect.color = Color(0.2, 0.2, 0.25) # Cinza azulado escuro
-	radio_rect.size = Vector2(140, 320)      # Formato Vertical
-	radio_rect.position = Vector2(420, 690)  # Ao lado do telefone
+	radio_rect.color = Color(0.2, 0.2, 0.25)
+	radio_rect.size = Vector2(140, 320)
+	radio_rect.position = Vector2(420, 690)
 	ui_layer.add_child(radio_rect)
 	_make_draggable(radio_rect, "radio")
 	
@@ -556,15 +543,14 @@ func _setup_ui() -> void:
 	radio_led = ColorRect.new()
 	radio_led.color = Color(0.2, 0.05, 0.05) 
 	radio_led.size = Vector2(24, 24)
-	radio_led.position = Vector2(96, 70) # LED no canto
+	radio_led.position = Vector2(96, 70)
 	radio_led.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	radio_rect.add_child(radio_led)
 
-	# --- TELEFONE (Movido para baixo à esquerda) ---
 	phone_rect = ColorRect.new()
 	phone_rect.color = Color(0.1, 0.25, 0.15) 
 	phone_rect.size = Vector2(340, 260) 
-	phone_rect.position = Vector2(40, 750) # Posição Inferior Esquerda
+	phone_rect.position = Vector2(40, 750)
 	ui_layer.add_child(phone_rect)
 	_make_draggable(phone_rect, "panel")
 	
@@ -592,8 +578,6 @@ func _setup_ui() -> void:
 	dial_rect.gui_input.connect(_on_dial_gui_input)
 	phone_rect.add_child(dial_rect)
 	
-		# --- LINHA INFERIOR (Calendário) ---
-
 	calendar_rect = ColorRect.new()
 	calendar_rect.color = Color(0.9, 0.9, 0.9)
 	calendar_rect.size = Vector2(220, 160)
@@ -608,7 +592,6 @@ func _setup_ui() -> void:
 	cal_clip.position = Vector2(60, 0)
 	calendar_rect.add_child(cal_clip)
 
-	# --- PASTA ESCONDIDA DE DADOS DO CONTRATO ---
 	folder_rect = ColorRect.new()
 	folder_rect.color = Color(0.8, 0.65, 0.4) 
 	folder_rect.size = Vector2(500, 480)
@@ -642,6 +625,7 @@ func _setup_ui() -> void:
 	btn_close_folder.pressed.connect(_on_close_folder_pressed)
 	folder_rect.add_child(btn_close_folder)
 
+	# --- INÍCIO DA ALTERAÇÃO (CORREÇÃO DO BUG DO BOTÃO) ---
 	doc_standard = ColorRect.new()
 	doc_standard.color = Color(0.95, 0.95, 0.95)
 	doc_standard.size = Vector2(440, 420)
@@ -649,14 +633,15 @@ func _setup_ui() -> void:
 	folder_rect.add_child(doc_standard)
 	doc_standard.gui_input.connect(_on_doc_input.bind(doc_standard))
 	
-	# --- NOVO: SCROLL PARA O TEXTO DO CONTRATO NÃO VAZAR A TELA ---
+	# O ScrollContainer agora é filho do doc_standard, respeitando as bordas dele.
+	# Tamanho vertical reduzido para não invadir o botão de preparar contrato
 	var std_scroll = ScrollContainer.new()
-	std_scroll.position = Vector2(20, 100)
-	std_scroll.size = Vector2(460, 350) # Limita o tamanho exato dentro da pasta
-	folder_rect.add_child(std_scroll)
+	std_scroll.position = Vector2(10, 10)
+	std_scroll.size = Vector2(420, 340) 
+	doc_standard.add_child(std_scroll)
 	
 	std_label = Label.new()
-	std_label.custom_minimum_size = Vector2(440, 0) # Força a largura para quebrar a linha
+	std_label.custom_minimum_size = Vector2(400, 0)
 	std_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	std_label.add_theme_color_override("font_color", Color.BLACK)
 	std_label.add_theme_font_size_override("font_size", 14)
@@ -668,6 +653,7 @@ func _setup_ui() -> void:
 	btn_call_std.size = Vector2(400, 40)
 	btn_call_std.pressed.connect(_on_call_standard_pressed)
 	doc_standard.add_child(btn_call_std)
+	# --- FIM DA ALTERAÇÃO ---
 
 	doc_urgent = ColorRect.new()
 	doc_urgent.color = Color(0.95, 0.85, 0.85)
@@ -691,11 +677,10 @@ func _setup_ui() -> void:
 	btn_call_urg.pressed.connect(_on_call_urgent_pressed)
 	doc_urgent.add_child(btn_call_urg)
 	
-	# --- NOVO: CAIXA DE DIÁLOGO DA LIXEIRA ---
 	trash_dialog = ColorRect.new()
 	trash_dialog.color = Color(0.1, 0.1, 0.15, 0.98)
 	trash_dialog.size = Vector2(400, 200)
-	trash_dialog.position = Vector2(760, 440) # Centralizado na tela
+	trash_dialog.position = Vector2(760, 440)
 	trash_dialog.visible = false
 	ui_layer.add_child(trash_dialog)
 	
@@ -728,6 +713,10 @@ func _setup_ui() -> void:
 	btn_trash_no.position = Vector2(220, 110)
 	btn_trash_no.pressed.connect(_on_trash_no)
 	trash_dialog.add_child(btn_trash_no)
+
+
+
+
 
 func _process_call() -> void:
 	var rid = pending_company_data["route_id"]
@@ -1316,17 +1305,16 @@ func _load_agenda_contacts() -> void:
 	if current_agenda_contacts.is_empty():
 		var all_c = []
 		
-		# Filtra apenas dicionários válidos para evitar crashes
 		for c in GameManager.daily_generic_companies: 
 			if typeof(c) == TYPE_DICTIONARY: all_c.append(c)
 		for c in GameManager.daily_urgencies: 
 			if typeof(c) == TYPE_DICTIONARY: all_c.append(c)
 			
-		# SOLUÇÃO GAME DESIGN: Contrato Garantido no Dia 1
 		if GameManager.current_day == 1 and not GameManager.is_first_route_built:
+			# --- INÍCIO DA ALTERAÇÃO (MUDANDO O NOME/TAG DO TUTORIAL) ---
 			var tutorial_contract = {
-				"name": "Prefeitura Local (Tutorial)",
-				"type": "Ganha-Pao",
+				"name": "Prefeitura Local (Edital)",
+				"type": "Licitação Estatal",
 				"phone": "555-0001",
 				"cargo": "Materiais de Construcao",
 				"route_id": "Azul-Vermelha",
@@ -1334,6 +1322,7 @@ func _load_agenda_contacts() -> void:
 				"base_reward": 150
 			}
 			all_c.append(tutorial_contract)
+			# --- FIM DA ALTERAÇÃO ---
 		
 		var fakes = ["Madeireira Sul", "Minas de Carvao", "Tecelagem Fina", "Armazens Gerais", "Importadora X", "Silos do Porto", "Fazenda Velha", "Aco & Ferro Ltda"]
 		for i in range(12): 
@@ -1346,10 +1335,11 @@ func _load_agenda_contacts() -> void:
 			
 		all_c.shuffle()
 		
-		# Garante que o contrato do Tutorial fique na primeira página (índice 0)
 		if GameManager.current_day == 1 and not GameManager.is_first_route_built:
 			for i in range(all_c.size()):
-				if all_c[i].get("name") == "Prefeitura Local (Tutorial)":
+				# --- INÍCIO DA ALTERAÇÃO (ACOMPANHANDO A MUDANÇA) ---
+				if all_c[i].get("name") == "Prefeitura Local (Edital)":
+				# --- FIM DA ALTERAÇÃO ---
 					var temp = all_c[0]
 					all_c[0] = all_c[i]
 					all_c[i] = temp
@@ -1359,7 +1349,6 @@ func _load_agenda_contacts() -> void:
 		current_agenda_page = 0
 		
 	_render_agenda_page()
-
 
 
 
@@ -1378,14 +1367,31 @@ func _render_agenda_page() -> void:
 			
 		var btn = Button.new()
 		
-		if c.get("type", "Falso") == "Falso":
+		# --- INÍCIO DA ALTERAÇÃO (MAPEAMENTO DE TAGS DO MENU) ---
+		var raw_type = c.get("type", "Falso")
+		var display_type = raw_type
+		
+		if raw_type == "Ganha-Pao":
+			display_type = "Convencional"
+		if raw_type == "Expresso":
+			display_type = "Expresso JIT"
+		if raw_type == "VIP":
+			display_type = "Alto Risco"
+		if raw_type == "Ecologico":
+			display_type = "Selo ESG"
+		if raw_type == "Licitação Estatal":
+			display_type = "Subsídio"
+			
+		if raw_type == "Falso":
 			btn.text = c.get("name", "Desconhecido") + "\nTel: " + c.get("phone", "000")
 			btn.disabled = true
-		else:
-			var txt = c.get("name", "Empresa") + " (" + c.get("type", "") + ")\n"
+		if raw_type != "Falso":
+			var c_name = c.get("name", "Empresa")
+			var txt = c_name + " (" + display_type + ")\n"
 			txt += "Tel: " + c.get("phone", "000") + " | Paga: $" + str(c.get("base_reward", 0))
 			btn.text = txt
 			btn.pressed.connect(_on_company_selected.bind(c))
+		# --- FIM DA ALTERAÇÃO ---
 			
 		btn.custom_minimum_size = Vector2(240, 60)
 		companies_vbox.add_child(btn)
@@ -1393,7 +1399,6 @@ func _render_agenda_page() -> void:
 	lbl_page.text = "Pág. " + str(current_agenda_page + 1)
 	btn_prev_page.text = "<- Pág."
 	btn_next_page.text = "Pág. ->"
-
 
 
 
@@ -1641,21 +1646,73 @@ func _on_company_selected(data: Dictionary) -> void:
 	folder_title.text = "CLIENTE: " + data["name"]
 	folder_route.text = "Exige Rota: " + data["route_name"]
 	
-	# --- NOVO: LIMITA O PESO MÁXIMO DE BACKUP ---
-	if not data.has("weight"): data["weight"] = randi_range(100, 1000)
+	if not data.has("weight"): data["weight"] = randi_range(100, 800)
 	if not data.has("duration"): data["duration"] = randi_range(5, 10)
 	
-	std_label.text = "[ CONTRATO PADRÃO ]\n\n"
-	std_label.text += "Carga: " + data["cargo"] + " (" + str(data["weight"]) + " Kg)\n"
-	std_label.text += "Duração Prevista: " + str(data["duration"]) + " a " + str(data["duration"] + 3) + " dias\n"
-	std_label.text += "Pagamento Diário: $" + str(data["base_reward"]) + "\n\n"
-	std_label.text += "Contato: " + data["phone"]
+	# --- INÍCIO DA ALTERAÇÃO (DOCUMENTO SLA E MAPEAMENTO DE TAGS) ---
+	var base_type = data.get("type", "Comum")
+	var display_type = base_type
+	
+	if base_type == "Ganha-Pao":
+		display_type = "Convencional (Classe C)"
+	if base_type == "Expresso":
+		display_type = "Expresso JIT (Just-in-Time)"
+	if base_type == "VIP":
+		display_type = "Transporte de Alto Risco"
+	if base_type == "Ecologico":
+		display_type = "Certificação Ambiental (ESG)"
+	if base_type == "Licitação Estatal":
+		display_type = "Subsídio Governamental"
+		
+	var cargo_name = data.get("cargo", "Carga Geral")
+	var route_id_check = data.get("route_id", "")
+	var is_built = route_id_check in GameManager.network_connections
+	
+	var lore_text = "Abastecimento logístico padrão de rotina."
+	if "Madeira" in cargo_name or "Ferro" in cargo_name or "Aco" in cargo_name or "Construcao" in cargo_name:
+		lore_text = "Material base requisitado com urgência para sustentar a expansão do pólo industrial da região."
+	if "Carvao" in cargo_name or "Cimento" in cargo_name:
+		lore_text = "Carga pesada essencial para a manutenção ininterrupta das fornalhas e infraestrutura civil civil."
+	if "Ouro" in cargo_name or "Suspeita" in cargo_name or "Joias" in cargo_name:
+		lore_text = "Ativo de altíssimo valor agregado. Exige discrição, sigilo corporativo e segurança máxima."
+	if "Trigo" in cargo_name or "Sementes" in cargo_name or "Fertilizantes" in cargo_name:
+		lore_text = "Insumo biológico perecível e sensível, vital para a estabilidade da cadeia alimentar."
+		
+	var contract_id = "SLA-" + str(randi_range(1000, 9999)) + "-" + ["A", "B", "C", "X"].pick_random()
+	
+	std_label.text = "[ TERMO DE ACORDO DE NÍVEL DE SERVIÇO (SLA) ]\n"
+	std_label.text += "ID do Contrato: " + contract_id + "\n"
+	std_label.text += "Classificação: " + display_type + "\n\n"
+	
+	std_label.text += "OBJETO E JUSTIFICATIVA:\n"
+	std_label.text += "Natureza da Carga: " + cargo_name + "\n"
+	std_label.text += "Lore/Contexto: " + lore_text + "\n\n"
+	
+	std_label.text += "DADOS LOGÍSTICOS:\n"
+	std_label.text += "Peso Aferido: " + str(data["weight"]) + " kg (Sujeito à capacidade trativa da frota)\n"
+	std_label.text += "Rota Exigida: " + data["route_name"] + "\n"
+	
+	if is_built:
+		std_label.text += "Prazo de Implementação: Imediato (Via já mapeada e operacional).\n\n"
+	if not is_built:
+		std_label.text += "Prazo de Implementação: MÁXIMO DE 3 DIAS para início das operações (Via em construção ou inexistente).\n\n"
+		
+	var duration_val = data.get("duration", 5)
+	var cancel_fine = int((data.get("base_reward", 0) * duration_val) * 0.20)
+	if cancel_fine < 100:
+		cancel_fine = 100
+		
+	std_label.text += "TERMOS FINANCEIROS:\n"
+	std_label.text += "Duração Vigente: " + str(duration_val) + " a " + str(duration_val + 3) + " dias úteis.\n"
+	std_label.text += "Tarifa de Frete: $" + str(data["base_reward"]) + ",00 / dia (Pagos mediante confirmação de entrega).\n"
+	std_label.text += "Cláusula de Rescisão: Em caso de rompimento unilateral ou falha de infraestrutura, a contratada arcará com multa rescisória fixada em $" + str(cancel_fine) + ",00.\n\n"
+	
+	std_label.text += "Contato Direto: " + data["phone"]
+	# --- FIM DA ALTERAÇÃO ---
 	
 	btn_call_std.text = "PREPARAR CONTRATO"
-	btn_call_std.visible = true # --- NOVO: GARANTE QUE O BOTÃO APAREÇA ---
+	btn_call_std.visible = true 
 	
-	if GameManager.daily_urgencies.has(data["name"]):
-		doc_urgent.visible = true
 	if GameManager.daily_urgencies.has(data["name"]):
 		doc_urgent.visible = true
 		urg_label.text = "[!] URGÊNCIA HOJE\n\n"
@@ -1673,7 +1730,6 @@ func _on_company_selected(data: Dictionary) -> void:
 	_clamp_to_screen(folder_rect)
 
 
-
 func _spawn_proposal_paper(c_data: Dictionary, is_urg: bool, reward: int) -> void:
 	var paper = ColorRect.new()
 	
@@ -1687,61 +1743,91 @@ func _spawn_proposal_paper(c_data: Dictionary, is_urg: bool, reward: int) -> voi
 	paper.position = Vector2(800 + randf_range(-30, 30), 200 + randf_range(-30, 30))
 	paper.rotation_degrees = randf_range(-5, 5)
 
+	# --- INÍCIO DA ALTERAÇÃO (CORREÇÃO DO CARIMBO E SCROLL) ---
+	
+	# O nó 'content' é a camada invisível obrigatória onde a caneta e os carimbos "pintam".
 	var content = Control.new()
 	content.name = "content"
 	content.set_anchors_preset(Control.PRESET_FULL_RECT)
 	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var scroll = ScrollContainer.new()
+	scroll.position = Vector2(15, 20)
+	scroll.size = paper.size - Vector2(30, 40)
+	scroll.mouse_filter = Control.MOUSE_FILTER_PASS
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	
+	# A ORDEM IMPORTA: O scroll fica no fundo para rolar o texto, o content fica por cima para segurar os carimbos.
+	paper.add_child(scroll)
 	paper.add_child(content)
 
 	var text_lbl = Label.new()
-	text_lbl.add_theme_color_override("font_color", Color.BLACK)
+	text_lbl.add_theme_color_override("font_color", Color(0.1, 0.1, 0.12)) # Tom de tinta de impressora
 	text_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	text_lbl.size = paper.size - Vector2(40, 40)
-	text_lbl.position = Vector2(20, 20)
+	text_lbl.custom_minimum_size = Vector2(scroll.size.x - 15, 0)
+	scroll.add_child(text_lbl)
 
-	# --- PROGRAMAÇÃO DEFENSIVA: Extração segura de dados ---
-	# Tenta pegar "company_name", se não achar tenta "name", se não achar põe "Empresa Desconhecida"
 	var comp_name = c_data.get("company_name", c_data.get("name", "Empresa Desconhecida"))
+	# --- FIM DA ALTERAÇÃO ---
 	var cargo_name = c_data.get("cargo", "Carga Geral")
 	var route_name = c_data.get("route_name", "Rota Não Especificada")
-	var c_type = c_data.get("type", "Comum")
+	var raw_type = c_data.get("type", "Comum")
 	var c_weight = str(c_data.get("weight", 0))
 
-	var text = "TERMO OFICIAL DE TRANSPORTE\n\n"
+	var display_type = raw_type
+	if raw_type == "Ganha-Pao": display_type = "Convencional (Classe C)"
+	if raw_type == "Expresso": display_type = "Expresso JIT"
+	if raw_type == "VIP": display_type = "Alto Risco"
+	if raw_type == "Ecologico": display_type = "Certificação ESG"
+	if raw_type == "Licitação Estatal": display_type = "Subsídio Governamental"
+
+	var lore_text = "Abastecimento logístico padrão."
+	if "Madeira" in cargo_name or "Ferro" in cargo_name or "Aco" in cargo_name or "Construcao" in cargo_name:
+		lore_text = "Insumos para expansão industrial e obras civis."
+	if "Carvao" in cargo_name or "Cimento" in cargo_name:
+		lore_text = "Carga pesada para manutenção de infraestrutura crítica."
+	if "Ouro" in cargo_name or "Suspeita" in cargo_name or "Joias" in cargo_name:
+		lore_text = "Ativo de alto valor. Risco de interceptação elevado."
+	if "Trigo" in cargo_name or "Sementes" in cargo_name or "Fertilizantes" in cargo_name:
+		lore_text = "Insumo biológico sensível para cadeia alimentar."
+
+	var text = "==============================\n"
+	text += "   AUTORIZAÇÃO DE DESPACHO\n"
+	text += "==============================\n\n"
 	text += "CONTRATANTE: " + comp_name + "\n"
 	text += "CARGA: " + cargo_name + " (" + c_weight + " Kg)\n"
+	text += "CONTEXTO: " + lore_text + "\n"
 	text += "ROTA EXIGIDA: " + route_name + "\n\n"
 	
 	if is_urg:
 		text += "[ OPERAÇÃO DE URGÊNCIA MÁXIMA ]\n"
-		text += "Duração da Operação: 1 Dia\n"
-		text += "Pagamento à Vista: $" + str(reward) + "\n\n"
+		text += "Duração da Operação: 1 Dia Útil\n"
+		text += "Liquidação à Vista: $" + str(reward) + ",00\n\n"
 	if not is_urg:
-		text += "[ CONTRATO PADRÃO " + c_type + " ]\n"
-		text += "Duração Estimada: " + str(c_data.get("duration", 5)) + " a " + str(c_data.get("duration", 10) + 3) + " Dias\n"
-		text += "Pagamento Diário: $" + str(reward) + "\n\n"
+		text += "[ CLASSIFICAÇÃO: " + display_type + " ]\n"
+		text += "Duração Vigente: " + str(c_data.get("duration", 5)) + " a " + str(c_data.get("duration", 10) + 3) + " Dias\n"
+		text += "Faturamento Diário: $" + str(reward) + ",00\n\n"
 
-	text += "CLÁUSULA ÚNICA: A Cia. de Entregas Ferroviárias assume responsabilidade integral sobre o estado da carga (" + c_weight + " Kg) durante todo o trajeto.\n\n"
+	text += "CLÁUSULA DE RESPONSABILIDADE:\n"
+	text += "A Cia. de Entregas Ferroviárias assume custódia integral sobre a carga (" + c_weight + " Kg). Extravios ou falhas de malha incorrerão em multas contratuais.\n\n"
 	
 	if pending_is_risk:
-		text += "[ ATENÇÃO: CONTRATO DE RISCO ]\nVia inexistente ou em obras. Prazo estrito: 3 dias para iniciar operação."
-	else:
-		text += "(Aguarde validação manual para Enviar)"
+		text += "[ ALERTA JURÍDICO ]\nVia inexistente/incompleta. O prazo de implementação máximo é de 3 dias úteis.\n\n"
+	if not pending_is_risk:
+		text += "Status da Malha: Operacional.\n\n"
+		
+	text += "ESPAÇO PARA CARIMBO OFICIAL:\n\n\n\n"
+	text += "_______________________________\n"
+	text += "Assinatura do Despachante Autorizado\n\n"
+	text += "(Aguardando validação com carimbo 'SELO CIA' ou 'REJEITAR' para processamento.)"
 	
 	text_lbl.text = text
-	content.add_child(text_lbl)
+	# --- FIM DA ALTERAÇÃO ---
 
 	paper.set_meta("is_paper", true)
-	paper.set_meta("is_extension", false)
-	paper.set_meta("company_data", c_data)
-	paper.set_meta("is_urgent", is_urg)
-	paper.set_meta("reward", reward)
-	paper.set_meta("is_risk", pending_is_risk)
-	paper.set_meta("action", "")
 
 	_make_draggable(paper, "paper")
 	
-	# Presumo que esta função existe no seu arquivo para adicionar um pino/selo visual
 	if has_method("_add_ball_visual"):
 		_add_ball_visual(paper)
 
@@ -1750,7 +1836,6 @@ func _spawn_proposal_paper(c_data: Dictionary, is_urg: bool, reward: int) -> voi
 	
 	if has_method("_load_agenda_contacts"):
 		_load_agenda_contacts()
-
 
 
 func _spawn_blueprint_form() -> void:
@@ -2620,24 +2705,60 @@ func _on_active_contract_clicked(index: int) -> void:
 	folder_title.text = "CLIENTE: " + c.get("company_name", "Empresa")
 	folder_route.text = "Rota Exigida: " + c.get("route_name", "Qualquer")
 	
-	var txt = "[ REVISÃO DE CONTRATO ATIVO ]\n\n"
-	txt += "Carga Transportada: " + c.get("cargo", "N/A") + " (" + str(c.get("weight", 0)) + " kg)\n"
-	txt += "Dias Restantes do Contrato: " + str(c.get("days_left", 0)) + "\n"
+	# --- INÍCIO DA ALTERAÇÃO (DOCUMENTO DE AUDITORIA B2B) ---
+	var base_type = c.get("type", "Comum")
+	var display_type = base_type
+	if base_type == "Ganha-Pao": display_type = "Convencional (Classe C)"
+	if base_type == "Expresso": display_type = "Expresso JIT"
+	if base_type == "VIP": display_type = "Alto Risco"
+	if base_type == "Ecologico": display_type = "Certificação ESG"
+	if base_type == "Licitação Estatal": display_type = "Subsídio Governamental"
 	
-	if c.get("is_urgent", false):
-		txt += "Pagamento (À Vista): Pago na Assinatura\n"
-	else:
-		txt += "Pagamento Diário na Entrega: $" + str(c.get("reward", 0)) + "\n"
+	var cargo_name = c.get("cargo", "N/A")
+	var lore_text = "Abastecimento logístico padrão de rotina."
+	if "Madeira" in cargo_name or "Ferro" in cargo_name or "Aco" in cargo_name or "Construcao" in cargo_name:
+		lore_text = "Material base requisitado com urgência para sustentar a expansão do pólo industrial da região."
+	if "Carvao" in cargo_name or "Cimento" in cargo_name:
+		lore_text = "Carga pesada essencial para a manutenção ininterrupta das fornalhas e infraestrutura civil."
+	if "Ouro" in cargo_name or "Suspeita" in cargo_name or "Joias" in cargo_name:
+		lore_text = "Ativo de altíssimo valor agregado. Exige discrição, sigilo corporativo e segurança máxima."
+	if "Trigo" in cargo_name or "Sementes" in cargo_name or "Fertilizantes" in cargo_name:
+		lore_text = "Insumo biológico perecível e sensível, vital para a estabilidade da cadeia alimentar."
+		
+	var txt = "[ AUDITORIA DE CONTRATO VIGENTE ]\n"
+	txt += "Classificação: " + display_type + "\n\n"
+	
+	txt += "OBJETO DO CONTRATO:\n"
+	txt += "Carga Aferida: " + cargo_name + " (" + str(c.get("weight", 0)) + " kg)\n"
+	txt += "Contexto: " + lore_text + "\n\n"
+	
+	txt += "STATUS LOGÍSTICO:\n"
+	txt += "Rota Designada: " + c.get("route_name", "Qualquer") + "\n"
 	
 	var is_built = c.get("route_id", "") in GameManager.network_connections
 	if is_built:
-		txt += "\nStatus da Via: [ OPERACIONAL ]"
+		txt += "Situação da Malha: [ OPERACIONAL ]\n\n"
 	if not is_built:
-		txt += "\nStatus da Via: [ INEXISTENTE / EM OBRAS ]"
+		txt += "Situação da Malha: [ INEXISTENTE OU EM OBRAS ] (Atenção aos prazos de entrega!)\n\n"
 		
-	txt += "\n\nPara cancelar este contrato, feche esta pasta e clique no botão vermelho 'X' na Prancheta de Operações."
+	txt += "TERMOS FINANCEIROS & PRAZOS:\n"
+	txt += "Vigência Restante: " + str(c.get("days_left", 0)) + " dias úteis.\n"
+	
+	if c.get("is_urgent", false):
+		txt += "Liquidação de Frete: PAGO À VISTA.\n"
+	if not c.get("is_urgent", false):
+		txt += "Faturamento Diário: $" + str(c.get("reward", 0)) + ",00 / entrega concluída.\n"
+		
+	var cancel_fine = int((c.get("reward", 0) * c.get("days_left", 0)) * 0.20)
+	if cancel_fine < 100: cancel_fine = 100
+	if c.get("is_urgent", false): cancel_fine = 500
+	
+	txt += "\n[ NOTA DO DEPARTAMENTO JURÍDICO ]\n"
+	txt += "O cancelamento prematuro deste acordo acarretará multa rescisória estimada em $" + str(cancel_fine) + ",00.\n"
+	txt += "Para solicitar o rompimento de forma oficial, feche esta pasta e utilize a Prancheta de Operações (Botão 'X')."
 	
 	std_label.text = txt
+	# --- FIM DA ALTERAÇÃO ---
 	
 	# Desativa os recursos de assinar, pois já é um contrato vigente!
 	doc_urgent.visible = false
