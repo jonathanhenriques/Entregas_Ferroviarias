@@ -1602,6 +1602,7 @@ func _update_status_panel() -> void:
 
 
 
+# --- INÍCIO DA ALTERAÇÃO: CCO COM ALERTA DE FRETE DE RETORNO ---
 func _populate_dispatch_panel() -> void:
 	for child in dispatch_vbox.get_children():
 		child.queue_free()
@@ -1619,18 +1620,32 @@ func _populate_dispatch_panel() -> void:
 			var cargo_dest = "Qualquer"
 			var total_cargo_value = 0 
 			
-			# --- LENDO O NOME DA CARGA DOS VAGÕES ---
-			var cargo_names = ""
+			# --- LENDO A CARGA PARA IDENTIFICAR IDA E VOLTA ---
 			var pkgs = train["loaded_packages"]
+			var distinct_cargos = []
+			
 			for j in range(pkgs.size()):
 				total_cargo_value += pkgs[j].get("base_reward", 0)
 				if pkgs[j].get("destination", "Qualquer Rota") != "Qualquer Rota":
 					cargo_dest = pkgs[j]["destination"]
 				
-				cargo_names += pkgs[j].get("declared_item", "Carga")
-				if j < pkgs.size() - 1:
-					cargo_names += ", "
-			# ----------------------------------------
+				# Filtra os nomes únicos das empresas/cargas no trem
+				var desc = pkgs[j].get("declared_item", "Carga")
+				if not distinct_cargos.has(desc):
+					distinct_cargos.append(desc)
+					
+			var outbound_cargo = "Nenhuma"
+			var return_cargo = "[ ⚠️ VAZIO ]"
+			
+			# Se só tem 1 cliente no trem, ele vai voltar vazio!
+			if distinct_cargos.size() == 1:
+				outbound_cargo = distinct_cargos[0]
+				return_cargo = "[ ⚠️ VAZIO - Frete Ocioso ]"
+			# Se tem 2 ou mais, o frete de retorno está garantido!
+			elif distinct_cargos.size() >= 2:
+				outbound_cargo = distinct_cargos[0]
+				return_cargo = "[ ✔️ CARREGADO: " + distinct_cargos[1] + " ]"
+			# ---------------------------------------------------
 					
 			var is_route_ok = true
 			var route_status_msg = ""
@@ -1648,21 +1663,26 @@ func _populate_dispatch_panel() -> void:
 						is_route_ok = false
 						route_status_msg = " [ INEXISTENTE ]"
 
-			# --- LAYOUT DA LABEL ATUALIZADO ---
+			# --- LAYOUT DA LABEL ATUALIZADO COM RETORNO ---
 			var lbl = Label.new()
-			lbl.text = train["name"] + " (" + str(train["current_weight"]) + "kg)\nCarga: " + cargo_names + "\nDestino: " + cargo_dest + route_status_msg
-			lbl.custom_minimum_size = Vector2(230, 60)
+			var txt_lbl = train["name"] + " (" + str(train["current_weight"]) + "kg)\n"
+			txt_lbl += "Rota: " + cargo_dest + route_status_msg + "\n"
+			txt_lbl += "Ida: " + outbound_cargo + "\n"
+			txt_lbl += "Retorno: " + return_cargo
+			
+			lbl.text = txt_lbl
+			lbl.custom_minimum_size = Vector2(230, 80) # Tamanho vertical aumentado
 			lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-			lbl.add_theme_font_size_override("font_size", 13)
+			lbl.add_theme_font_size_override("font_size", 12)
 			lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			# ----------------------------------
 			
 			if not is_route_ok:
 				lbl.add_theme_color_override("font_color", Color.INDIAN_RED)
 			hbox.add_child(lbl)
+			# ----------------------------------------------
 			
 			var opt = OptionButton.new()
-			opt.custom_minimum_size = Vector2(170, 40)
+			opt.custom_minimum_size = Vector2(160, 40)
 			opt.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			
 			if is_route_ok:
@@ -1693,7 +1713,7 @@ func _populate_dispatch_panel() -> void:
 				var fine_value = int(total_cargo_value * 0.4)
 				var btn_discard = Button.new()
 				btn_discard.text = "DESCARTAR\n(-$" + str(fine_value) + ")"
-				btn_discard.custom_minimum_size = Vector2(110, 40)
+				btn_discard.custom_minimum_size = Vector2(100, 40)
 				btn_discard.add_theme_color_override("font_color", Color.RED)
 				btn_discard.add_theme_font_size_override("font_size", 12)
 				btn_discard.pressed.connect(_on_discard_train_cargo.bind(i, fine_value))
@@ -1718,7 +1738,7 @@ func _populate_dispatch_panel() -> void:
 			btn_dispatch.disabled = false
 			btn_dispatch.text = "[ INICIAR OPERAÇÃO DIÁRIA ]"
 			btn_dispatch.add_theme_color_override("font_color", Color.LIME_GREEN)
-
+# --- FIM DA ALTERAÇÃO ---
 
 
 

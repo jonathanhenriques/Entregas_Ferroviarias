@@ -72,6 +72,9 @@ var day_phase: int = 0 # 0 = Manhã (B2C), 1 = Escritório, 2 = Tarde (B2B), 3 =
 var boss_package_intro_done: bool = false
 var pending_boss_package_call: bool = false
 var packages_generated_today: int = 0
+var daily_package_target: int = 0
+
+# --- INÍCIO DA ADIÇÃO: LIMITE DIÁRIO DA ESTEIRA ---
 var has_loan_shark: bool = false
 var loan_shark_days_left: int = 0
 var pending_shark_call: bool = false
@@ -136,6 +139,7 @@ var broken_tiles: Array = []
 var pending_blueprint: Dictionary = {}
 
 
+
 func _process(delta: float) -> void:
 	if is_game_ended:
 		return
@@ -160,26 +164,41 @@ func _process(delta: float) -> void:
 		if not boss_package_intro_done and not pending_boss_package_call:
 			pending_boss_package_call = true
 			
-		# --- NOVO: O TURNO COM TEMPO SÓ INICIA NA FASE 0 (MANHÃ) ---
-		if boss_package_intro_done and not shift_active and day_phase == 0 and packages_generated_today == 0:
+		# --- INÍCIO DA ALTERAÇÃO: Lógica do Relógio e Esteira Crescente ---
+		if boss_package_intro_done and not shift_active and day_phase == 0:
 			shift_time_left = 180.0 
 			shift_active = true
-			for i in range(get_daily_package_limit()):
-				_generate_package()
-			package_queue_updated.emit(package_queue.size())
+			packages_generated_today = 0
+			daily_package_target = get_daily_package_limit()
+			package_timer = 2.0 # A primeira caixa cai rápido para o jogador notar
 			
 		if boss_package_intro_done and shift_active:
 			shift_time_left -= delta
+			
+			# Lógica da Esteira Contínua
+			if packages_generated_today < daily_package_target:
+				package_timer -= delta
+				if package_timer <= 0.0:
+					_generate_package()
+					package_queue_updated.emit(package_queue.size())
+					
+					var remaining_packages = daily_package_target - packages_generated_today
+					if remaining_packages > 0:
+						# Distribui o resto das caixas no tempo que sobra (com 15s de folga)
+						package_timer = max(1.0, (shift_time_left - 15.0) / remaining_packages)
+			
 			if shift_time_left <= 0:
 				shift_active = false
 				shift_time_left = 0.0
-				day_phase = 1 # --- NOVO: AVANÇA PARA A FASE 1 (ESCRITÓRIO) ---
+				day_phase = 1 # Avança para a Fase 1 (Escritório à Tarde)
 				shift_ended.emit()
 				
 				if package_queue.size() > 0:
 					if has_method("add_strike"): 
 						add_strike("O relógio bateu zero e " + str(package_queue.size()) + " encomendas ficaram atrasadas na plataforma!")
 					package_queue_updated.emit(package_queue.size())
+		# --- FIM DA ALTERAÇÃO ---
+
 
 
 
@@ -392,9 +411,14 @@ func get_daily_income() -> int:
 
 
 func get_daily_package_limit() -> int:
-	if current_day <= 2: return 3
-	if current_day <= 5: return 5
-	return 8
+	if current_day <= 2:
+		return randi_range(8, 12) # Manhã movimentada inicial
+	elif current_day <= 4:
+		return randi_range(12, 18) # Fica mais tenso
+	else:
+		return randi_range(18, 25) # O caos de uma agência real
+
+
 
 func _generate_package() -> void:
 	var categories = ["Cartas", "Perecivel", "Valioso"]

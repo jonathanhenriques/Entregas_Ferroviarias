@@ -3044,10 +3044,9 @@ func _on_ad_clicked(event: InputEvent, ad_data: Dictionary) -> void:
 
 
 
-# --- INÍCIO DA CORREÇÃO: VISUAL DO JORNAL COM INFORMAÇÕES COMPLETAS ---
 func _show_newspaper() -> void:
 	is_newspaper_open = true
-	GameManager.shift_active = true 
+	# O timer inicia sozinho no game_manager.gd quando a manhã começa, não forçamos mais nada aqui.
 	
 	for child in newspaper_paper.get_children():
 		child.queue_free()
@@ -3102,7 +3101,6 @@ func _show_newspaper() -> void:
 	
 	for ad_data in GameManager.todays_ads:
 		var ad_btn = Button.new()
-		# Tamanho aumentado para caber todas as informações
 		ad_btn.size = Vector2(360, 140)
 		ad_btn.position = Vector2(400, ad_y)
 		
@@ -3122,12 +3120,12 @@ func _show_newspaper() -> void:
 		ad_lbl.add_theme_font_size_override("font_size", 14)
 		ad_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		
-		# Novo layout de texto rico em informações para o jogador não ligar no escuro
+		# Layout de texto rico em informações para o jogador não ligar no escuro
 		var txt = ">> PRECISAMOS DE FRETE <<\n"
-		txt += ad_data["name"] + " procura composições para escoar " + str(ad_data.get("weight", 0)) + "kg de " + ad_data["cargo"] + ".\n"
-		txt += "Rota Exigida: " + ad_data["route_name"] + "\n"
-		txt += "Pagamento: $" + str(ad_data["base_reward"]) + "/dia\n"
-		txt += "TEL: " + ad_data["phone"]
+		txt += ad_data.get("name", "Cliente") + " procura composições para escoar " + str(ad_data.get("weight", 0)) + "kg de " + ad_data.get("cargo", "Carga") + ".\n"
+		txt += "Rota Exigida: " + ad_data.get("route_name", "Desconhecida") + "\n"
+		txt += "Pagamento: $" + str(ad_data.get("base_reward", 0)) + "/dia\n"
+		txt += "TEL: " + ad_data.get("phone", "000")
 		
 		ad_lbl.text = txt
 		ad_lbl.position = Vector2(15, 15)
@@ -3136,14 +3134,13 @@ func _show_newspaper() -> void:
 		ad_btn.add_child(ad_lbl)
 		
 		var ad_bind = ad_data.duplicate()
+		# Usa _on_ad_pressed para o botão funcionar certinho
 		ad_btn.pressed.connect(_on_ad_pressed.bind(ad_bind))
 		
 		newspaper_paper.add_child(ad_btn)
-		ad_y += 160 # Aumentado o espaço entre os botões
+		ad_y += 160 
 
 	newspaper_layer.visible = true
-# --- FIM DA CORREÇÃO ---
-
 
 
 func _on_newspaper_bg_input(event: InputEvent) -> void:
