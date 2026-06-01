@@ -81,11 +81,18 @@ var pending_shark_paper: bool = false # NOVO: Diz para a mesa criar o contrato f
 
 var daily_gang_toll: int = 0
 var daily_crew_cost: int = 0
+
 var daily_lobby_cost: int = 0
 
 var daily_parcel_train_cost: int = 50
 
+# --- INÍCIO DA ADIÇÃO: FICHAS TELEFÔNICAS ---
+var phone_tokens: int = 3
+# --- FIM DA ADIÇÃO ---
+
 var active_contracts: Array = []
+
+
 const MAX_CONTRACTS: int = 3 
 const BASE_COST: int = 25 
 var network_connections: Array = []
@@ -304,6 +311,10 @@ func end_day(upfront_income: int = 0) -> void:
 	
 	contracts_updated.emit()
 	current_day += 1
+	
+	# --- INÍCIO DA ADIÇÃO: RECARGA DIÁRIA DE FICHAS ---
+	phone_tokens = 3 
+	# --- FIM DA ADIÇÃO ---
 	
 	# --- NOVO: REINICIA O TURNO PARA A MANHÃ NO PRÓXIMO DIA ---
 	day_phase = 0 
@@ -725,6 +736,10 @@ func reset_game() -> void:
 	shift_time_left = 0.0
 	shift_active = false
 	
+	# --- INÍCIO DA ADIÇÃO: RESET DAS FICHAS NO NOVO JOGO ---
+	phone_tokens = 3
+	# --- FIM DA ADIÇÃO ---
+	
 	pending_victory_call = false
 	pending_defeat_call = false
 	
@@ -750,6 +765,10 @@ func save_game() -> void:
 		"last_audit_day": last_audit_day,
 		"boss_package_intro_done": boss_package_intro_done,
 		"pending_boss_package_call": pending_boss_package_call,
+		
+		# --- INÍCIO DA ADIÇÃO: SALVANDO AS FICHAS ---
+		"phone_tokens": phone_tokens,
+		# --- FIM DA ADIÇÃO ---
 		
 		"is_first_route_built": is_first_route_built,
 		"first_fiscal_warning_done": first_fiscal_warning_done,
@@ -800,6 +819,10 @@ func load_game() -> bool:
 		last_audit_day = data.get("last_audit_day", -99)
 		boss_package_intro_done = data.get("boss_package_intro_done", false)
 		pending_boss_package_call = data.get("pending_boss_package_call", false)
+		
+		# --- INÍCIO DA ADIÇÃO: CARREGANDO AS FICHAS ---
+		phone_tokens = data.get("phone_tokens", 3)
+		# --- FIM DA ADIÇÃO ---
 		
 		is_first_route_built = data.get("is_first_route_built", false)
 		first_fiscal_warning_done = data.get("first_fiscal_warning_done", false)

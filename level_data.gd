@@ -3,7 +3,7 @@ class_name LevelData
 
 const LEVELS = {
 	1: {
-		"name": "O Vale do Rio (Tutorial)",
+		"name": "O Vale do Rio",
 		"budget": 1500,
 		"goal": 4000,
 		"map_layout": [
@@ -30,68 +30,17 @@ const LEVELS = {
 			"............................................................"
 		],
 		"companies": [
-			# --- INÍCIO DA ALTERAÇÃO: NOMENCLATURA DOS CONTRATOS DO NÍVEL 1 ---
-			{"name": "Serraria do Vale", "type": "Ganha-Pao", "base_reward": 100, "phone": "555-0101", "cargo": "Madeira", "route_id": "Estação A-Estação B", "route_name": "Estação A <-> Estação B"},
-			{"name": "Mina de Carvao Sul", "type": "Ganha-Pao", "base_reward": 120, "phone": "555-0202", "cargo": "Carvao Bruto", "route_id": "Estação A-Estação C", "route_name": "Estação A <-> Estação C"}
-			# --- FIM DA ALTERAÇÃO ---
-		]
-	},
-	2: {
-		"name": "Planicies Centrais",
-		"budget": 2000,
-		"goal": 6000,
-		"map_layout": [
-			"............................................................",
-			"............................................................",
-			"......................FFFFFFFF..............................",
-			"......................FFFFFFFF...........C..................",
-			"......................FFFFFFFF..............................",
-			"......................FFFFFFFF..............................",
-			"............................................................",
-			"...................MMMMMM...................................",
-			"...................MMMMMM...................................",
-			"...................MMMMMM...................................",
-			"...............A...MMMMMM...................................",
-			"...................MMMMMM...................................",
-			"...................MMMMMM...................................",
-			"...................MMMMMM.......FFFFFFF.....................",
-			"................................FFFFFFF.....................",
-			"................................FFFFFFF.....................",
-			"................................FFFFFFF.....................",
-			"................................FFFFFFF......B..............",
-			"................................FFFFFFF.....................",
-			"............................................................",
-			"............................................................"
-		],
-		"gang_layout": [
-			"............................................................",
-			"............................................................",
-			"............................................................",
-			"............................................................",
-			"............................................................",
-			"............................................................",
-			"............................................................",
-			"............................................................",
-			"............................................................",
-			"............................................................",
-			"............................................................",
-			"....................GGGGGGGGGGGGGGGGGG......................",
-			"....................GGGGGGGGGGGGGGGGGG......................",
-			"....................GGGGGGGGGGGGGGGGGG......................",
-			"....................GGGGGGGGGGGGGGGGGG......................",
-			"....................GGGGGGGGGGGGGGGGGG......................",
-			"....................GGGGGGGGGGGGGGGGGG......................",
-			"....................GGGGGGGGGGGGGGGGGG......................",
-			"............................................................",
-			"............................................................"
-		],
-		"companies": [
-			# --- INÍCIO DA ALTERAÇÃO: NOMENCLATURA DOS CONTRATOS DO NÍVEL 2 ---
-			{"name": "Fazenda Trigo Dourado", "type": "Ganha-Pao", "base_reward": 130, "phone": "555-0303", "cargo": "Trigo", "route_id": "Estação A-Estação B", "route_name": "Estação A <-> Estação B"},
-			{"name": "Banco Central", "type": "Expresso", "base_reward": 250, "phone": "555-0404", "cargo": "Ouro", "route_id": "Estação B-Estação C", "route_name": "Estação B <-> Estação C", "max_dist": 22},
-			{"name": "Sindicato Oculto", "type": "VIP", "base_reward": 500, "phone": "555-0999", "cargo": "Carga Suspeita", "route_id": "Estação A-Estação C", "route_name": "Estação A <-> Estação C"},
-			{"name": "ONG Caminho Verde", "type": "Ecologico", "base_reward": 200, "phone": "555-7777", "cargo": "Sementes Raras", "route_id": "Estação B-Estação C", "route_name": "Estação B <-> Estação C"}
-			# --- FIM DA ALTERAÇÃO ---
+			# --- INÍCIO DA ADIÇÃO: EMPRESAS POPULANDO O GUIA REGIONAL ---
+			# Adicionamos a tag "region" e espalhamos empresas de A a F para o Guia fazer sentido
+			{"name": "Serraria do Vale", "region": "Vale do Rio", "type": "Ganha-Pao", "base_reward": 100, "phone": "555-0101", "cargo": "Madeira", "route_id": "Estação A-Estação B", "route_name": "Estação A <-> Estação B"},
+			{"name": "Siderúrgica B", "region": "Vale do Rio", "type": "Ganha-Pao", "base_reward": 140, "phone": "555-0102", "cargo": "Bobinas de Aço", "route_id": "Estação B-Estação D", "route_name": "Estação B <-> Estação D"},
+			
+			{"name": "Fazenda Trigo Dourado", "region": "Planícies", "type": "Ganha-Pao", "base_reward": 130, "phone": "555-0201", "cargo": "Trigo", "route_id": "Estação C-Estação F", "route_name": "Estação C <-> Estação F"},
+			{"name": "Refinaria Apex", "region": "Planícies", "type": "VIP", "base_reward": 350, "phone": "555-0202", "cargo": "Combustível", "route_id": "Estação D-Estação F", "route_name": "Estação D <-> Estação F"},
+			
+			{"name": "Mina de Carvão Sul", "region": "Montanhas", "type": "Ganha-Pao", "base_reward": 120, "phone": "555-0301", "cargo": "Carvão Bruto", "route_id": "Estação A-Estação E", "route_name": "Estação A <-> Estação E"},
+			{"name": "Fábrica de Peças", "region": "Montanhas", "type": "Expresso", "base_reward": 250, "phone": "555-0302", "cargo": "Peças Usinadas", "route_id": "Estação E-Estação F", "route_name": "Estação E <-> Estação F", "max_dist": 25}
+			# --- FIM DA ADIÇÃO ---
 		]
 	}
 }
