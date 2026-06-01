@@ -715,7 +715,11 @@ func save_game() -> void:
 		# --- SALVANDO FROTA, ARMAZÉM E HISTÓRICO ---
 		"fleet": fleet,
 		"warehouse": warehouse,
-		"delivery_history": delivery_history
+		"delivery_history": delivery_history,
+		# --- SALVANDO AS ROTAS CONHECIDAS ---
+		"network_connections": network_connections,
+		"network_stats": network_stats
+		
 	}
 	var file = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	file.store_string(JSON.stringify(data))
@@ -784,6 +788,9 @@ func load_game() -> bool:
 		day_changed.emit(current_day)
 		maintenance_updated.emit(daily_maintenance)
 		contracts_updated.emit()
+		# --- CARREGANDO AS ROTAS CONHECIDAS ---
+		network_connections = data.get("network_connections", {})
+		network_stats = data.get("network_stats", {})
 		return true
 	return false
 

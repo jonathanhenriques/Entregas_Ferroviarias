@@ -11,6 +11,9 @@ var btn_ledger_next: Button
 var btn_ledger_close: Button
 var ledger_page: int = 0
 
+# --- NOVO: CONTROLE DE PÁGINA DA PRANCHETA ---
+var clipboard_page: int = 0
+
 var agenda_rect: ColorRect
 var clipboard_rect: ColorRect
 
@@ -242,6 +245,7 @@ func _setup_ui() -> void:
 	ledger_content.size = Vector2(540, 520)
 	ledger_content.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	ledger_content.add_theme_font_size_override("font_size", 16)
+	ledger_content.mouse_filter = Control.MOUSE_FILTER_IGNORE # --- NOVO: IMPEDE A LABEL DE BLOQUEAR O CLIQUE ---
 	ledger_book.add_child(ledger_content)
 	
 	btn_ledger_prev = Button.new()
@@ -645,12 +649,18 @@ func _setup_ui() -> void:
 	folder_rect.add_child(doc_standard)
 	doc_standard.gui_input.connect(_on_doc_input.bind(doc_standard))
 	
+	# --- NOVO: SCROLL PARA O TEXTO DO CONTRATO NÃO VAZAR A TELA ---
+	var std_scroll = ScrollContainer.new()
+	std_scroll.position = Vector2(20, 100)
+	std_scroll.size = Vector2(460, 350) # Limita o tamanho exato dentro da pasta
+	folder_rect.add_child(std_scroll)
+	
 	std_label = Label.new()
-	std_label.position = Vector2(20, 20)
-	std_label.size = Vector2(400, 330)
+	std_label.custom_minimum_size = Vector2(440, 0) # Força a largura para quebrar a linha
 	std_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	std_label.add_theme_color_override("font_color", Color.BLACK)
-	doc_standard.add_child(std_label)
+	std_label.add_theme_font_size_override("font_size", 14)
+	std_scroll.add_child(std_label)
 	
 	btn_call_std = Button.new()
 	btn_call_std.text = "PREPARAR CONTRATO"
@@ -1491,7 +1501,18 @@ func _update_task_pad() -> void:
 	for child in task_vbox.get_children():
 		child.queue_free()
 		
-	if GameManager.active_contracts.size() == 0:
+	var items_per_page = 3 # Limita para não estourar a tela
+	var total_items = GameManager.active_contracts.size()
+	var max_pages = 0
+	if total_items > 0:
+		max_pages = ceil(total_items / float(items_per_page)) - 1
+		
+	if clipboard_page > max_pages:
+		clipboard_page = max_pages
+	if clipboard_page < 0:
+		clipboard_page = 0
+		
+	if total_items == 0:
 		var lbl = Label.new()
 		lbl.text = "Nenhum contrato ativo no momento.\nO pátio está vazio."
 		lbl.add_theme_color_override("font_color", Color.DIM_GRAY)
@@ -1499,12 +1520,23 @@ func _update_task_pad() -> void:
 		task_vbox.add_child(lbl)
 		return
 		
-	var i = 0
-	for c in GameManager.active_contracts:
+	var start_idx = clipboard_page * items_per_page
+	var end_idx = min(start_idx + items_per_page, total_items)
+		
+	var i = start_idx
+	while i < end_idx:
+		var c = GameManager.active_contracts[i]
 		var hbox = HBoxContainer.new()
 		hbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		
-		var lbl = Label.new()
+		# --- NOVO: O TEXTO AGORA É UM BOTÃO INVISÍVEL E CLICÁVEL ---
+		var btn_info = Button.new()
+		btn_info.flat = true
+		btn_info.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		btn_info.custom_minimum_size = Vector2(300, 0)
+		btn_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		btn_info.add_theme_font_size_override("font_size", 12)
+		
 		var rid = c.get("route_id", "")
 		var is_act = GameManager.is_contract_operating(c)
 		var cargo_name = c.get("cargo", "Carga Geral")
@@ -1512,20 +1544,21 @@ func _update_task_pad() -> void:
 		var days_left = c.get("days_left", 0)
 		
 		var st = ""
-		var t = "T" + str(i + 1) + " - " + c["company_name"] + "\nCarga: " + cargo_name + " | Rota: " + route_name + "\nStatus: "
+		var t = "T" + str(i + 1) + " - " + c.get("company_name", "Empresa") + "\nCarga: " + cargo_name + " | Rota: " + route_name + "\nStatus: "
 		
+		# Mantemos a sua lógica original de verificação de erros exata
 		if c.has("pending_route_days"):
 			st = "AGUARDANDO VIA (" + str(c["pending_route_days"]) + "d p/ falha)"
-			lbl.add_theme_color_override("font_color", Color.DARK_GOLDENROD)
+			btn_info.add_theme_color_override("font_color", Color.DARK_GOLDENROD)
 		else:
 			if is_act: 
 				if c.get("is_urgent", false):
 					st = "OPERACIONAL [PAGO À VISTA]"
 				else:
 					st = "OPERACIONAL (+$" + str(c.get("reward", 0)) + "/dia)"
-				lbl.add_theme_color_override("font_color", Color.DARK_GREEN)
+				btn_info.add_theme_color_override("font_color", Color.DARK_GREEN)
 			else:
-				lbl.add_theme_color_override("font_color", Color.INDIAN_RED)
+				btn_info.add_theme_color_override("font_color", Color.INDIAN_RED)
 				if GameManager.routes_under_construction.get(rid, 0) > 0:
 					st = "EM OBRAS (" + str(GameManager.routes_under_construction[rid]) + "d restantes)"
 				else:
@@ -1551,17 +1584,18 @@ func _update_task_pad() -> void:
 										else:
 											st = "PARADO (ILEGAL)"
 											
-		t += st + "\nRestam: " + str(days_left) + "d"
-		lbl.text = t
-		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		lbl.add_theme_font_size_override("font_size", 12)
-		lbl.custom_minimum_size = Vector2(300, 0)
+		t += st + "\nRestam: " + str(days_left) + "d\n[ CLIQUE PARA REVISAR ]"
+		btn_info.text = t
 		
-		hbox.add_child(lbl)
+		# Feedback visual ao passar o mouse e conexão do clique
+		btn_info.add_theme_color_override("font_hover_color", Color.BLACK)
+		btn_info.pressed.connect(_on_active_contract_clicked.bind(i))
+		hbox.add_child(btn_info)
 		
 		var b = Button.new()
 		b.text = "X"
 		b.custom_minimum_size = Vector2(30, 30)
+		b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		b.add_theme_color_override("font_color", Color.INDIAN_RED)
 		b.pressed.connect(_on_cancel_dynamic.bind(i))
 		hbox.add_child(b)
@@ -1575,6 +1609,31 @@ func _update_task_pad() -> void:
 		
 		i += 1
 
+	# --- NOVO: CONTROLES DE PAGINAÇÃO NO FUNDO DA PRANCHETA ---
+	if total_items > items_per_page:
+		var page_hbox = HBoxContainer.new()
+		page_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
+		
+		var btn_prev = Button.new()
+		btn_prev.text = "<-"
+		btn_prev.custom_minimum_size = Vector2(40, 30)
+		btn_prev.disabled = (clipboard_page == 0)
+		btn_prev.pressed.connect(_on_clipboard_prev_pressed)
+		page_hbox.add_child(btn_prev)
+		
+		var lbl_page_info = Label.new()
+		lbl_page_info.text = " Pág " + str(clipboard_page + 1) + "/" + str(max_pages + 1) + " "
+		lbl_page_info.add_theme_color_override("font_color", Color.BLACK)
+		page_hbox.add_child(lbl_page_info)
+		
+		var btn_next = Button.new()
+		btn_next.text = "->"
+		btn_next.custom_minimum_size = Vector2(40, 30)
+		btn_next.disabled = (clipboard_page >= max_pages)
+		btn_next.pressed.connect(_on_clipboard_next_pressed)
+		page_hbox.add_child(btn_next)
+		
+		task_vbox.add_child(page_hbox)
 
 
 func _on_company_selected(data: Dictionary) -> void:
@@ -1593,7 +1652,10 @@ func _on_company_selected(data: Dictionary) -> void:
 	std_label.text += "Contato: " + data["phone"]
 	
 	btn_call_std.text = "PREPARAR CONTRATO"
+	btn_call_std.visible = true # --- NOVO: GARANTE QUE O BOTÃO APAREÇA ---
 	
+	if GameManager.daily_urgencies.has(data["name"]):
+		doc_urgent.visible = true
 	if GameManager.daily_urgencies.has(data["name"]):
 		doc_urgent.visible = true
 		urg_label.text = "[!] URGÊNCIA HOJE\n\n"
@@ -2541,3 +2603,47 @@ func _update_ledger_display() -> void:
 		txt += "---------------------------------------------------\n"
 		
 	ledger_content.text = txt
+	
+	
+	
+# --- NOVO: FUNÇÕES DE CLIQUE DA PRANCHETA DE OPERAÇÕES ---
+func _on_clipboard_prev_pressed() -> void:
+	clipboard_page -= 1
+	_update_task_pad()
+
+func _on_clipboard_next_pressed() -> void:
+	clipboard_page += 1
+	_update_task_pad()
+
+func _on_active_contract_clicked(index: int) -> void:
+	var c = GameManager.active_contracts[index]
+	folder_title.text = "CLIENTE: " + c.get("company_name", "Empresa")
+	folder_route.text = "Rota Exigida: " + c.get("route_name", "Qualquer")
+	
+	var txt = "[ REVISÃO DE CONTRATO ATIVO ]\n\n"
+	txt += "Carga Transportada: " + c.get("cargo", "N/A") + " (" + str(c.get("weight", 0)) + " kg)\n"
+	txt += "Dias Restantes do Contrato: " + str(c.get("days_left", 0)) + "\n"
+	
+	if c.get("is_urgent", false):
+		txt += "Pagamento (À Vista): Pago na Assinatura\n"
+	else:
+		txt += "Pagamento Diário na Entrega: $" + str(c.get("reward", 0)) + "\n"
+	
+	var is_built = c.get("route_id", "") in GameManager.network_connections
+	if is_built:
+		txt += "\nStatus da Via: [ OPERACIONAL ]"
+	if not is_built:
+		txt += "\nStatus da Via: [ INEXISTENTE / EM OBRAS ]"
+		
+	txt += "\n\nPara cancelar este contrato, feche esta pasta e clique no botão vermelho 'X' na Prancheta de Operações."
+	
+	std_label.text = txt
+	
+	# Desativa os recursos de assinar, pois já é um contrato vigente!
+	doc_urgent.visible = false
+	btn_call_std.visible = false
+	
+	folder_rect.visible = true
+	folder_rect.get_parent().move_child(folder_rect, -1) 
+	folder_rect.rotation_degrees = 0
+	_clamp_to_screen(folder_rect)

@@ -39,7 +39,7 @@ var draft_paths: Array = []
 var deleted_paths: Array = []
 var repair_tiles: Array = [] 
 
-
+var btn_toggle_dispatch: Button
 
 var panel_overlay: ColorRect
 
@@ -117,11 +117,12 @@ func _on_visibility_changed() -> void:
 		_update_network_status()
 		_update_status_panel()
 		
-		# --- NOVO: ABERTURA FORÇADA DO PAINEL DE DESPACHO À NOITE ---
+		# --- NOVO: CONTROLE DE VISIBILIDADE DO DESPACHO ---
 		if GameManager.day_phase == 2:
-			dispatch_panel.visible = true
+			btn_toggle_dispatch.visible = true
 			_populate_dispatch_panel()
 		if GameManager.day_phase != 2:
+			btn_toggle_dispatch.visible = false
 			dispatch_panel.visible = false
 		
 		if not GameManager.pending_blueprint.is_empty():
@@ -449,6 +450,27 @@ func _setup_ui() -> void:
 	dispatch_panel.add_child(btn_dispatch)
 	
 	dispatch_panel.visible = false
+	
+	# === INÍCIO DO CÓDIGO NOVO QUE VOCÊ VAI COLAR ===
+	# Cria o botão que fica solto na tela para chamar o painel quando quiser
+	btn_toggle_dispatch = Button.new()
+	btn_toggle_dispatch.text = "[ DESPACHO DIÁRIO ]"
+	btn_toggle_dispatch.position = Vector2(1650, 150) # Fica logo abaixo do botão do Livro de Manutenção
+	btn_toggle_dispatch.size = Vector2(230, 40)
+	btn_toggle_dispatch.pressed.connect(func(): dispatch_panel.visible = not dispatch_panel.visible)
+	ui_layer.add_child(btn_toggle_dispatch)
+	
+	# Cria o botão de 'X' vermelho dentro do painel para fechá-lo
+	var btn_close_dp = Button.new()
+	btn_close_dp.text = "X"
+	btn_close_dp.position = Vector2(460, 10) # Canto superior direito do painel
+	btn_close_dp.size = Vector2(30, 30)
+	btn_close_dp.add_theme_color_override("font_color", Color.INDIAN_RED)
+	btn_close_dp.pressed.connect(func(): dispatch_panel.visible = false)
+	dispatch_panel.add_child(btn_close_dp)
+	# === FIM DO CÓDIGO NOVO ===
+	
+	
 	# --------------------------------------
 
 # === LÓGICA DO MAPA (Sem alterações) ===
