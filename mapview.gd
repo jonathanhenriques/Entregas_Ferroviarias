@@ -47,6 +47,10 @@ var panel_overlay: ColorRect
 # === UI DO MAPA E MESA ===
 var btn_edit_mode: Button
 var btn_go_desk: Button
+
+var btn_evaluate_draw: Button
+var btn_cancel_draw: Button
+
 var edit_panel: ColorRect
 var edit_info: Label
 var btn_confirm: Button
@@ -267,6 +271,24 @@ func _setup_ui() -> void:
 	btn_toggle_dispatch.pressed.connect(func(): dispatch_panel.visible = not dispatch_panel.visible)
 	bottom_hbox.add_child(btn_toggle_dispatch)
 	
+	# --- NOVO: BOTÕES DE CONFIRMAÇÃO DO MODO OBRAS ---
+	btn_evaluate_draw = Button.new()
+	btn_evaluate_draw.text = "[ AVALIAR PROJETO ]"
+	btn_evaluate_draw.custom_minimum_size = Vector2(240, 50)
+	btn_evaluate_draw.add_theme_color_override("font_color", Color.SKY_BLUE)
+	btn_evaluate_draw.pressed.connect(_on_evaluate_draw_pressed)
+	bottom_hbox.add_child(btn_evaluate_draw)
+	btn_evaluate_draw.visible = false
+
+	btn_cancel_draw = Button.new()
+	btn_cancel_draw.text = "[ CANCELAR OBRAS ]"
+	btn_cancel_draw.custom_minimum_size = Vector2(240, 50)
+	btn_cancel_draw.add_theme_color_override("font_color", Color.INDIAN_RED)
+	btn_cancel_draw.pressed.connect(_on_cancel_draw_pressed)
+	bottom_hbox.add_child(btn_cancel_draw)
+	btn_cancel_draw.visible = false
+	# ------------------------------------------------
+
 	# Painéis flutuantes (Centralizados matematicamente)
 	edit_panel = ColorRect.new()
 	edit_panel.color = Color(0.15, 0.15, 0.15, 0.95)
@@ -289,7 +311,7 @@ func _setup_ui() -> void:
 	edit_panel.add_child(edit_info)
 	
 	btn_confirm = Button.new()
-	btn_confirm.text = "GERAR PLANTA"
+	btn_confirm.text = "IMPRIMIR PLANTA"
 	btn_confirm.position = Vector2(20, 490)
 	btn_confirm.size = Vector2(145, 50)
 	btn_confirm.add_theme_color_override("font_color", Color.SKY_BLUE)
@@ -297,7 +319,7 @@ func _setup_ui() -> void:
 	edit_panel.add_child(btn_confirm)
 	
 	btn_cancel = Button.new()
-	btn_cancel.text = "DESCARTAR TUDO"
+	btn_cancel.text = "VOLTAR A EDITAR"
 	btn_cancel.position = Vector2(175, 490)
 	btn_cancel.size = Vector2(145, 50)
 	btn_cancel.add_theme_color_override("font_color", Color.INDIAN_RED)
@@ -541,22 +563,37 @@ func _on_edit_mode_pressed() -> void:
 	btn_go_desk.visible = false
 	btn_maint.visible = false
 	if is_instance_valid(btn_toggle_dispatch): btn_toggle_dispatch.visible = false
-	maint_panel.visible = false
 	
+	# Mostra os botões de ação do modo obras na barra inferior
+	btn_evaluate_draw.visible = true
+	btn_cancel_draw.visible = true
+	
+	maint_panel.visible = false
 	draft_paths.clear()
 	deleted_paths.clear()
 	tentative_path.clear()
 	repair_tiles.clear()
 	
-	panel_overlay.visible = true 
-	edit_panel.visible = true
-	_update_edit_panel()
+	# Oculta o fundo preto e a janela do projeto para manter o mapa 100% limpo
+	panel_overlay.visible = false 
+	edit_panel.visible = false
 	queue_redraw()
 
-func _on_cancel_edit_pressed() -> void:
+func _on_evaluate_draw_pressed() -> void:
+	# Só abre o HUD escuro se o jogador realmente fez alguma linha ou exclusão
+	if draft_paths.size() > 0 or deleted_paths.size() > 0 or repair_tiles.size() > 0:
+		_update_edit_panel()
+		panel_overlay.visible = true
+		edit_panel.visible = true
+
+func _on_cancel_draw_pressed() -> void:
+	# Esta função sai do modo obras e apaga tudo que não foi impresso
 	is_edit_mode = false
+	panel_overlay.visible = false
 	edit_panel.visible = false
-	panel_overlay.visible = false 
+	btn_evaluate_draw.visible = false
+	btn_cancel_draw.visible = false
+	
 	btn_edit_mode.visible = true
 	btn_go_desk.visible = true
 	btn_maint.visible = true
@@ -568,6 +605,14 @@ func _on_cancel_edit_pressed() -> void:
 	tentative_path.clear()
 	repair_tiles.clear()
 	queue_redraw()
+
+func _on_cancel_edit_pressed() -> void:
+	# Agora esse botão apenas fecha o HUD escuro do orçamento e permite continuar desenhando a via
+	panel_overlay.visible = false
+	edit_panel.visible = false
+
+
+
 
 func _update_edit_info() -> void:
 	var total_dist = 0
@@ -718,7 +763,7 @@ func _on_confirm_edit_pressed() -> void:
 	}
 	
 	GameManager.save_game()
-	_on_cancel_edit_pressed() 
+	_on_cancel_draw_pressed()
 	confirmed_routes = GameManager.saved_routes.duplicate()
 	queue_redraw()
 	

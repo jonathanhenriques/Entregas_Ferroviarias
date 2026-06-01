@@ -103,6 +103,15 @@ var btn_eod_sleep: Button
 var skip_eod_anim: bool = false
 var pending_upfront_income: int = 0
 
+# --- INÍCIO DA ALTERAÇÃO 1 (ACUMULADORES DIÁRIOS) ---
+var daily_new_c: int = 0
+var daily_rej_c: int = 0
+var daily_ext_c: int = 0
+var daily_bp_cost: int = 0
+var daily_shark_income: int = 0
+var daily_upfront_income: int = 0
+# --- FIM DA ALTERAÇÃO 1 ---
+
 var radio_rect: ColorRect
 var radio_led: ColorRect
 
@@ -1809,9 +1818,11 @@ func _spawn_proposal_paper(c_data: Dictionary, is_urg: bool, reward: int) -> voi
 	text += "ROTA EXIGIDA: " + route_name + "\n\n"
 	
 	if is_urg:
-		text += "[ OPERAÇÃO DE URGÊNCIA MÁXIMA ]\n"
-		text += "Duração da Operação: 1 Dia Útil\n"
-		text += "Liquidação à Vista: $" + str(reward) + ",00\n\n"
+		text += "[ CLASSIFICAÇÃO: URGÊNCIA MÁXIMA ]\n"
+		text += "Nível de Prioridade: Crítica (Risco de Quebra de Cadeia Logística)\n"
+		text += "Prazo Limite: IMEDIATO (1 Dia Útil para Conclusão)\n"
+		text += "Liquidação Financeira: $" + str(reward) + ",00 (Garantida no Ato do Despacho)\n\n"
+		text += "ADVERTÊNCIA: O não cumprimento deste prazo resultará no rompimento das relações institucionais e em multas severas.\n\n"
 	if not is_urg:
 		text += "[ CLASSIFICAÇÃO: " + display_type + " ]\n"
 		text += "Duração Vigente: " + str(c_data.get("duration", 5)) + " a " + str(c_data.get("duration", 10) + 3) + " Dias\n"
@@ -1831,9 +1842,18 @@ func _spawn_proposal_paper(c_data: Dictionary, is_urg: bool, reward: int) -> voi
 	text += "(Aguardando validação com carimbo 'SELO CIA' ou 'REJEITAR' para processamento.)"
 	
 	text_lbl.text = text
-	# --- FIM DA ALTERAÇÃO ---
+	# --- FIM DA ALTERAÇÃO TEXTUAL ---
 
 	paper.set_meta("is_paper", true)
+	
+	# --- CORREÇÃO GRAVE: REPOSIÇÃO DOS METADADOS VITAIS ---
+	paper.set_meta("is_extension", false)
+	paper.set_meta("company_data", c_data)
+	paper.set_meta("is_urgent", is_urg)
+	paper.set_meta("reward", reward)
+	paper.set_meta("is_risk", pending_is_risk)
+	paper.set_meta("action", "")
+	# -------------------------------------------------------
 
 	_make_draggable(paper, "paper")
 	
@@ -2132,7 +2152,15 @@ func _on_next_day_pressed() -> void:
 	current_agenda_contacts.clear()
 	current_agenda_page = 0
 	
-	pending_upfront_income = income
+	# --- INÍCIO DA ALTERAÇÃO 2 (SOMANDO NO ACUMULADOR) ---
+	pending_upfront_income += income # Usa += para não perder o que já tinha
+	daily_new_c += new_c
+	daily_rej_c += rej_c
+	daily_ext_c += ext_c
+	daily_bp_cost += bp_cost
+	daily_shark_income += shark_income
+	daily_upfront_income += income
+	# --- FIM DA ALTERAÇÃO 2 ---
 	
 	# --- NOVO: GERAÇÃO DIÁRIA DE CAIXAS PARA A TARDE (FASE 2) ---
 	if GameManager.day_phase == 1:
@@ -2176,7 +2204,9 @@ func _on_next_day_pressed() -> void:
 		return
 	# ---------------------------------------------
 	
-	_start_eod_animation(new_c, rej_c, ext_c, bp_cost, shark_income)
+	# --- INÍCIO DA ALTERAÇÃO 3 ---
+	_start_eod_animation(daily_new_c, daily_rej_c, daily_ext_c, daily_bp_cost, daily_shark_income)
+	# --- FIM DA ALTERAÇÃO 3 ---
 	
 	
 	
@@ -2291,14 +2321,14 @@ func _start_eod_animation(new_c: int, rej_c: int, ext_c: int, bp_cost: int, shar
 		
 	_add_eod_line("", "", c_light, false)
 	_add_eod_line("[ FINANÇAS ]", "", c_gray, false)
-	_add_eod_line("Saldo Inicial", "$" + str(GameManager.money + bp_cost), c_light, false)
-	
-	var contract_income = pending_upfront_income - shark_income
+	# --- INÍCIO DA ALTERAÇÃO 4.A (LENDO O ACUMULADOR DE DINHEIRO) ---
+	var contract_income = daily_upfront_income - shark_income
 	if contract_income > 0:
 		_add_eod_line("Receitas à Vista", "+$" + str(contract_income), c_green, false)
 		
 	if shark_income > 0:
 		_add_eod_line("Empréstimo (Agiota)", "+$" + str(shark_income), c_green, false)
+	# --- FIM DA ALTERAÇÃO 4.A ---
 		
 	var inc = GameManager.get_daily_income()
 	if inc > 0:
@@ -2385,12 +2415,22 @@ func _add_eod_line(left: String, right: String, color: Color, is_title: bool) ->
 
 	eod_lines_container.add_child(hbox)
 
+# --- INÍCIO DA ALTERAÇÃO 4.B (ZERANDO TUDO PARA O DIA SEGUINTE) ---
 func _on_eod_sleep_pressed() -> void:
 	eod_layer.visible = false
 	GameManager.end_day(pending_upfront_income)
+	
+	pending_upfront_income = 0
+	daily_new_c = 0
+	daily_rej_c = 0
+	daily_ext_c = 0
+	daily_bp_cost = 0
+	daily_shark_income = 0
+	daily_upfront_income = 0
+	
 	_update_calendar()
 	_on_organize_pressed()
-
+# --- FIM DA ALTERAÇÃO 4.B ---
 
 
 
