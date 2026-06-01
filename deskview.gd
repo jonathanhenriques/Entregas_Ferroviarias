@@ -1715,11 +1715,20 @@ func _on_company_selected(data: Dictionary) -> void:
 	
 	if GameManager.daily_urgencies.has(data["name"]):
 		doc_urgent.visible = true
-		urg_label.text = "[!] URGÊNCIA HOJE\n\n"
-		urg_label.text += "Carga: " + data["cargo"] + " (" + str(data["weight"]) + " Kg)\n"
-		urg_label.text += "Prazo Máximo: 1 dia\n"
-		urg_label.text += "PAGAMENTO À VISTA: $" + str(GameManager.daily_urgencies[data["name"]]) + "\n\n"
-		urg_label.text += "Contato: " + data["phone"]
+		
+		urg_label.text = "[ TERMO DE ACORDO DE NÍVEL DE SERVIÇO (SLA) ]\n"
+		urg_label.text += "Classificação: OPERAÇÃO DE URGÊNCIA MÁXIMA\n\n"
+		
+		urg_label.text += "OBJETO DA OPERAÇÃO:\n"
+		urg_label.text += "Natureza da Carga: " + data["cargo"] + " (" + str(data["weight"]) + " Kg)\n\n"
+		
+		urg_label.text += "DADOS LOGÍSTICOS & FINANCEIROS:\n"
+		urg_label.text += "Prazo de Implementação: IMEDIATO (Máximo de 1 Dia Útil)\n"
+		urg_label.text += "Liquidação à Vista: $" + str(GameManager.daily_urgencies[data["name"]]) + ",00 (Garantido no ato da assinatura)\n\n"
+		
+		urg_label.text += "[ ALERTA DO DEPARTAMENTO JURÍDICO ]\nO não cumprimento deste prazo resultará em multas severas e na suspensão imediata das relações comerciais com o cliente.\n\n"
+		
+		urg_label.text += "Contato Direto: " + data["phone"]
 		btn_call_urg.text = "PREPARAR URGÊNCIA"
 	else: 
 		doc_urgent.visible = false

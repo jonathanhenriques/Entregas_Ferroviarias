@@ -3,9 +3,10 @@ extends Node2D
 var ui_layer: CanvasLayer
 
 const TILE_SIZE: int = 32
-# Grelha restaurada para 2/3 da tela (40 colunas * 32px = 1280px)
-var grid_width: int = 40  
+# --- INÍCIO DA ALTERAÇÃO (GRID TELA CHEIA) ---
+var grid_width: int = 60  
 var grid_height: int = 34 
+# --- FIM DA ALTERAÇÃO ---
 
 
 var status_panel: ColorRect
@@ -219,43 +220,58 @@ func _setup_ui() -> void:
 	ui_layer = CanvasLayer.new()
 	add_child(ui_layer)
 
-	var map_limit_x = grid_width * TILE_SIZE 
-	var right_center_x = map_limit_x + ((1920 - map_limit_x) / 2.0)
-	
+	# --- INÍCIO DA ALTERAÇÃO (BARRA INFERIOR E CCO) ---
 	panel_overlay = ColorRect.new()
 	panel_overlay.color = Color(0, 0, 0, 0.8)
-	panel_overlay.size = Vector2(1920 - map_limit_x, 1080)
-	panel_overlay.position = Vector2(map_limit_x, 0)
+	panel_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	panel_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel_overlay.visible = false
 	ui_layer.add_child(panel_overlay)
 
-	btn_edit_mode = Button.new()
-	btn_edit_mode.text = "[ MODO OBRAS ]"
-	btn_edit_mode.position = Vector2(right_center_x - 120, 40)
-	btn_edit_mode.size = Vector2(240, 50)
-	btn_edit_mode.add_theme_color_override("font_color", Color.YELLOW)
-	btn_edit_mode.pressed.connect(_on_edit_mode_pressed)
-	ui_layer.add_child(btn_edit_mode)
+	# Nova Barra Inferior
+	var bottom_bar = ColorRect.new()
+	bottom_bar.color = Color(0.05, 0.05, 0.08, 0.95)
+	bottom_bar.size = Vector2(1920, 80)
+	bottom_bar.position = Vector2(0, 1000)
+	ui_layer.add_child(bottom_bar)
+	
+	var bottom_hbox = HBoxContainer.new()
+	bottom_hbox.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bottom_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	bottom_hbox.add_theme_constant_override("separation", 40)
+	bottom_bar.add_child(bottom_hbox)
 
 	btn_go_desk = Button.new()
-	btn_go_desk.text = "[ VOLTAR A MESA ]"
-	btn_go_desk.position = Vector2(right_center_x - 120, 100)
-	btn_go_desk.size = Vector2(240, 50)
+	btn_go_desk.text = "[ VOLTAR À MESA ]"
+	btn_go_desk.custom_minimum_size = Vector2(240, 50)
 	btn_go_desk.pressed.connect(_on_go_desk_pressed)
-	ui_layer.add_child(btn_go_desk)
+	bottom_hbox.add_child(btn_go_desk)
+
+	btn_edit_mode = Button.new()
+	btn_edit_mode.text = "[ MODO OBRAS ]"
+	btn_edit_mode.custom_minimum_size = Vector2(240, 50)
+	btn_edit_mode.add_theme_color_override("font_color", Color.YELLOW)
+	btn_edit_mode.pressed.connect(_on_edit_mode_pressed)
+	bottom_hbox.add_child(btn_edit_mode)
 
 	btn_maint = Button.new()
 	btn_maint.text = "[ LIVRO DE MANUTENÇÃO ]"
-	btn_maint.position = Vector2(right_center_x - 120, 160)
-	btn_maint.size = Vector2(240, 50)
+	btn_maint.custom_minimum_size = Vector2(240, 50)
 	btn_maint.pressed.connect(_on_btn_maint_pressed)
-	ui_layer.add_child(btn_maint)
+	bottom_hbox.add_child(btn_maint)
 
+	btn_toggle_dispatch = Button.new()
+	btn_toggle_dispatch.text = "[ CENTRO DE CONTROLE (CCO) ]"
+	btn_toggle_dispatch.custom_minimum_size = Vector2(300, 50)
+	btn_toggle_dispatch.add_theme_color_override("font_color", Color.LIME_GREEN)
+	btn_toggle_dispatch.pressed.connect(func(): dispatch_panel.visible = not dispatch_panel.visible)
+	bottom_hbox.add_child(btn_toggle_dispatch)
+	
+	# Painéis flutuantes (Centralizados matematicamente)
 	edit_panel = ColorRect.new()
 	edit_panel.color = Color(0.15, 0.15, 0.15, 0.95)
-	edit_panel.position = Vector2(right_center_x - 170, 200)
 	edit_panel.size = Vector2(340, 560)
+	edit_panel.position = Vector2(1920/2 - 170, 1080/2 - 280)
 	edit_panel.visible = false
 	ui_layer.add_child(edit_panel)
 	
@@ -291,7 +307,7 @@ func _setup_ui() -> void:
 	maint_panel = ColorRect.new()
 	maint_panel.color = Color(0.15, 0.15, 0.15, 0.95)
 	maint_panel.size = Vector2(400, 460)
-	maint_panel.position = Vector2(right_center_x - 200, 250)
+	maint_panel.position = Vector2(1920/2 - 200, 1080/2 - 230)
 	maint_panel.visible = false
 	ui_layer.add_child(maint_panel)
 	
@@ -414,13 +430,14 @@ func _setup_ui() -> void:
 	btn_close_maint.position = Vector2(20, 390)
 	btn_close_maint.size = Vector2(360, 40)
 	btn_close_maint.add_theme_color_override("font_color", Color.ORANGE)
-	btn_close_maint.pressed.connect(_on_btn_maint_pressed)
+	btn_close_maint.pressed.connect(_on_btn_close_maint_pressed)
 	maint_panel.add_child(btn_close_maint)
-	# --- NOVO: UI DO PAINEL DE DESPACHO ---
+
+	# UI DO CCO - Posicionado à direita como uma gaveta de controle
 	dispatch_panel = ColorRect.new()
 	dispatch_panel.color = Color(0.1, 0.15, 0.2, 0.95)
-	dispatch_panel.size = Vector2(500, 400)
-	dispatch_panel.position = Vector2(710, 100) 
+	dispatch_panel.size = Vector2(500, 500)
+	dispatch_panel.position = Vector2(1920 - 520, 1000 - 520) 
 	ui_layer.add_child(dispatch_panel)
 	
 	var dp_border = ReferenceRect.new()
@@ -430,7 +447,7 @@ func _setup_ui() -> void:
 	dispatch_panel.add_child(dp_border)
 	
 	var dp_title = Label.new()
-	dp_title.text = "PLANO DE VIAGEM (DESPACHO DIÁRIO)"
+	dp_title.text = "CENTRO DE CONTROLE OPERACIONAL (CCO)"
 	dp_title.position = Vector2(0, 15)
 	dp_title.size = Vector2(500, 30)
 	dp_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -438,41 +455,27 @@ func _setup_ui() -> void:
 	
 	dispatch_vbox = VBoxContainer.new()
 	dispatch_vbox.position = Vector2(20, 60)
-	dispatch_vbox.size = Vector2(460, 260)
+	dispatch_vbox.size = Vector2(460, 360)
 	dispatch_panel.add_child(dispatch_vbox)
 	
 	btn_dispatch = Button.new()
 	btn_dispatch.text = "[ INICIAR OPERAÇÃO DIÁRIA ]"
 	btn_dispatch.size = Vector2(460, 50)
-	btn_dispatch.position = Vector2(20, 330)
+	btn_dispatch.position = Vector2(20, 430)
 	btn_dispatch.add_theme_color_override("font_color", Color.LIME_GREEN)
 	btn_dispatch.pressed.connect(_on_btn_dispatch_pressed)
 	dispatch_panel.add_child(btn_dispatch)
 	
-	dispatch_panel.visible = false
-	
-	# === INÍCIO DO CÓDIGO NOVO QUE VOCÊ VAI COLAR ===
-	# Cria o botão que fica solto na tela para chamar o painel quando quiser
-	btn_toggle_dispatch = Button.new()
-	btn_toggle_dispatch.text = "[ DESPACHO DIÁRIO ]"
-	btn_toggle_dispatch.position = Vector2(1650, 150) # Fica logo abaixo do botão do Livro de Manutenção
-	btn_toggle_dispatch.size = Vector2(230, 40)
-	btn_toggle_dispatch.pressed.connect(func(): dispatch_panel.visible = not dispatch_panel.visible)
-	ui_layer.add_child(btn_toggle_dispatch)
-	
-	# Cria o botão de 'X' vermelho dentro do painel para fechá-lo
 	var btn_close_dp = Button.new()
 	btn_close_dp.text = "X"
-	btn_close_dp.position = Vector2(460, 10) # Canto superior direito do painel
+	btn_close_dp.position = Vector2(460, 10) 
 	btn_close_dp.size = Vector2(30, 30)
 	btn_close_dp.add_theme_color_override("font_color", Color.INDIAN_RED)
 	btn_close_dp.pressed.connect(func(): dispatch_panel.visible = false)
 	dispatch_panel.add_child(btn_close_dp)
-	# === FIM DO CÓDIGO NOVO ===
-	
-	
-	# --------------------------------------
 
+	dispatch_panel.visible = false
+	# --- FIM DA ALTERAÇÃO ---
 # === LÓGICA DO MAPA (Sem alterações) ===
 
 func _sync_maint_ui() -> void:
@@ -537,6 +540,7 @@ func _on_edit_mode_pressed() -> void:
 	btn_edit_mode.visible = false
 	btn_go_desk.visible = false
 	btn_maint.visible = false
+	if is_instance_valid(btn_toggle_dispatch): btn_toggle_dispatch.visible = false
 	maint_panel.visible = false
 	
 	draft_paths.clear()
@@ -544,7 +548,7 @@ func _on_edit_mode_pressed() -> void:
 	tentative_path.clear()
 	repair_tiles.clear()
 	
-	panel_overlay.visible = true # ESCURECE A TELA
+	panel_overlay.visible = true 
 	edit_panel.visible = true
 	_update_edit_panel()
 	queue_redraw()
@@ -556,13 +560,14 @@ func _on_cancel_edit_pressed() -> void:
 	btn_edit_mode.visible = true
 	btn_go_desk.visible = true
 	btn_maint.visible = true
+	if GameManager.day_phase == 2 and is_instance_valid(btn_toggle_dispatch): 
+		btn_toggle_dispatch.visible = true
 	
 	draft_paths.clear()
 	deleted_paths.clear()
 	tentative_path.clear()
 	repair_tiles.clear()
 	queue_redraw()
-
 
 func _update_edit_info() -> void:
 	var total_dist = 0
@@ -1123,9 +1128,9 @@ func _draw() -> void:
 		if repair_tiles.has(cell):
 			draw_arc(Vector2(px, py), 18.0, 0, TAU, 16, Color.YELLOW, 3.0)
 
-	# Fundo preto para garantir que o mapa não vaza sob o 1/3 da direita
-	var panel_x = grid_width * TILE_SIZE
-	draw_rect(Rect2(panel_x, 0, 1920 - panel_x, 1088), Color.BLACK)
+	# --- INÍCIO DA ALTERAÇÃO ---
+	# (As linhas que desenhavam o Rect2 preto foram removidas daqui para o mapa ocupar a tela toda)
+	# --- FIM DA ALTERAÇÃO ---
 
 func _get_track_color(b: int, is_preview: bool, is_construction: bool, is_deleted: bool = false) -> Color:
 	if is_deleted: return Color(0.8, 0.2, 0.2, 0.7) 
@@ -1186,9 +1191,11 @@ func _draw_custom_track(path: Array, is_preview: bool, is_const: bool, is_delete
 func _unhandled_input(event: InputEvent) -> void:
 	if not visible: return
 	if is_edit_mode:
-		# GAIOLA: Bloqueia cliques fora dos 1280px (Área do Mapa)
+		# --- INÍCIO DA ALTERAÇÃO ---
+		# GAIOLA: Bloqueia cliques para não desenhar trilhos em cima da HUD Inferior
 		if event is InputEventMouseButton or event is InputEventMouseMotion:
-			if event.position.x > grid_width * TILE_SIZE: return
+			if event.position.y > 1000: return
+		# --- FIM DA ALTERAÇÃO ---
 
 		if event is InputEventMouseButton:
 			if event.button_index == MOUSE_BUTTON_LEFT:
@@ -1539,13 +1546,17 @@ func _update_status_panel() -> void:
 		
 		
 # --- NOVO: LÓGICA DO PLANO DE VIAGEM COM PUNIÇÃO E MULTA ---
+
+
+
 func _populate_dispatch_panel() -> void:
 	for child in dispatch_vbox.get_children():
 		child.queue_free()
 		
 	var loaded_trains = 0
-	var has_blocked_train = false # NOVO: Trava o botão de despacho se houver erro logístico
+	var has_blocked_train = false
 	
+	# Trava o botão de despacho se houver erro logístico
 	for i in range(GameManager.fleet.size()):
 		var train = GameManager.fleet[i]
 		if train["loaded_packages"].size() > 0:
@@ -1553,18 +1564,26 @@ func _populate_dispatch_panel() -> void:
 			var hbox = HBoxContainer.new()
 			
 			var cargo_dest = "Qualquer"
-			var total_cargo_value = 0 # Usado para calcular a multa
+			var total_cargo_value = 0 
 			
-			for pkg in train["loaded_packages"]:
-				total_cargo_value += pkg.get("base_reward", 0)
-				if pkg.get("destination", "Qualquer Rota") != "Qualquer Rota":
-					cargo_dest = pkg["destination"]
+			# --- LENDO O NOME DA CARGA DOS VAGÕES ---
+			var cargo_names = ""
+			var pkgs = train["loaded_packages"]
+			for j in range(pkgs.size()):
+				total_cargo_value += pkgs[j].get("base_reward", 0)
+				if pkgs[j].get("destination", "Qualquer Rota") != "Qualquer Rota":
+					cargo_dest = pkgs[j]["destination"]
+				
+				cargo_names += pkgs[j].get("declared_item", "Carga")
+				if j < pkgs.size() - 1:
+					cargo_names += ", "
+			# ----------------------------------------
 					
 			var is_route_ok = true
 			var route_status_msg = ""
 			
 			if cargo_dest != "Qualquer":
-				var route_id_check = cargo_dest.replace(" <-> ", "-") # Converte o texto visual para o ID do motor
+				var route_id_check = cargo_dest.replace(" <-> ", "-") 
 				var is_built = route_id_check in GameManager.network_connections
 				var is_building = GameManager.routes_under_construction.get(route_id_check, 0) > 0
 				
@@ -1576,11 +1595,14 @@ func _populate_dispatch_panel() -> void:
 						is_route_ok = false
 						route_status_msg = " [ INEXISTENTE ]"
 
+			# --- LAYOUT DA LABEL ATUALIZADO ---
 			var lbl = Label.new()
-			lbl.text = train["name"] + " (" + str(train["current_weight"]) + "kg)\nExige: " + cargo_dest + route_status_msg
-			lbl.custom_minimum_size = Vector2(230, 50)
+			lbl.text = train["name"] + " (" + str(train["current_weight"]) + "kg)\nCarga: " + cargo_names + "\nDestino: " + cargo_dest + route_status_msg
+			lbl.custom_minimum_size = Vector2(230, 60)
 			lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 			lbl.add_theme_font_size_override("font_size", 13)
+			lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			# ----------------------------------
 			
 			if not is_route_ok:
 				lbl.add_theme_color_override("font_color", Color.INDIAN_RED)
@@ -1594,19 +1616,20 @@ func _populate_dispatch_panel() -> void:
 				opt.add_item("Azul <-> Vermelha", 0)
 				opt.add_item("Azul <-> Verde", 1)
 				opt.add_item("Vermelha <-> Verde", 2)
+				
 				# Tenta pré-selecionar a rota que a carga exige
 				for j in range(opt.get_item_count()):
 					if opt.get_item_text(j) == cargo_dest:
 						opt.select(j)
-			
+						
 			if not is_route_ok:
 				opt.add_item("ROTA BLOQUEADA", 0)
 				opt.disabled = true
 				has_blocked_train = true
-			
+				
 			hbox.add_child(opt)
 			
-			# --- NOVO: BOTÃO DE DESCARTAR CARGA (VÁLVULA DE ESCAPE) ---
+			# --- BOTÃO DE DESCARTAR CARGA ---
 			if not is_route_ok:
 				var fine_value = int(total_cargo_value * 0.4)
 				var btn_discard = Button.new()
@@ -1616,8 +1639,8 @@ func _populate_dispatch_panel() -> void:
 				btn_discard.add_theme_font_size_override("font_size", 12)
 				btn_discard.pressed.connect(_on_discard_train_cargo.bind(i, fine_value))
 				hbox.add_child(btn_discard)
-			
-			train["ui_option_button"] = opt 
+				
+			train["ui_option_button"] = opt
 			dispatch_vbox.add_child(hbox)
 			
 	if loaded_trains == 0:
@@ -1636,6 +1659,8 @@ func _populate_dispatch_panel() -> void:
 			btn_dispatch.disabled = false
 			btn_dispatch.text = "[ INICIAR OPERAÇÃO DIÁRIA ]"
 			btn_dispatch.add_theme_color_override("font_color", Color.LIME_GREEN)
+
+
 
 
 func _on_discard_train_cargo(train_index: int, fine: int) -> void:
