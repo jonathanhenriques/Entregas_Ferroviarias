@@ -1320,17 +1320,20 @@ func _load_agenda_contacts() -> void:
 			if typeof(c) == TYPE_DICTIONARY: all_c.append(c)
 			
 		if GameManager.current_day == 1 and not GameManager.is_first_route_built:
-			# --- INÍCIO DA ALTERAÇÃO (MUDANDO O NOME/TAG DO TUTORIAL) ---
 			var tutorial_contract = {
 				"name": "Prefeitura Local (Edital)",
 				"type": "Licitação Estatal",
 				"phone": "555-0001",
 				"cargo": "Materiais de Construcao",
-				"route_id": "Azul-Vermelha",
-				"route_name": "Azul <-> Vermelha",
-				"base_reward": 150
+				# --- INÍCIO DA ALTERAÇÃO: ROTA DO CONTRATO TUTORIAL ---
+				"route_id": "Estação A-Estação B",
+				"route_name": "Estação A <-> Estação B",
+				# --- FIM DA ALTERAÇÃO ---
+				"base_reward": 150,
+				"upfront_bonus": 1500
 			}
 			all_c.append(tutorial_contract)
+			# --- FIM DA ALTERAÇÃO ---
 			# --- FIM DA ALTERAÇÃO ---
 		
 		var fakes = ["Madeireira Sul", "Minas de Carvao", "Tecelagem Fina", "Armazens Gerais", "Importadora X", "Silos do Porto", "Fazenda Velha", "Aco & Ferro Ltda"]
@@ -2517,9 +2520,14 @@ func _spawn_tutorial_paper(type: int) -> void:
 	lbl.size = paper.size - Vector2(40, 40)
 
 	if type == 1:
-		lbl.text = "DIRETRIZES DE OPERAÇÃO - DIA 1\n\nBem-vindo à Diretoria.\n\nPASSOS PARA HOJE:\n1. Escolha um cliente em 'Arquivo de Clientes'.\n2. Clique em 'Preparar Contrato' e disque o telefone.\n3. Vá ao Mapa (<-), clique em Modo Obras e ligue as duas estações Azul <-> Vermelha e clique em Gerar planta.\n4. Na mesa, arraste a Caneta e o Carimbo sobre o Termo e o Projeto para aprovar, coloque os Documentos na bandeja de saída e finalize o dia!"
+		# --- INÍCIO DA ALTERAÇÃO: TEXTO DO PAPEL TUTORIAL ---
+		lbl.text = "DIRETRIZES DE OPERAÇÃO - DIA 1\n\nBem-vindo à Diretoria.\n\nPASSOS PARA HOJE:\n1. Escolha um cliente em 'Arquivo de Clientes'.\n2. Clique em 'Preparar Contrato' e disque o telefone.\n3. Vá ao Mapa (<-), clique em Modo Obras e ligue as estações Estação A <-> Estação B e clique em Gerar planta.\n4. Na mesa, arraste a Caneta e o Carimbo sobre o Termo e o Projeto para aprovar, coloque os Documentos na bandeja de saída e finalize o dia!"
+		# --- FIM DA ALTERAÇÃO ---
 		paper.set_meta("is_tutorial_1", true)
-	elif type == 2:
+		
+	# --- INÍCIO DA ALTERAÇÃO: CORREÇÃO ESTRUTURAL DA GODOT ---
+	if type == 2:
+	# --- FIM DA ALTERAÇÃO ---
 		lbl.text = "DIRETRIZES DE TRIAGEM\n\nSua rota está pronta! A partir de agora, pacotes chegarão na Estação de Triagem.\n\n- Vá para a Triagem e chame pacotes.\n- Verifique o peso na balança.\n- Use o Raio-X se desconfiar.\n- Se o peso ou o selo estiverem errados, REJEITE.\n- Cuidado com o Temporizador! O trem parte em breve."
 		paper.set_meta("is_tutorial_2", true)
 

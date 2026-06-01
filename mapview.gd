@@ -26,16 +26,22 @@ const GANG_TOLL_RATE: int = 100
 var lbl_timer: Label
 
 var biome_map: Dictionary = {}
+
 var gang_map: Dictionary = {} 
 
 # --- INÍCIO DA ALTERAÇÃO (CIDADES DINÂMICAS) ---
 var cities: Dictionary = {}
 var CITY_COLORS = {"A": Color.DODGER_BLUE, "B": Color.CRIMSON, "C": Color.FOREST_GREEN, "D": Color.DARK_ORANGE, "E": Color.DARK_VIOLET, "F": Color.GOLD}
-var CITY_NAMES = {"A": "Mina", "B": "Siderúrgica", "C": "Fazenda", "D": "Porto", "E": "Fábrica", "F": "Refinaria"}
+
+# --- INÍCIO DA ALTERAÇÃO: DICIONÁRIO DE NOMES DE ESTAÇÕES ---
+var CITY_NAMES = {"A": "Estação A", "B": "Estação B", "C": "Estação C", "D": "Estação D", "E": "Estação E", "F": "Estação F"}
+# --- FIM DA ALTERAÇÃO ---
 # --- FIM DA ALTERAÇÃO ---
 
 var confirmed_routes: Array = [] 
 var is_edit_mode: bool = false
+
+
 var is_dragging: bool = false
 var tentative_path: Array[Vector2i] = []
 var draft_paths: Array = []
@@ -1660,9 +1666,15 @@ func _populate_dispatch_panel() -> void:
 			opt.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			
 			if is_route_ok:
-				opt.add_item("Azul <-> Vermelha", 0)
-				opt.add_item("Azul <-> Verde", 1)
-				opt.add_item("Vermelha <-> Verde", 2)
+				var keys = cities.keys()
+				var opt_idx = 0
+				for k_i in range(keys.size()):
+					for k_j in range(k_i+1, keys.size()):
+						var combo = [CITY_NAMES[keys[k_i]], CITY_NAMES[keys[k_j]]]
+						combo.sort()
+						var r_str = combo[0] + " <-> " + combo[1]
+						opt.add_item(r_str, opt_idx)
+						opt_idx += 1
 				
 				# Tenta pré-selecionar a rota que a carga exige
 				for j in range(opt.get_item_count()):

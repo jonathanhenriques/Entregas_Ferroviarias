@@ -30,8 +30,10 @@ const LEVELS = {
 			"............................................................"
 		],
 		"companies": [
-			{"name": "Serraria do Vale", "type": "Ganha-Pao", "base_reward": 100, "phone": "555-0101", "cargo": "Madeira", "route_id": "Azul-Vermelha", "route_name": "Azul <-> Vermelha"},
-			{"name": "Mina de Carvao Sul", "type": "Ganha-Pao", "base_reward": 120, "phone": "555-0202", "cargo": "Carvao Bruto", "route_id": "Azul-Verde", "route_name": "Azul <-> Verde"}
+			# --- INÍCIO DA ALTERAÇÃO: NOMENCLATURA DOS CONTRATOS DO NÍVEL 1 ---
+			{"name": "Serraria do Vale", "type": "Ganha-Pao", "base_reward": 100, "phone": "555-0101", "cargo": "Madeira", "route_id": "Estação A-Estação B", "route_name": "Estação A <-> Estação B"},
+			{"name": "Mina de Carvao Sul", "type": "Ganha-Pao", "base_reward": 120, "phone": "555-0202", "cargo": "Carvao Bruto", "route_id": "Estação A-Estação C", "route_name": "Estação A <-> Estação C"}
+			# --- FIM DA ALTERAÇÃO ---
 		]
 	},
 	2: {
@@ -84,10 +86,12 @@ const LEVELS = {
 			"............................................................"
 		],
 		"companies": [
-			{"name": "Fazenda Trigo Dourado", "type": "Ganha-Pao", "base_reward": 130, "phone": "555-0303", "cargo": "Trigo", "route_id": "Azul-Vermelha", "route_name": "Azul <-> Vermelha"},
-			{"name": "Banco Central", "type": "Expresso", "base_reward": 250, "phone": "555-0404", "cargo": "Ouro", "route_id": "Vermelha-Verde", "route_name": "Vermelha <-> Verde", "max_dist": 22},
-			{"name": "Sindicato Oculto", "type": "VIP", "base_reward": 500, "phone": "555-0999", "cargo": "Carga Suspeita", "route_id": "Azul-Verde", "route_name": "Azul <-> Verde"},
-			{"name": "ONG Caminho Verde", "type": "Ecologico", "base_reward": 200, "phone": "555-7777", "cargo": "Sementes Raras", "route_id": "Vermelha-Verde", "route_name": "Vermelha <-> Verde"}
+			# --- INÍCIO DA ALTERAÇÃO: NOMENCLATURA DOS CONTRATOS DO NÍVEL 2 ---
+			{"name": "Fazenda Trigo Dourado", "type": "Ganha-Pao", "base_reward": 130, "phone": "555-0303", "cargo": "Trigo", "route_id": "Estação A-Estação B", "route_name": "Estação A <-> Estação B"},
+			{"name": "Banco Central", "type": "Expresso", "base_reward": 250, "phone": "555-0404", "cargo": "Ouro", "route_id": "Estação B-Estação C", "route_name": "Estação B <-> Estação C", "max_dist": 22},
+			{"name": "Sindicato Oculto", "type": "VIP", "base_reward": 500, "phone": "555-0999", "cargo": "Carga Suspeita", "route_id": "Estação A-Estação C", "route_name": "Estação A <-> Estação C"},
+			{"name": "ONG Caminho Verde", "type": "Ecologico", "base_reward": 200, "phone": "555-7777", "cargo": "Sementes Raras", "route_id": "Estação B-Estação C", "route_name": "Estação B <-> Estação C"}
+			# --- FIM DA ALTERAÇÃO ---
 		]
 	}
 }

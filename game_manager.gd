@@ -521,14 +521,16 @@ func _generate_daily_generics() -> void:
 	var t = ["Ganha-Pao", "Expresso", "Ganha-Pao"] 
 	var cg = ["Bobinas de Aço", "Fertilizantes", "Minério de Ferro", "Peças Usinadas", "Cimento", "Madeira Bruta"]
 
-	var all_cities = ["Mina", "Siderúrgica", "Fazenda", "Porto", "Fábrica", "Refinaria"]
+	# --- INÍCIO DA ALTERAÇÃO: ARRAY DINÂMICO DO GERADOR DIÁRIO ---
+	var all_cities = ["Estação A", "Estação B", "Estação C", "Estação D", "Estação E", "Estação F"]
 	var connected_cities = []
 	var disconnected_cities = []
 
 	# Lê a malha do jogador para saber onde ele já tem trilhos
 	if GameManager.network_connections.is_empty():
-		connected_cities = ["Mina", "Siderúrgica"]
-		disconnected_cities = ["Fazenda", "Porto", "Fábrica", "Refinaria"]
+		connected_cities = ["Estação A", "Estação B"]
+		disconnected_cities = ["Estação C", "Estação D", "Estação E", "Estação F"]
+	# --- FIM DA ALTERAÇÃO ---
 		
 	if not GameManager.network_connections.is_empty():
 		for c in all_cities:
@@ -542,10 +544,12 @@ func _generate_daily_generics() -> void:
 			if not is_connected:
 				disconnected_cities.append(c)
 
+	# --- INÍCIO DA ALTERAÇÃO: TRAVA DE SEGURANÇA ---
 	# Trava de segurança para não quebrar a geração matemática
 	if connected_cities.size() < 2:
-		connected_cities = ["Mina", "Siderúrgica"]
-		disconnected_cities = ["Fazenda", "Porto", "Fábrica", "Refinaria"]
+		connected_cities = ["Estação A", "Estação B"]
+		disconnected_cities = ["Estação C", "Estação D", "Estação E", "Estação F"]
+	# --- FIM DA ALTERAÇÃO ---
 
 	var daily_costs = daily_maintenance + BASE_COST + daily_crew_cost + daily_lobby_cost + daily_gang_toll
 	var min_reward = int(daily_costs * 0.8) 
