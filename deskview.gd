@@ -81,6 +81,21 @@ var newspaper_bg: ColorRect
 var newspaper_paper: ColorRect
 var is_newspaper_open: bool = false
 
+# --- INÍCIO DA ALTERAÇÃO 1: Variáveis do Alerta ---
+var alert_rect: ColorRect
+var alert_label: Label
+var alert_blink_timer: float = 0.0
+# --- FIM DA ALTERAÇÃO 1 ---
+
+# --- INÍCIO: Variáveis do Alerta Giratório ---
+var alert_container: Control
+var alert_pivot: Node2D
+var alert_bulb: Panel
+	# --- FIM: Variáveis do Alerta Giratório ---
+
+
+
+
 # --- INÍCIO DA ADIÇÃO: VARIÁVEL DO GUIA REGIONAL ---
 var current_guide_region: String = ""
 # --- FIM DA ADIÇÃO ---
@@ -149,6 +164,10 @@ func _ready() -> void:
 	GameManager.contracts_updated.connect(_on_contracts_updated)
 	GameManager.day_changed.connect(_on_day_changed)
 	
+	# --- INÍCIO DA ALTERAÇÃO 3: Ouvindo a Esteira ---
+	GameManager.package_queue_updated.connect(_on_package_queue_updated)
+	# --- FIM DA ALTERAÇÃO 3 ---
+	
 	visibility_changed.connect(_on_visibility_changed)
 	
 	_load_agenda_contacts()
@@ -159,6 +178,11 @@ func _ready() -> void:
 	_update_tokens_visual()
 
 func _process(delta: float) -> void:
+	# --- INÍCIO: Animação do Giroflex ---
+	if is_instance_valid(alert_container) and alert_container.visible:
+		alert_pivot.rotation += delta * 8.0 # Gira o feixe de luz rapidamente
+		alert_bulb.modulate.a = 0.6 + (sin(Time.get_ticks_msec() * 0.01) * 0.4) # Faz a lâmpada pulsar
+	# --- FIM: Animação do Giroflex ---
 	if not visible: return
 	
 	if not is_dial_dragging:
@@ -475,8 +499,55 @@ func _setup_ui() -> void:
 	pad_extension.color = Color(0.35, 0.4, 0.45)
 	pad_extension.size = Vector2(140, 180)
 	pad_extension.position = Vector2(480, 200)
-	pad_extension.visible = false 
+	pad_extension.visible = false
 	ui_layer.add_child(pad_extension)
+	
+	# --- INÍCIO DA ALTERAÇÃO 2: UI do Alerta de Caixas ---
+	# --- INÍCIO: UI do Alerta Giratório (Mesa) ---
+	alert_container = Control.new()
+	alert_container.position = Vector2(20, 330) # Posicionado logo abaixo da bandeja de entrada
+	alert_container.visible = false
+	
+	var base_style = StyleBoxFlat.new()
+	base_style.bg_color = Color(0.1, 0.1, 0.1)
+	base_style.corner_radius_top_left = 30; base_style.corner_radius_top_right = 30
+	base_style.corner_radius_bottom_left = 30; base_style.corner_radius_bottom_right = 30
+	
+	var base_panel = Panel.new()
+	base_panel.size = Vector2(60, 60)
+	base_panel.add_theme_stylebox_override("panel", base_style)
+	alert_container.add_child(base_panel)
+	
+	var bulb_style = StyleBoxFlat.new()
+	bulb_style.bg_color = Color(0.9, 0.1, 0.1)
+	bulb_style.corner_radius_top_left = 25; bulb_style.corner_radius_top_right = 25
+	bulb_style.corner_radius_bottom_left = 25; bulb_style.corner_radius_bottom_right = 25
+	
+	alert_bulb = Panel.new()
+	alert_bulb.size = Vector2(50, 50)
+	alert_bulb.position = Vector2(5, 5)
+	alert_bulb.add_theme_stylebox_override("panel", bulb_style)
+	base_panel.add_child(alert_bulb)
+	
+	alert_pivot = Node2D.new()
+	alert_pivot.position = Vector2(30, 30)
+	alert_container.add_child(alert_pivot)
+	
+	var alert_beam = ColorRect.new()
+	alert_beam.color = Color(1.0, 0.2, 0.2, 0.3) # Feixe de luz transparente vermelho
+	alert_beam.size = Vector2(200, 30)
+	alert_beam.position = Vector2(0, -15)
+	alert_pivot.add_child(alert_beam)
+	
+	alert_label = Label.new()
+	alert_label.add_theme_color_override("font_color", Color(0.8, 0.1, 0.1))
+	alert_label.add_theme_font_size_override("font_size", 16)
+	alert_label.position = Vector2(70, 15)
+	alert_container.add_child(alert_label)
+	
+	ui_layer.add_child(alert_container)
+	# --- FIM: UI do Alerta Giratório ---
+	# --- FIM DA ALTERAÇÃO 2 ---
 	
 	var pad_clip_ext = ColorRect.new()
 	pad_clip_ext.color = Color(0.1, 0.1, 0.1)
@@ -2405,9 +2476,11 @@ func _on_visibility_changed() -> void:
 		
 		_on_organize_pressed()
 		
-		# --- INÍCIO DA ADIÇÃO ---
 		_update_tokens_visual()
-		# --- FIM DA ADIÇÃO ---
+		
+		# --- INÍCIO DA ALTERAÇÃO 5: Sincroniza ao voltar pra mesa ---
+		_on_package_queue_updated(GameManager.package_queue.size())
+		# --- FIM DA ALTERAÇÃO 5 ---
 		
 		var has_bp = false
 		var has_tut1 = false
@@ -2595,6 +2668,20 @@ func _add_eod_line(left: String, right: String, color: Color, is_title: bool) ->
 		hbox.add_child(lbl_r)
 
 	eod_lines_container.add_child(hbox)
+	
+	
+	
+	
+# --- INÍCIO: Lógica do Alerta Giratório ---
+func _on_package_queue_updated(count: int) -> void:
+	if not is_instance_valid(alert_container): return
+	
+	if count > 0 and GameManager.day_phase == 0:
+		alert_container.visible = true
+		alert_label.text = "URGENTE: " + str(count) + " CAIXAS NA ESTEIRA!"
+	else:
+		alert_container.visible = false
+# --- FIM: Lógica do Alerta Giratório ---
 
 func _on_eod_sleep_pressed() -> void:
 	eod_layer.visible = false
