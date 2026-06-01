@@ -849,6 +849,16 @@ func _setup_ui() -> void:
 func _process_call() -> void:
 	var rid = pending_company_data["route_id"]
 	var ctype = pending_company_data["type"]
+	
+	# --- INÍCIO DA ALTERAÇÃO 3: Lógica do Jornal Expirado ---
+	if pending_company_data.get("from_newspaper", false) and GameManager.day_phase != 0:
+		GameManager.phone_tokens += 1 # Devolve a ficha gasta
+		_update_tokens_visual()
+		phone_cutscene.start_rejection_call(pending_company_data["name"], "Você demorou demais para ligar! A carga já saiu com a concorrência.\nNa próxima vez, me ligue pela manhã!")
+		folder_rect.visible = false
+		return
+	# --- FIM DA ALTERAÇÃO 3 ---
+	
 	var has_route = rid in GameManager.network_connections
 	var is_constructing = GameManager.routes_under_construction.get(rid, 0) > 0
 
@@ -3267,6 +3277,24 @@ func _spawn_ad_clipping(ad_data: Dictionary) -> void:
 	txt += "Paga: $" + str(ad_data["base_reward"]) + "/dia\n"
 	txt += "Tel: " + ad_data["phone"]
 	
+	
+	# --- INÍCIO DA ALTERAÇÃO 1: Marca d'água no recorte ---
+	var warning_lbl = Label.new()
+	warning_lbl.text = "[ VÁLIDO SÓ ATÉ O MEIO-DIA ]"
+	warning_lbl.add_theme_color_override("font_color", Color(0.8, 0.2, 0.2, 0.8))
+	warning_lbl.add_theme_font_size_override("font_size", 12)
+	warning_lbl.position = Vector2(0, paper.size.y - 30) # Fica perto da borda inferior
+	lbl.add_child(warning_lbl)
+	paper.size.y += 20 # Aumenta a altura para caber o aviso
+	# --- FIM DA ALTERAÇÃO 1 ---
+
+	lbl.position = Vector2(10, 10)
+	lbl.size = paper.size - Vector2(20, 20)
+	paper.add_child(lbl)
+	
+	
+	
+	
 	lbl.text = txt
 	lbl.position = Vector2(10, 10)
 	lbl.size = paper.size - Vector2(20, 20)
@@ -3278,7 +3306,12 @@ func _spawn_ad_clipping(ad_data: Dictionary) -> void:
 	ui_layer.add_child(paper)
 	spawned_papers.append(paper)
 	
-	pending_company_data = ad_data
+	# === A PONTE LÓGICA QUE FALTAVA ===
+	# Alimenta o telefone com a empresa deste anúncio imediatamente
+	# --- INÍCIO DA ALTERAÇÃO 2: Etiquetando origem ---
+	pending_company_data = ad_data.duplicate()
+	pending_company_data["from_newspaper"] = true 
+	# --- FIM DA ALTERAÇÃO 2 ---
 	pending_is_urgent = false
 	current_dialed = ""
 	_update_phone_display()
