@@ -75,11 +75,15 @@ var pending_is_urgent: bool = false
 var pending_is_risk: bool = false
 
 # Variáveis do Jornal Matinal
+# Variáveis do Jornal Matinal
 var newspaper_layer: CanvasLayer
 var newspaper_bg: ColorRect
 var newspaper_paper: ColorRect
 var is_newspaper_open: bool = false
-# --- FIM DA CORREÇÃO ---
+
+# --- INÍCIO DA ADIÇÃO: VARIÁVEL DO GUIA REGIONAL ---
+var current_guide_region: String = ""
+# --- FIM DA ADIÇÃO ---
 
 var HOLE_ANGLES = [
 	0.0, -PI * 1.5, -PI * 1.3333, -PI * 1.1666, -PI,
@@ -1368,57 +1372,148 @@ func _update_diretrizes() -> void:
 
 
 
+# --- INÍCIO DA ALTERAÇÃO: SISTEMA DO GUIA REGIONAL (ABAS E CARTÕES) ---
+# --- INÍCIO DA ALTERAÇÃO: SISTEMA DO GUIA REGIONAL CORRIGIDO ---
 func _load_agenda_contacts() -> void:
-	if current_agenda_contacts.is_empty():
-		var all_c = []
+	if not is_instance_valid(agenda_rect): return
+	
+	# Limpa tudo que havia na pasta
+	for child in agenda_rect.get_children():
+		child.queue_free()
 		
-		for c in GameManager.daily_generic_companies: 
-			if typeof(c) == TYPE_DICTIONARY: all_c.append(c)
-		for c in GameManager.daily_urgencies: 
-			if typeof(c) == TYPE_DICTIONARY: all_c.append(c)
+	# Estética da Pasta do Guia (Parda/Couro)
+	agenda_rect.color = Color(0.85, 0.75, 0.55)
+	
+	var title = Label.new()
+	title.text = "GUIA REGIONAL DE FRETES"
+	title.add_theme_font_size_override("font_size", 20)
+	title.add_theme_color_override("font_color", Color(0.2, 0.1, 0.05))
+	title.position = Vector2(20, 15)
+	agenda_rect.add_child(title)
+
+	var level_data = LevelData.LEVELS[GameManager.current_level]
+	var all_c = []
+	if level_data.has("companies"):
+		all_c = level_data["companies"].duplicate(true)
+		
+	# Trava do Tutorial: Adiciona a Prefeitura Local se for o primeiro dia
+	if GameManager.current_day == 1 and not GameManager.is_first_route_built:
+		var tutorial_contract = {
+			"name": "Prefeitura Local (Edital)",
+			"type": "Licitação Estatal",
+			"region": "Vale do Rio", # Adicionado para aparecer na aba correta
+			"phone": "555-0001",
+			"cargo": "Materiais de Construcao",
+			"route_id": "Estação A-Estação B",
+			"route_name": "Estação A <-> Estação B",
+			"base_reward": 150,
+			"upfront_bonus": 1500,
+			"grandpa_note": "Um edital da prefeitura. Eles pagam adiantado para construirmos a primeira via. Pegue este sem pensar duas vezes!"
+		}
+		all_c.insert(0, tutorial_contract)
+		
+	# Mapeia dinamicamente todas as regiões que existem no banco de dados
+	var regions = []
+	for c in all_c:
+		var r = c.get("region", "Desconhecida")
+		if not regions.has(r):
+			regions.append(r)
 			
-		if GameManager.current_day == 1 and not GameManager.is_first_route_built:
-			var tutorial_contract = {
-				"name": "Prefeitura Local (Edital)",
-				"type": "Licitação Estatal",
-				"phone": "555-0001",
-				"cargo": "Materiais de Construcao",
-				# --- INÍCIO DA ALTERAÇÃO: ROTA DO CONTRATO TUTORIAL ---
-				"route_id": "Estação A-Estação B",
-				"route_name": "Estação A <-> Estação B",
-				# --- FIM DA ALTERAÇÃO ---
-				"base_reward": 150,
-				"upfront_bonus": 1500
-			}
-			all_c.append(tutorial_contract)
-			# --- FIM DA ALTERAÇÃO ---
-			# --- FIM DA ALTERAÇÃO ---
+	if current_guide_region == "" and regions.size() > 0:
+		current_guide_region = regions[0] # Inicia na primeira aba
+
+	# Desenha as Abas (Botões no topo)
+	var tab_x = 20
+	for r in regions:
+		var btn = Button.new()
+		btn.text = r
+		btn.position = Vector2(tab_x, 50)
+		btn.size = Vector2(100, 30)
 		
-		var fakes = ["Madeireira Sul", "Minas de Carvao", "Tecelagem Fina", "Armazens Gerais", "Importadora X", "Silos do Porto", "Fazenda Velha", "Aco & Ferro Ltda"]
-		for i in range(12): 
-			all_c.append({
-				"name": fakes.pick_random() + " (Inativo)",
-				"type": "Falso",
-				"phone": "555-" + str(randi_range(1000, 9999)),
-				"cargo": "N/A", "route_name": "N/A", "base_reward": 0
-			})
+		# Destaca a aba selecionada em amarelo
+		if r == current_guide_region:
+			btn.modulate = Color(1.0, 1.0, 0.5)
+		if r != current_guide_region:
+			btn.modulate = Color(0.8, 0.8, 0.8)
 			
-		all_c.shuffle()
-		
-		if GameManager.current_day == 1 and not GameManager.is_first_route_built:
-			for i in range(all_c.size()):
-				# --- INÍCIO DA ALTERAÇÃO (ACOMPANHANDO A MUDANÇA) ---
-				if all_c[i].get("name") == "Prefeitura Local (Edital)":
-				# --- FIM DA ALTERAÇÃO ---
-					var temp = all_c[0]
-					all_c[0] = all_c[i]
-					all_c[i] = temp
-					break
-					
-		current_agenda_contacts = all_c
-		current_agenda_page = 0
-		
-	_render_agenda_page()
+		btn.pressed.connect(_on_guide_tab_pressed.bind(r))
+		agenda_rect.add_child(btn)
+		tab_x += 110
+
+	# Desenha os Cartões de Empresas da aba selecionada
+	var card_y = 95
+	for c in all_c:
+		var c_reg = c.get("region", "Desconhecida")
+		if c_reg == current_guide_region:
+			var card = Button.new()
+			card.position = Vector2(20, card_y)
+			card.size = Vector2(360, 110)
+			
+			var c_style = StyleBoxFlat.new()
+			c_style.bg_color = Color(0.95, 0.95, 0.9)
+			c_style.border_color = Color(0.6, 0.5, 0.4)
+			# CORREÇÃO AQUI: Definindo as bordas individualmente para Godot 4
+			c_style.border_width_left = 2
+			c_style.border_width_top = 2
+			c_style.border_width_right = 2
+			c_style.border_width_bottom = 2
+			card.add_theme_stylebox_override("normal", c_style)
+			
+			var h_style = c_style.duplicate()
+			h_style.bg_color = Color(1.0, 1.0, 0.95) # Brilho no hover
+			card.add_theme_stylebox_override("hover", h_style)
+			
+			var lbl = Label.new()
+			lbl.add_theme_color_override("font_color", Color(0.1, 0.1, 0.1))
+			lbl.add_theme_font_size_override("font_size", 13)
+			lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			lbl.position = Vector2(10, 5)
+			lbl.size = Vector2(340, 100)
+			
+			var txt = "[ " + c["name"] + " ]\n"
+			txt += "Rota: " + c.get("route_name", "") + " | Carga: " + c.get("cargo", "") + "\n"
+			txt += "Paga: $" + str(c.get("base_reward", 0)) + "/dia | TEL: " + c.get("phone", "") + "\n\n"
+			txt += "[i]\"" + c.get("grandpa_note", "Uma empresa comum.") + "\"[/i]" # Lore do Avô
+			
+			# Usamos RichTextLabel apenas para o itálico na nota do avô
+			var rich_lbl = RichTextLabel.new()
+			rich_lbl.bbcode_enabled = true
+			rich_lbl.text = txt
+			rich_lbl.add_theme_color_override("default_color", Color(0.1, 0.1, 0.1))
+			rich_lbl.add_theme_font_size_override("normal_font_size", 13)
+			rich_lbl.position = Vector2(10, 5)
+			rich_lbl.size = Vector2(340, 100)
+			rich_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			
+			card.add_child(rich_lbl)
+			
+			var c_bind = c.duplicate()
+			card.pressed.connect(_on_guide_card_pressed.bind(c_bind))
+			
+			agenda_rect.add_child(card)
+			card_y += 120
+# --- FIM DA ALTERAÇÃO ---
+
+
+
+# --- INÍCIO DA ADIÇÃO: INTERAÇÕES DA PASTA DO GUIA ---
+func _on_guide_tab_pressed(region_name: String) -> void:
+	current_guide_region = region_name
+	_load_agenda_contacts() # Recarrega a pasta inteira mostrando a nova aba
+
+func _on_guide_card_pressed(company_data: Dictionary) -> void:
+	# Clicar no cartão no Guia NÃO rasga papel. Apenas avisa o telefone!
+	pending_company_data = company_data
+	pending_is_urgent = false
+	current_dialed = ""
+	_update_phone_display()
+	
+	# Feedback visual rápido no visor do telefone para o jogador saber que o contato foi copiado
+	phone_display.text = "CONTATO COPIADO"
+	await get_tree().create_timer(1.0).timeout
+	_update_phone_display()
+# --- FIM DA ADIÇÃO ---
+
 
 
 
