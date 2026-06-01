@@ -63,6 +63,10 @@ var phone_rect: ColorRect
 var phone_display: Label
 var dial_rect: Control
 
+# --- INÍCIO DA ADIÇÃO: VARIÁVEL DAS FICHAS METÁLICAS VISUAIS ---
+var token_visuals: Array = []
+# --- FIM DA ADIÇÃO ---
+
 var current_dialed: String = ""
 var pending_company_data: Dictionary = {}
 var pending_is_urgent: bool = false
@@ -134,6 +138,12 @@ func _ready() -> void:
 	_update_report_text()
 	_update_diretrizes() 
 	_update_task_pad()
+	
+	# --- INÍCIO DA ADIÇÃO ---
+	_update_tokens_visual()
+	# --- FIM DA ADIÇÃO ---
+
+
 
 func _process(delta: float) -> void:
 	if not visible: return
@@ -587,6 +597,31 @@ func _setup_ui() -> void:
 	dial_rect.gui_input.connect(_on_dial_gui_input)
 	phone_rect.add_child(dial_rect)
 	
+	# --- INÍCIO DA ADIÇÃO: INSTANCIAÇÃO DAS FICHAS FÍSICAS NA MESA ---
+	token_visuals.clear()
+	for i in range(3):
+		var token = Panel.new()
+		var token_style = StyleBoxFlat.new()
+		token_style.bg_color = Color(0.7, 0.55, 0.2) # Tom metálico de latão/bronze antigo
+		token_style.corner_radius_top_left = 20
+		token_style.corner_radius_top_right = 20
+		token_style.corner_radius_bottom_left = 20
+		token_style.corner_radius_bottom_right = 20
+		token_style.border_width_left = 2
+		token_style.border_width_top = 2
+		token_style.border_width_right = 2
+		token_style.border_width_bottom = 2
+		token_style.border_color = Color(0.4, 0.3, 0.1) # Borda metálica escura para dar relevo
+		token.add_theme_stylebox_override("panel", token_style)
+		
+		token.size = Vector2(30, 30)
+		# Posiciona horizontalmente uma ao lado da outra, logo à direita do telefone (eixo X)
+		token.position = Vector2(400 + (i * 40), 860)
+		token.mouse_filter = Control.MOUSE_FILTER_IGNORE # Elemento puramente estático e visual
+		ui_layer.add_child(token)
+		token_visuals.append(token)
+	# --- FIM DA ADIÇÃO ---
+	
 	calendar_rect = ColorRect.new()
 	calendar_rect.color = Color(0.9, 0.9, 0.9)
 	calendar_rect.size = Vector2(220, 160)
@@ -1035,14 +1070,27 @@ func _update_phone_display() -> void:
 	phone_display.text = "VISOR: " + text
 
 func _check_dialed_number() -> void:
+	# --- INÍCIO DA ALTERAÇÃO: SISTEMA DE CONSUMO DE FICHAS NO TELEFONE ---
 	var dialed_clean = current_dialed
 	var target_clean = ""
+	
+	# Cláusula de guarda: Se o jogador não tiver fichas diárias, cancela e avisa no visor
+	if GameManager.phone_tokens <= 0:
+		phone_display.text = "SEM FICHAS"
+		await get_tree().create_timer(1.0).timeout
+		current_dialed = ""
+		_update_phone_display()
+		return
 	
 	if not pending_company_data.is_empty():
 		target_clean = pending_company_data["phone"].replace("-", "")
 	
 	if dialed_clean == target_clean:
 		phone_display.text = "LIGANDO..."
+		# Desconta o recurso e atualiza o estado visual na mesa no mesmo instante
+		GameManager.phone_tokens -= 1
+		_update_tokens_visual()
+		
 		await get_tree().create_timer(0.5).timeout
 		_process_call()
 	else:
@@ -1051,6 +1099,9 @@ func _check_dialed_number() -> void:
 	
 	current_dialed = ""
 	_update_phone_display()
+	# --- FIM DA ALTERAÇÃO ---_ready
+
+
 
 func _make_draggable(panel: Control, type: String = "panel") -> void:
 	panel.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -2252,6 +2303,10 @@ func _on_visibility_changed() -> void:
 		
 		_on_organize_pressed()
 		
+		# --- INÍCIO DA ADIÇÃO ---
+		_update_tokens_visual()
+		# --- FIM DA ADIÇÃO ---
+		
 		var has_bp = false
 		var has_tut1 = false
 		var has_tut2 = false
@@ -2302,6 +2357,8 @@ func _on_visibility_changed() -> void:
 		elif not GameManager.intro_played:
 			GameManager.intro_played = true
 			phone_cutscene.start_boss_intro()
+
+
 
 
 func _are_routes_equal(r1: Array, r2: Array) -> bool:
@@ -2450,10 +2507,13 @@ func _on_eod_sleep_pressed() -> void:
 	daily_shark_income = 0
 	daily_upfront_income = 0
 	
+	# --- INÍCIO DA ADIÇÃO ---
+	_update_tokens_visual()
+	# --- FIM DA ADIÇÃO ---
+	
 	_update_calendar()
 	_on_organize_pressed()
 # --- FIM DA ALTERAÇÃO 4.B ---
-
 
 
 func _on_eod_input(event: InputEvent) -> void:
@@ -2844,3 +2904,12 @@ func _on_active_contract_clicked(index: int) -> void:
 	folder_rect.get_parent().move_child(folder_rect, -1) 
 	folder_rect.rotation_degrees = 0
 	_clamp_to_screen(folder_rect)
+
+
+# --- INÍCIO DA ADIÇÃO: FUNÇÃO DE CONTROLE DE VISIBILIDADE DAS FICHAS ---
+func _update_tokens_visual() -> void:
+	for i in range(token_visuals.size()):
+		if is_instance_valid(token_visuals[i]):
+			# Se o índice da moeda for menor que as fichas restantes no GameManager, ela continua na mesa
+			token_visuals[i].visible = (i < GameManager.phone_tokens)
+# --- FIM DA ADIÇÃO ---
