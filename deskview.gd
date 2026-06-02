@@ -166,29 +166,16 @@ func _ready() -> void:
 	_setup_ui()
 	_setup_cutscene()
 	_setup_eod_ui()
-	
-	# --- INÍCIO DA CORREÇÃO: INICIALIZA O JORNAL NA LARGADA ---
 	_setup_newspaper_ui()
-	# --- FIM DA CORREÇÃO ---
 	
 	GameManager.money_changed.connect(_on_stats_changed)
 	GameManager.maintenance_updated.connect(_on_stats_changed)
 	
-	# --- INÍCIO DA ALTERAÇÃO 3: Ouvindo a Esteira ---
+	# --- CONEXÕES CORRIGIDAS E SEM DUPLICATAS ---
 	GameManager.package_queue_updated.connect(_on_package_queue_updated)
-	# --- FIM DA ALTERAÇÃO 3 ---
-	
-	
 	GameManager.contracts_updated.connect(_on_contracts_updated)
 	GameManager.day_changed.connect(_on_day_changed)
-	
-	# --- INÍCIO DA ALTERAÇÃO 3: Ouvindo a Esteira e Relógio ---
-	GameManager.package_queue_updated.connect(_on_package_queue_updated)
 	GameManager.shift_ended.connect(_on_morning_ended)
-	# --- FIM DA ALTERAÇÃO 3 ---
-	
-	
-	
 	
 	visibility_changed.connect(_on_visibility_changed)
 	
@@ -196,43 +183,14 @@ func _ready() -> void:
 	_update_report_text()
 	_update_diretrizes() 
 	_update_task_pad()
-	
 	_update_tokens_visual()
 
+
+
 func _process(delta: float) -> void:
-	# --- INÍCIO DA CORREÇÃO: Gatilho Diário Garantido do Rádio ---
-	if GameManager.day_phase == 0:
-		if not daily_maintenance_called:
-			# Usa o timer para esperar 2 segundos após a manhã começar e tocar o rádio
-			alert_blink_timer += delta
-			if alert_blink_timer > 2.0:
-				daily_maintenance_called = true
-				alert_blink_timer = 0.0
-				_trigger_morning_radio()
-	# --- FIM DA CORREÇÃO ---
-
-	# Animação do Giroflex da Mesa
-	if is_instance_valid(alert_container) and alert_container.visible:
-		alert_pivot.rotation += delta * 8.0 
-		alert_bulb.modulate.a = 0.6 + (sin(Time.get_ticks_msec() * 0.01) * 0.4) 
-		
-	# --- INÍCIO DA ATUALIZAÇÃO: Luz do Rádio e Efeito de Brilho ---
-	if is_instance_valid(radio_led):
-		if GameManager.pending_radio_event:
-			# Faz o LED piscar intensamente
-			var alpha = 0.6 + (sin(Time.get_ticks_msec() * 0.008) * 0.4)
-			radio_led.color = Color(1.0, 0.2, 0.2, alpha)
-			
-			# Modifica a cor do Rádio Inteiro para um tom de vermelho/laranja emitindo luz
-			radio_rect.modulate = Color(1.8, 1.2, 1.2)
-		else:
-			# Retorna ao normal quando não há evento
-			radio_led.color = Color(0.2, 0.05, 0.05, 1.0) 
-			radio_rect.modulate = Color.WHITE
-	# --- FIM DA ATUALIZAÇÃO ---
-
 	if not visible: return
-	
+
+	# 1. ATUALIZAÇÕES VISUAIS DA MESA (Sempre rodam)
 	if not is_dial_dragging:
 		if dial_current_rot > 0.0:
 			dial_current_rot -= delta * 5.0 
@@ -240,49 +198,107 @@ func _process(delta: float) -> void:
 				dial_current_rot = 0.0
 			dial_rect.queue_redraw()
 
+	if is_instance_valid(alert_container) and alert_container.visible:
+		alert_pivot.rotation += delta * 8.0 
+		alert_bulb.modulate.a = 0.6 + (sin(Time.get_ticks_msec() * 0.01) * 0.4) 
+		
+	if is_instance_valid(radio_led):
+		if GameManager.pending_radio_event:
+			var alpha = 0.6 + (sin(Time.get_ticks_msec() * 0.008) * 0.4)
+			radio_led.color = Color(1.0, 0.2, 0.2, alpha)
+			radio_rect.modulate = Color(1.8, 1.2, 1.2)
+		else:
+			radio_led.color = Color(0.2, 0.05, 0.05, 1.0) 
+			radio_rect.modulate = Color.WHITE
+
+	# --- NOVO: CONTROLE DINÂMICO DO TEXTO DO BOTÃO ---
+	if is_instance_valid(btn_next_day):
+		if GameManager.day_phase == 0:
+			btn_next_day.text = "Finalizar Expediente da Manhã"
+		else:
+			btn_next_day.text = "Processar Saídas e Finalizar Dia"
+
+	# 2. SISTEMA INVERTIDO DE GERENCIAMENTO DE EVENTOS
+	var is_cutscene_playing = false
+	if is_instance_valid(phone_cutscene):
+		if phone_cutscene.visible:
+			is_cutscene_playing = true
+
+	# Se a tela está ocupada (Jornal ou Cutscene), PAUSA a fila de eventos e os timers
+	if is_cutscene_playing or is_newspaper_open:
+		return
+
+	# 3. FILA DE CUTSCENES COM PRIORIDADE ABSOLUTA E LOGS
+	if not GameManager.intro_played:
+		print("[LOG_MESA] Despachando: Boss Intro")
+		GameManager.intro_played = true
+		phone_cutscene.start_boss_intro()
+		return
+
 	if GameManager.pending_defeat_call:
+		print("[LOG_MESA] Despachando: Defeito/Falência")
 		GameManager.pending_defeat_call = false
 		phone_cutscene.start_defeat_call()
-	else:
-		if GameManager.pending_victory_call:
-			GameManager.pending_victory_call = false
-			phone_cutscene.start_victory_call()
-		else:
-			if GameManager.pending_badger_package_warning:
-				GameManager.pending_badger_package_warning = false
-				phone_cutscene.start_badger_package_warning()
-			else:
-				if GameManager.pendent_angry_call: 
-					GameManager.pendent_angry_call = false
-					phone_cutscene.start_angry_call()
-				else:
-					if not GameManager.pending_fiscal_event.is_empty() and not GameManager.is_fiscal_calling:
-						GameManager.is_fiscal_calling = true 
-						phone_cutscene.start_fiscal_audit(GameManager.pending_fiscal_event)
-					else:
-						if GameManager.pending_boss_package_call and not GameManager.boss_package_intro_done:
-							GameManager.pending_boss_package_call = false
-							GameManager.boss_package_intro_done = true
-							phone_cutscene.start_boss_package_call()
-						else:
-							if GameManager.pending_shark_call and not GameManager.shark_declined and not GameManager.has_loan_shark and not GameManager.is_shark_calling:
-								GameManager.pending_shark_call = false
-								GameManager.is_shark_calling = true
-								if phone_cutscene.has_method("start_loan_shark_call"):
-									phone_cutscene.start_loan_shark_call()
-							else:
-								if GameManager.pending_shark_paper:
-									GameManager.pending_shark_paper = false
-									_spawn_shark_paper()
-								else:
-									if not GameManager.intro_played:
-										GameManager.intro_played = true
-										phone_cutscene.start_boss_intro()
+		return
+		
+	if GameManager.pending_victory_call:
+		print("[LOG_MESA] Despachando: Vitória")
+		GameManager.pending_victory_call = false
+		phone_cutscene.start_victory_call()
+		return
+		
+	if GameManager.pending_boss_package_call and not GameManager.boss_package_intro_done:
+		print("[LOG_MESA] Despachando: Triagem Liberada")
+		GameManager.pending_boss_package_call = false
+		GameManager.boss_package_intro_done = true
+		phone_cutscene.start_boss_package_call()
+		return
+		
+	if GameManager.pending_badger_package_warning:
+		print("[LOG_MESA] Despachando: Alerta de Esteira Cheia")
+		GameManager.pending_badger_package_warning = false
+		phone_cutscene.start_badger_package_warning()
+		return
+		
+	if GameManager.pendent_angry_call: 
+		print("[LOG_MESA] Despachando: Cliente Furioso")
+		GameManager.pendent_angry_call = false
+		phone_cutscene.start_angry_call()
+		return
+		
+	if not GameManager.pending_fiscal_event.is_empty() and not GameManager.is_fiscal_calling:
+		print("[LOG_MESA] Despachando: Fiscalização")
+		GameManager.is_fiscal_calling = true 
+		phone_cutscene.start_fiscal_audit(GameManager.pending_fiscal_event)
+		return
+		
+	if GameManager.pending_shark_call and not GameManager.shark_declined and not GameManager.has_loan_shark and not GameManager.is_shark_calling:
+		print("[LOG_MESA] Despachando: Agiota")
+		GameManager.pending_shark_call = false
+		GameManager.is_shark_calling = true
+		if phone_cutscene.has_method("start_loan_shark_call"):
+			phone_cutscene.start_loan_shark_call()
+		return
 		
 	if GameManager.pending_shark_paper:
-			GameManager.pending_shark_paper = false
-			_spawn_shark_paper()
+		print("[LOG_MESA] Ação: Spawnando Papel do Agiota")
+		GameManager.pending_shark_paper = false
+		_spawn_shark_paper()
+		return
 
+	# 4. GATILHO DO RÁDIO MATINAL (BLOQUEADO NO DIA 1)
+	if GameManager.day_phase == 0:
+		if GameManager.current_day == 1:
+			daily_maintenance_called = true # Silencia o rádio no Dia 1
+		else:
+			if not daily_maintenance_called:
+				alert_blink_timer += delta
+				if alert_blink_timer > 2.0:
+					print("[LOG_MESA] Acionando Gatilho do Rádio Diário")
+					daily_maintenance_called = true
+					alert_blink_timer = 0.0
+					_trigger_morning_radio()
+					return
 
 
 func _setup_ui() -> void:
@@ -315,63 +331,7 @@ func _setup_ui() -> void:
 	btn_go_inspection.pressed.connect(_on_go_inspection_pressed)
 	ui_layer.add_child(btn_go_inspection)
 	
-	btn_open_ledger = Button.new()
-	btn_open_ledger.text = "LIVRO DE REGISTROS"
-	btn_open_ledger.position = Vector2(1650, 100)
-	btn_open_ledger.size = Vector2(230, 40)
-	btn_open_ledger.pressed.connect(_on_open_ledger_pressed)
-	ui_layer.add_child(btn_open_ledger)
-	
-	ledger_book = ColorRect.new()
-	ledger_book.color = Color(0.15, 0.15, 0.18, 0.98)
-	ledger_book.size = Vector2(600, 700)
-	ledger_book.position = Vector2(660, 150)
-	ledger_book.visible = false
-	ui_layer.add_child(ledger_book)
-	
-	var ledger_border = ReferenceRect.new()
-	ledger_border.set_anchors_preset(Control.PRESET_FULL_RECT)
-	ledger_border.border_color = Color.GOLDENROD
-	ledger_border.border_width = 4
-	ledger_book.add_child(ledger_border)
-	
-	var ledger_title = Label.new()
-	ledger_title.text = "REGISTRO DE OPERAÇÕES LOGÍSTICAS"
-	ledger_title.position = Vector2(0, 20)
-	ledger_title.size = Vector2(600, 30)
-	ledger_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	ledger_title.add_theme_color_override("font_color", Color.GOLDENROD)
-	ledger_book.add_child(ledger_title)
-	
-	ledger_content = Label.new()
-	ledger_content.position = Vector2(30, 80)
-	ledger_content.size = Vector2(540, 520)
-	ledger_content.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	ledger_content.add_theme_font_size_override("font_size", 16)
-	ledger_content.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	ledger_book.add_child(ledger_content)
-	
-	btn_ledger_prev = Button.new()
-	btn_ledger_prev.text = "<- Pág. Anterior"
-	btn_ledger_prev.position = Vector2(30, 620)
-	btn_ledger_prev.size = Vector2(150, 40)
-	btn_ledger_prev.pressed.connect(_on_ledger_prev_pressed)
-	ledger_book.add_child(btn_ledger_prev)
-	
-	btn_ledger_next = Button.new()
-	btn_ledger_next.text = "Próx. Pág ->"
-	btn_ledger_next.position = Vector2(420, 620)
-	btn_ledger_next.size = Vector2(150, 40)
-	btn_ledger_next.pressed.connect(_on_ledger_next_pressed)
-	ledger_book.add_child(btn_ledger_next)
-	
-	btn_ledger_close = Button.new()
-	btn_ledger_close.text = "FECHAR LIVRO"
-	btn_ledger_close.position = Vector2(225, 620)
-	btn_ledger_close.size = Vector2(150, 40)
-	btn_ledger_close.add_theme_color_override("font_color", Color.INDIAN_RED)
-	btn_ledger_close.pressed.connect(_on_close_ledger_pressed)
-	ledger_book.add_child(btn_ledger_close)
+	_setup_ledger()
 
 	diretrizes_rect = ColorRect.new()
 	diretrizes_rect.color = Color(0.6, 0.15, 0.15) 
@@ -499,50 +459,7 @@ func _setup_ui() -> void:
 	trash_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui_layer.add_child(trash_rect)
 	
-	agenda_rect = ColorRect.new()
-	agenda_rect.color = Color(0.85, 0.8, 0.6) 
-	agenda_rect.size = Vector2(400, 520) 
-	agenda_rect.position = Vector2(40, 200)
-	ui_layer.add_child(agenda_rect)
-	_make_draggable(agenda_rect, "panel")
-	
-	var lombada = ColorRect.new()
-	lombada.color = Color(0.1, 0.1, 0.1) 
-	lombada.size = Vector2(30, 520)
-	lombada.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	agenda_rect.add_child(lombada)
-	
-	var agenda_title = Label.new()
-	agenda_title.text = "ARQUIVO DE CLIENTES"
-	agenda_title.add_theme_color_override("font_color", Color.BLACK)
-	agenda_title.position = Vector2(50, 20)
-	agenda_rect.add_child(agenda_title)
-	
-	companies_vbox = VBoxContainer.new()
-	companies_vbox.position = Vector2(40, 60)
-	companies_vbox.size = Vector2(340, 380)
-	companies_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	agenda_rect.add_child(companies_vbox)
-
-	btn_prev_page = Button.new()
-	btn_prev_page.text = "<- Pág."
-	btn_prev_page.size = Vector2(80, 40)
-	btn_prev_page.position = Vector2(40, 460)
-	btn_prev_page.pressed.connect(_on_prev_page_pressed)
-	agenda_rect.add_child(btn_prev_page)
-	
-	lbl_page = Label.new()
-	lbl_page.text = "Pág. 1"
-	lbl_page.add_theme_color_override("font_color", Color.BLACK)
-	lbl_page.position = Vector2(170, 470)
-	agenda_rect.add_child(lbl_page)
-
-	btn_next_page = Button.new()
-	btn_next_page.text = "Pág. ->"
-	btn_next_page.size = Vector2(80, 40)
-	btn_next_page.position = Vector2(300, 460)
-	btn_next_page.pressed.connect(_on_next_page_pressed)
-	agenda_rect.add_child(btn_next_page)
+	_setup_agenda()
 
 	pad_extension = ColorRect.new()
 	pad_extension.color = Color(0.35, 0.4, 0.45)
@@ -613,121 +530,15 @@ func _setup_ui() -> void:
 	pad_extension.mouse_filter = Control.MOUSE_FILTER_STOP
 	pad_extension.gui_input.connect(_on_pad_extension_input)
 
-	clipboard_rect = ColorRect.new()
-	clipboard_rect.color = Color(0.95, 0.95, 0.9) 
-	clipboard_rect.size = Vector2(350, 400)
-	clipboard_rect.position = Vector2(750, 200)
-	ui_layer.add_child(clipboard_rect)
-	_make_draggable(clipboard_rect, "panel")
-	
-	var clipe_metal = ColorRect.new()
-	clipe_metal.color = Color(0.5, 0.5, 0.55) 
-	clipe_metal.size = Vector2(150, 20)
-	clipe_metal.position = Vector2(100, 0)
-	clipe_metal.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	clipboard_rect.add_child(clipe_metal)
-
-	report_label = Label.new()
-	report_label.position = Vector2(20, 40)
-	report_label.size = Vector2(310, 280)
-	report_label.add_theme_color_override("font_color", Color.BLACK)
-	report_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	clipboard_rect.add_child(report_label)
-
-	btn_next_day = Button.new()
-	btn_next_day.text = "Processar Saídas e Finalizar Dia"
-	btn_next_day.position = Vector2(20, 340)
-	btn_next_day.size = Vector2(310, 40)
-	btn_next_day.pressed.connect(_on_next_day_pressed)
-	clipboard_rect.add_child(btn_next_day)
-
-	task_pad_rect = ColorRect.new()
-	task_pad_rect.color = Color(0.95, 0.92, 0.65)
-	task_pad_rect.size = Vector2(380, 380)
-	task_pad_rect.position = Vector2(1100, 200) 
-	ui_layer.add_child(task_pad_rect)
-	_make_draggable(task_pad_rect, "panel")
-
-	var pad_clip = ColorRect.new()
-	pad_clip.color = Color(0.7, 0.2, 0.2) 
-	pad_clip.size = Vector2(380, 20)
-	task_pad_rect.add_child(pad_clip)
-
-	var task_title = Label.new()
-	task_title.text = "PRANCHETA DE OPERAÇÕES"
-	task_title.add_theme_color_override("font_color", Color.BLACK)
-	task_title.position = Vector2(20, 25)
-	task_pad_rect.add_child(task_title)
-
-	task_vbox = VBoxContainer.new()
-	task_vbox.position = Vector2(15, 55)
-	task_vbox.size = Vector2(350, 310)
-	task_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	task_pad_rect.add_child(task_vbox)
+	_setup_clipboards()
 
 	# (O código da sua prancheta task_vbox termina aqui em cima...)
 
-	# --- INÍCIO DA ATUALIZAÇÃO: Chamada modular do Rádio ---
 	_setup_radio()
-	# --- FIM DA ATUALIZAÇÃO ---
 
-	# (O código da criação do telefone phone_rect começa logo aqui embaixo...)
 
-	phone_rect = ColorRect.new()
-	phone_rect.color = Color(0.1, 0.25, 0.15) 
-	phone_rect.size = Vector2(340, 260) 
-	phone_rect.position = Vector2(40, 750)
-	ui_layer.add_child(phone_rect)
-	_make_draggable(phone_rect, "panel")
-	
-	var handset_rect = ColorRect.new()
-	handset_rect.color = Color(0.08, 0.2, 0.12)
-	handset_rect.size = Vector2(300, 40)
-	handset_rect.position = Vector2(20, -20)
-	handset_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	phone_rect.add_child(handset_rect)
-	
-	phone_display = Label.new()
-	phone_display.text = "VISOR: ---"
-	phone_display.position = Vector2(40, 30)
-	phone_display.size = Vector2(260, 40)
-	phone_display.add_theme_font_size_override("font_size", 24)
-	phone_display.add_theme_color_override("font_color", Color.WHITE)
-	phone_rect.add_child(phone_display)
-	
-	dial_rect = Control.new()
-	dial_rect.position = Vector2(170, 160) 
-	dial_rect.size = Vector2(240, 240)
-	dial_rect.position -= dial_rect.size / 2.0
-	dial_rect.mouse_filter = Control.MOUSE_FILTER_STOP
-	dial_rect.draw.connect(_on_dial_draw)
-	dial_rect.gui_input.connect(_on_dial_gui_input)
-	phone_rect.add_child(dial_rect)
-	
-	# --- INÍCIO DA ADIÇÃO: INSTANCIAÇÃO DAS FICHAS FÍSICAS NA MESA ---
-	token_visuals.clear()
-	for i in range(3):
-		var token = Panel.new()
-		var token_style = StyleBoxFlat.new()
-		token_style.bg_color = Color(0.7, 0.55, 0.2) # Tom metálico de latão/bronze antigo
-		token_style.corner_radius_top_left = 20
-		token_style.corner_radius_top_right = 20
-		token_style.corner_radius_bottom_left = 20
-		token_style.corner_radius_bottom_right = 20
-		token_style.border_width_left = 2
-		token_style.border_width_top = 2
-		token_style.border_width_right = 2
-		token_style.border_width_bottom = 2
-		token_style.border_color = Color(0.4, 0.3, 0.1) # Borda metálica escura para dar relevo
-		token.add_theme_stylebox_override("panel", token_style)
-		
-		token.size = Vector2(30, 30)
-		# Posiciona horizontalmente uma ao lado da outra, logo à direita do telefone (eixo X)
-		token.position = Vector2(400 + (i * 40), 860)
-		token.mouse_filter = Control.MOUSE_FILTER_IGNORE # Elemento puramente estático e visual
-		ui_layer.add_child(token)
-		token_visuals.append(token)
-	# --- FIM DA ADIÇÃO ---
+	_setup_phone()
+
 	
 	calendar_rect = ColorRect.new()
 	calendar_rect.color = Color(0.9, 0.9, 0.9)
@@ -743,90 +554,7 @@ func _setup_ui() -> void:
 	cal_clip.position = Vector2(60, 0)
 	calendar_rect.add_child(cal_clip)
 
-	folder_rect = ColorRect.new()
-	folder_rect.color = Color(0.8, 0.65, 0.4) 
-	folder_rect.size = Vector2(500, 480)
-	folder_rect.position = Vector2(700, 310) 
-	folder_rect.visible = false
-	ui_layer.add_child(folder_rect)
-	_make_draggable(folder_rect, "panel")
-	
-	var folder_tab = ColorRect.new()
-	folder_tab.color = Color(0.8, 0.65, 0.4)
-	folder_tab.size = Vector2(150, 30)
-	folder_tab.position = Vector2(20, -20)
-	folder_tab.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	folder_rect.add_child(folder_tab)
-	
-	folder_title = Label.new()
-	folder_title.position = Vector2(20, 10)
-	folder_title.add_theme_font_size_override("font_size", 20)
-	folder_title.add_theme_color_override("font_color", Color.BLACK)
-	folder_rect.add_child(folder_title)
-	
-	folder_route = Label.new()
-	folder_route.position = Vector2(20, 40)
-	folder_route.add_theme_color_override("font_color", Color.DARK_RED)
-	folder_rect.add_child(folder_route)
-	
-	btn_close_folder = Button.new()
-	btn_close_folder.text = "X"
-	btn_close_folder.position = Vector2(460, 10)
-	btn_close_folder.size = Vector2(30, 30)
-	btn_close_folder.pressed.connect(_on_close_folder_pressed)
-	folder_rect.add_child(btn_close_folder)
-
-	# --- INÍCIO DA ALTERAÇÃO (CORREÇÃO DO BUG DO BOTÃO) ---
-	doc_standard = ColorRect.new()
-	doc_standard.color = Color(0.95, 0.95, 0.95)
-	doc_standard.size = Vector2(440, 420)
-	doc_standard.position = Vector2(20, 40)
-	folder_rect.add_child(doc_standard)
-	doc_standard.gui_input.connect(_on_doc_input.bind(doc_standard))
-	
-	# O ScrollContainer agora é filho do doc_standard, respeitando as bordas dele.
-	# Tamanho vertical reduzido para não invadir o botão de preparar contrato
-	var std_scroll = ScrollContainer.new()
-	std_scroll.position = Vector2(10, 10)
-	std_scroll.size = Vector2(420, 340) 
-	doc_standard.add_child(std_scroll)
-	
-	std_label = Label.new()
-	std_label.custom_minimum_size = Vector2(400, 0)
-	std_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	std_label.add_theme_color_override("font_color", Color.BLACK)
-	std_label.add_theme_font_size_override("font_size", 14)
-	std_scroll.add_child(std_label)
-	
-	btn_call_std = Button.new()
-	btn_call_std.text = "PREPARAR CONTRATO"
-	btn_call_std.position = Vector2(20, 360)
-	btn_call_std.size = Vector2(400, 40)
-	btn_call_std.pressed.connect(_on_call_standard_pressed)
-	doc_standard.add_child(btn_call_std)
-	# --- FIM DA ALTERAÇÃO ---
-
-	doc_urgent = ColorRect.new()
-	doc_urgent.color = Color(0.95, 0.85, 0.85)
-	doc_urgent.size = Vector2(440, 420)
-	doc_urgent.position = Vector2(40, 50) 
-	folder_rect.add_child(doc_urgent)
-	doc_urgent.gui_input.connect(_on_doc_input.bind(doc_urgent))
-	
-	urg_label = Label.new()
-	urg_label.position = Vector2(20, 20)
-	urg_label.size = Vector2(400, 330)
-	urg_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	urg_label.add_theme_color_override("font_color", Color.DARK_RED)
-	doc_urgent.add_child(urg_label)
-	
-	btn_call_urg = Button.new()
-	btn_call_urg.text = "PREPARAR URGÊNCIA"
-	btn_call_urg.position = Vector2(20, 360)
-	btn_call_urg.size = Vector2(400, 40)
-	btn_call_urg.add_theme_color_override("font_color", Color.INDIAN_RED)
-	btn_call_urg.pressed.connect(_on_call_urgent_pressed)
-	doc_urgent.add_child(btn_call_urg)
+	_setup_folder()
 	
 	trash_dialog = ColorRect.new()
 	trash_dialog.color = Color(0.1, 0.1, 0.15, 0.98)
@@ -866,9 +594,87 @@ func _setup_ui() -> void:
 	trash_dialog.add_child(btn_trash_no)
 
 
+func _setup_agenda() -> void:
+	agenda_rect = ColorRect.new()
+	agenda_rect.color = Color(0.85, 0.8, 0.6) 
+	agenda_rect.size = Vector2(400, 520) 
+	agenda_rect.position = Vector2(40, 200)
+	ui_layer.add_child(agenda_rect)
+	_make_draggable(agenda_rect, "panel")
+	
+	var lombada = ColorRect.new()
+	lombada.color = Color(0.1, 0.1, 0.1) 
+	lombada.size = Vector2(30, 520)
+	lombada.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	agenda_rect.add_child(lombada)
+	
+	var agenda_title = Label.new()
+	agenda_title.text = "ARQUIVO DE CLIENTES"
+	agenda_title.add_theme_color_override("font_color", Color.BLACK)
+	agenda_title.position = Vector2(50, 20)
+	agenda_rect.add_child(agenda_title)
+	
+	companies_vbox = VBoxContainer.new()
+	companies_vbox.position = Vector2(40, 60)
+	companies_vbox.size = Vector2(340, 380)
+	companies_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	agenda_rect.add_child(companies_vbox)
+
+	btn_prev_page = Button.new()
+	btn_prev_page.text = "<- Pág."
+	btn_prev_page.size = Vector2(80, 40)
+	btn_prev_page.position = Vector2(40, 460)
+	btn_prev_page.pressed.connect(_on_prev_page_pressed)
+	agenda_rect.add_child(btn_prev_page)
+	
+	lbl_page = Label.new()
+	lbl_page.text = "Pág. 1"
+	lbl_page.add_theme_color_override("font_color", Color.BLACK)
+	lbl_page.position = Vector2(170, 470)
+	agenda_rect.add_child(lbl_page)
+
+	btn_next_page = Button.new()
+	btn_next_page.text = "Pág. ->"
+	btn_next_page.size = Vector2(80, 40)
+	btn_next_page.position = Vector2(300, 460)
+	btn_next_page.pressed.connect(_on_next_page_pressed)
+	agenda_rect.add_child(btn_next_page)
 
 
-# --- INÍCIO DA ADIÇÃO: Função modular exclusiva para criar o Rádio ---
+func _setup_phone() -> void:
+	phone_rect = ColorRect.new()
+	phone_rect.color = Color(0.1, 0.25, 0.15) 
+	phone_rect.size = Vector2(340, 260) 
+	phone_rect.position = Vector2(40, 750)
+	ui_layer.add_child(phone_rect)
+	_make_draggable(phone_rect, "panel")
+	
+	var handset_rect = ColorRect.new()
+	handset_rect.color = Color(0.08, 0.2, 0.12)
+	handset_rect.size = Vector2(300, 40)
+	handset_rect.position = Vector2(20, -20)
+	handset_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	phone_rect.add_child(handset_rect)
+	
+	phone_display = Label.new()
+	phone_display.text = "VISOR: ---"
+	phone_display.position = Vector2(40, 30)
+	phone_display.size = Vector2(260, 40)
+	phone_display.add_theme_font_size_override("font_size", 24)
+	phone_display.add_theme_color_override("font_color", Color.WHITE)
+	phone_rect.add_child(phone_display)
+	
+	dial_rect = Control.new()
+	dial_rect.position = Vector2(170, 160) 
+	dial_rect.size = Vector2(240, 240)
+	dial_rect.position -= dial_rect.size / 2.0
+	dial_rect.mouse_filter = Control.MOUSE_FILTER_STOP
+	dial_rect.draw.connect(_on_dial_draw)
+	dial_rect.gui_input.connect(_on_dial_gui_input)
+	phone_rect.add_child(dial_rect)
+
+
+
 func _setup_radio() -> void:
 	radio_rect = ColorRect.new()
 	radio_rect.color = Color(0.15, 0.18, 0.22)
@@ -920,9 +726,206 @@ func _setup_radio() -> void:
 	led_lbl.position = Vector2(8, 10)
 	led_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE 
 	radio_led.add_child(led_lbl)
+
+
+# --- INÍCIO DA ADIÇÃO: Função modular exclusiva para as Pranchetas ---
+func _setup_clipboards() -> void:
+	clipboard_rect = ColorRect.new()
+	clipboard_rect.color = Color(0.95, 0.95, 0.9) 
+	clipboard_rect.size = Vector2(350, 400)
+	clipboard_rect.position = Vector2(750, 200)
+	ui_layer.add_child(clipboard_rect)
+	_make_draggable(clipboard_rect, "panel")
+	
+	var clipe_metal = ColorRect.new()
+	clipe_metal.color = Color(0.5, 0.5, 0.55) 
+	clipe_metal.size = Vector2(150, 20)
+	clipe_metal.position = Vector2(100, 0)
+	clipe_metal.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	clipboard_rect.add_child(clipe_metal)
+
+	report_label = Label.new()
+	report_label.position = Vector2(20, 40)
+	report_label.size = Vector2(310, 280)
+	report_label.add_theme_color_override("font_color", Color.BLACK)
+	report_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	clipboard_rect.add_child(report_label)
+
+	btn_next_day = Button.new()
+	btn_next_day.text = "Processar Saídas e Finalizar Dia"
+	btn_next_day.position = Vector2(20, 340)
+	btn_next_day.size = Vector2(310, 40)
+	btn_next_day.pressed.connect(_on_next_day_pressed)
+	clipboard_rect.add_child(btn_next_day)
+
+	task_pad_rect = ColorRect.new()
+	task_pad_rect.color = Color(0.95, 0.92, 0.65)
+	task_pad_rect.size = Vector2(380, 380)
+	task_pad_rect.position = Vector2(1100, 200) 
+	ui_layer.add_child(task_pad_rect)
+	_make_draggable(task_pad_rect, "panel")
+
+	var pad_clip = ColorRect.new()
+	pad_clip.color = Color(0.7, 0.2, 0.2) 
+	pad_clip.size = Vector2(380, 20)
+	task_pad_rect.add_child(pad_clip)
+
+	var task_title = Label.new()
+	task_title.text = "PRANCHETA DE OPERAÇÕES"
+	task_title.add_theme_color_override("font_color", Color.BLACK)
+	task_title.position = Vector2(20, 25)
+	task_pad_rect.add_child(task_title)
+
+	task_vbox = VBoxContainer.new()
+	task_vbox.position = Vector2(15, 55)
+	task_vbox.size = Vector2(350, 310)
+	task_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	task_pad_rect.add_child(task_vbox)
+# --- FIM DA ADIÇÃO ---
+
+# --- INÍCIO DA ADIÇÃO: Função modular exclusiva para a Pasta de Contratos ---
+func _setup_folder() -> void:
+	folder_rect = ColorRect.new()
+	folder_rect.color = Color(0.8, 0.65, 0.4) 
+	folder_rect.size = Vector2(500, 480)
+	folder_rect.position = Vector2(700, 310) 
+	folder_rect.visible = false
+	ui_layer.add_child(folder_rect)
+	_make_draggable(folder_rect, "panel")
+	
+	var folder_tab = ColorRect.new()
+	folder_tab.color = Color(0.8, 0.65, 0.4)
+	folder_tab.size = Vector2(150, 30)
+	folder_tab.position = Vector2(20, -20)
+	folder_tab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	folder_rect.add_child(folder_tab)
+	
+	folder_title = Label.new()
+	folder_title.position = Vector2(20, 10)
+	folder_title.add_theme_font_size_override("font_size", 20)
+	folder_title.add_theme_color_override("font_color", Color.BLACK)
+	folder_rect.add_child(folder_title)
+	
+	folder_route = Label.new()
+	folder_route.position = Vector2(20, 40)
+	folder_route.add_theme_color_override("font_color", Color.DARK_RED)
+	folder_rect.add_child(folder_route)
+	
+	btn_close_folder = Button.new()
+	btn_close_folder.text = "X"
+	btn_close_folder.position = Vector2(460, 10)
+	btn_close_folder.size = Vector2(30, 30)
+	btn_close_folder.pressed.connect(_on_close_folder_pressed)
+	folder_rect.add_child(btn_close_folder)
+
+	doc_standard = ColorRect.new()
+	doc_standard.color = Color(0.95, 0.95, 0.95)
+	doc_standard.size = Vector2(440, 420)
+	doc_standard.position = Vector2(20, 40)
+	folder_rect.add_child(doc_standard)
+	doc_standard.gui_input.connect(_on_doc_input.bind(doc_standard))
+	
+	var std_scroll = ScrollContainer.new()
+	std_scroll.position = Vector2(10, 10)
+	std_scroll.size = Vector2(420, 340) 
+	doc_standard.add_child(std_scroll)
+	
+	std_label = Label.new()
+	std_label.custom_minimum_size = Vector2(400, 0)
+	std_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	std_label.add_theme_color_override("font_color", Color.BLACK)
+	std_label.add_theme_font_size_override("font_size", 14)
+	std_scroll.add_child(std_label)
+	
+	btn_call_std = Button.new()
+	btn_call_std.text = "PREPARAR CONTRATO"
+	btn_call_std.position = Vector2(20, 360)
+	btn_call_std.size = Vector2(400, 40)
+	btn_call_std.pressed.connect(_on_call_standard_pressed)
+	doc_standard.add_child(btn_call_std)
+
+	doc_urgent = ColorRect.new()
+	doc_urgent.color = Color(0.95, 0.85, 0.85)
+	doc_urgent.size = Vector2(440, 420)
+	doc_urgent.position = Vector2(40, 50) 
+	folder_rect.add_child(doc_urgent)
+	doc_urgent.gui_input.connect(_on_doc_input.bind(doc_urgent))
+	
+	urg_label = Label.new()
+	urg_label.position = Vector2(20, 20)
+	urg_label.size = Vector2(400, 330)
+	urg_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	urg_label.add_theme_color_override("font_color", Color.DARK_RED)
+	doc_urgent.add_child(urg_label)
+	
+	btn_call_urg = Button.new()
+	btn_call_urg.text = "PREPARAR URGÊNCIA"
+	btn_call_urg.position = Vector2(20, 360)
+	btn_call_urg.size = Vector2(400, 40)
+	btn_call_urg.add_theme_color_override("font_color", Color.INDIAN_RED)
+	btn_call_urg.pressed.connect(_on_call_urgent_pressed)
+	doc_urgent.add_child(btn_call_urg)
 # --- FIM DA ADIÇÃO ---
 
 
+func _setup_ledger() -> void:
+	btn_open_ledger = Button.new()
+	btn_open_ledger.text = "LIVRO DE REGISTROS"
+	btn_open_ledger.position = Vector2(1650, 100)
+	btn_open_ledger.size = Vector2(230, 40)
+	btn_open_ledger.pressed.connect(_on_open_ledger_pressed)
+	ui_layer.add_child(btn_open_ledger)
+	
+	ledger_book = ColorRect.new()
+	ledger_book.color = Color(0.15, 0.15, 0.18, 0.98)
+	ledger_book.size = Vector2(600, 700)
+	ledger_book.position = Vector2(660, 150)
+	ledger_book.visible = false
+	ui_layer.add_child(ledger_book)
+	
+	var ledger_border = ReferenceRect.new()
+	ledger_border.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ledger_border.border_color = Color.GOLDENROD
+	ledger_border.border_width = 4
+	ledger_book.add_child(ledger_border)
+	
+	var ledger_title = Label.new()
+	ledger_title.text = "REGISTRO DE OPERAÇÕES LOGÍSTICAS"
+	ledger_title.position = Vector2(0, 20)
+	ledger_title.size = Vector2(600, 30)
+	ledger_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ledger_title.add_theme_color_override("font_color", Color.GOLDENROD)
+	ledger_book.add_child(ledger_title)
+	
+	ledger_content = Label.new()
+	ledger_content.position = Vector2(30, 80)
+	ledger_content.size = Vector2(540, 520)
+	ledger_content.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	ledger_content.add_theme_font_size_override("font_size", 16)
+	ledger_content.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ledger_book.add_child(ledger_content)
+	
+	btn_ledger_prev = Button.new()
+	btn_ledger_prev.text = "<- Pág. Anterior"
+	btn_ledger_prev.position = Vector2(30, 620)
+	btn_ledger_prev.size = Vector2(150, 40)
+	btn_ledger_prev.pressed.connect(_on_ledger_prev_pressed)
+	ledger_book.add_child(btn_ledger_prev)
+	
+	btn_ledger_next = Button.new()
+	btn_ledger_next.text = "Próx. Pág ->"
+	btn_ledger_next.position = Vector2(420, 620)
+	btn_ledger_next.size = Vector2(150, 40)
+	btn_ledger_next.pressed.connect(_on_ledger_next_pressed)
+	ledger_book.add_child(btn_ledger_next)
+	
+	btn_ledger_close = Button.new()
+	btn_ledger_close.text = "FECHAR LIVRO"
+	btn_ledger_close.position = Vector2(225, 620)
+	btn_ledger_close.size = Vector2(150, 40)
+	btn_ledger_close.add_theme_color_override("font_color", Color.INDIAN_RED)
+	btn_ledger_close.pressed.connect(_on_close_ledger_pressed)
+	ledger_book.add_child(btn_ledger_close)
 
 
 func _process_call() -> void:
@@ -1053,8 +1056,9 @@ func _on_pad_extension_input(event: InputEvent) -> void:
 		if event.button_index == MOUSE_BUTTON_LEFT and event.is_pressed():
 			_spawn_extension_form()
 
-# --- INÍCIO DA ALTERAÇÃO 4: A Tela do Rádio ---
+
 func _trigger_morning_radio() -> void:
+	print("[LOG_RADIO] Função chamada! Verificando estado...")
 	var msg = ""
 	if GameManager.broken_tiles.size() > 0:
 		msg = "Tivemos problemas na via na madrugada! Mande a Ordem de Serviço urgente para começarmos os reparos."
@@ -1065,15 +1069,15 @@ func _trigger_morning_radio() -> void:
 	phone_cutscene.current_mode = "RADIO_DISASTER"
 	
 	if is_first_time:
+		print("[LOG_RADIO] Primeira vez (Dia 1). Rodando cutscene forçada.")
 		GameManager.set_meta("radio_tutorial_done", true)
 		msg = "Chefe, sou eu, o Maquinista! A partir de amanhã, vou apenas acender a luz do rádio na sua mesa. Você precisará clicar nele para me atender!\n\n" + msg
-		
 		phone_cutscene.start_badger_radio(msg)
 	else:
-		# Pós-Tutorial: Apenas salva o texto e liga a LUZ AMARELA do rádio na mesa!
+		print("[LOG_RADIO] Dia normal. Acendendo a LUZ LARANJA do rádio.")
 		pending_radio_msg = "Bom dia, Chefe. " + msg
 		GameManager.pending_radio_event = true
-# --- FIM DA ALTERAÇÃO 4 ---
+
 
 
 # --- INÍCIO DA ATUALIZAÇÃO: O.S. na Bandeja ---
@@ -1534,17 +1538,16 @@ func _on_panel_gui_input(event: InputEvent, panel: Control) -> void:
 						else:
 							tw.tween_property(panel, "position", original_transforms[panel], 0.2)
 					else:
-						# --- CORREÇÃO DO CLIQUE NO RÁDIO AQUI ---
 						if type == "radio":
+							print("[LOG_CLIQUE] Você clicou na base do rádio. pending_radio_event = ", GameManager.pending_radio_event)
 							if GameManager.pending_radio_event:
-								GameManager.pending_radio_event = false # Apaga a luz de alerta do rádio
-								# Chama o maquinista com a mensagem que estava salva
+								print("[LOG_CLIQUE] A luz estava acesa! Abrindo cutscene do Maquinista!")
+								GameManager.pending_radio_event = false 
 								phone_cutscene.start_badger_radio(pending_radio_msg)
 								pending_radio_msg = ""
 								
 							panel.rotation_degrees = randf_range(-3.0, 3.0) 
 							_clamp_to_screen(panel)
-						# ---------------------------------------
 						else:
 							if type == "paper":
 								panel.rotation_degrees = randf_range(-4.0, 4.0) 
@@ -1553,11 +1556,10 @@ func _on_panel_gui_input(event: InputEvent, panel: Control) -> void:
 								var outbox_center = outbox_rect.global_position + outbox_rect.size / 2.0
 								var trash_center = trash_rect.global_position + trash_rect.size / 2.0
 								
-								# Verifica se soltou em cima da lixeira
 								if center.distance_to(trash_center) < 160:
 									trash_target_paper = panel
 									trash_dialog.visible = true
-									trash_dialog.get_parent().move_child(trash_dialog, -1) # Traz pop-up pra frente
+									trash_dialog.get_parent().move_child(trash_dialog, -1) 
 								else:
 									if outbox_rect.get_global_rect().grow(100).has_point(center):
 										panel.pivot_offset = panel.size / 2.0
@@ -1576,10 +1578,11 @@ func _on_panel_gui_input(event: InputEvent, panel: Control) -> void:
 			if dragged_panel == panel:
 				panel.global_position = panel.get_global_mouse_position() - drag_offset
 				if type == "paper":
-					# Agora, ao mover o mouse, não amassa mais o papel automaticamente.
 					_clamp_to_screen(panel) 
 				else:
 					_clamp_to_screen(panel)
+
+
 
 
 func _on_trash_yes() -> void:
@@ -2584,7 +2587,23 @@ func _update_report_text() -> void:
 	if GameManager.day_phase == 0:
 		btn_next_day.text = "Processar Saídas e Finalizar Dia"
 
+
+
 func _on_next_day_pressed() -> void:
+	# --- INÍCIO DA CORREÇÃO: AVANÇO DO TURNO DA MANHÃ ---
+	# Se clicado de manhã, precisamos verificar se a esteira já está funcionando
+	if GameManager.day_phase == 0:
+		if GameManager.shift_active:
+			# A esteira está rodando (Dia 2 em diante), então zeramos o relógio para o GameManager processar
+			GameManager.shift_time_left = 0.0
+		else:
+			# A esteira NÃO está rodando (Dia 1, antes do Chefe ligar sobre a triagem)
+			# Temos que forçar o avanço do turno manualmente
+			GameManager.day_phase = 1
+			GameManager.shift_ended.emit()
+		return
+	# --- FIM DA CORREÇÃO ---
+
 	if phone_cutscene and phone_cutscene.visible: return
 	if GameManager.pendent_angry_call: return
 	
@@ -2601,10 +2620,11 @@ func _on_next_day_pressed() -> void:
 	var rej_c = 0
 	var shark_income = 0
 
+	# === PROCESSAMENTO GERAL DA MESA ===
 	for p in spawned_papers:
 		if not is_instance_valid(p): continue
 		
-		# 1. Conta rejeições (Se a ação for reject, ignoramos todo o resto)
+		# 1. Conta rejeições
 		if p.has_meta("action") and p.get_meta("action") == "reject":
 			rej_c += 1
 			continue
@@ -2624,24 +2644,27 @@ func _on_next_day_pressed() -> void:
 							c["days_left"] += 5
 							c["delayed_days"] = 0
 							ext_c += 1
-					elif rtype == "loyalty":
-						c["days_left"] += 10
-						c["reward"] = int(c["reward"] * 0.8)
-						c["delayed_days"] = 0
-						ext_c += 1
-					elif rtype == "express_upgrade":
-						var bonus_days = c.get("duration", 5) + 5
-						c["days_left"] += bonus_days
-						c["reward"] = int(c["reward"] * 1.4)
-						c["type"] = "Expresso"
-						c["max_dist"] = p.get_meta("new_max_dist", 20)
-						c["delayed_days"] = 0
-						ext_c += 1
-						
+					else:
+						if rtype == "loyalty":
+							c["days_left"] += 10
+							c["reward"] = int(c["reward"] * 0.8)
+							c["delayed_days"] = 0
+							ext_c += 1
+						else:
+							if rtype == "express_upgrade":
+								var bonus_days = c.get("duration", 5) + 5
+								c["days_left"] += bonus_days
+								c["reward"] = int(c["reward"] * 1.4)
+								c["type"] = "Expresso"
+								c["max_dist"] = p.get_meta("new_max_dist", 20)
+								c["delayed_days"] = 0
+								ext_c += 1
+					
 					c.erase("renewal_type")
+			continue
 					
 		# 3. Processa a Planta de Obras
-		elif p.has_meta("is_blueprint") and p.get_meta("is_blueprint"):
+		if p.has_meta("is_blueprint") and p.get_meta("is_blueprint"):
 			if p.has_meta("action") and p.get_meta("action") == "approve":
 				var bp = GameManager.pending_blueprint
 				var cd = bp.get("routes_to_cooldown", [])
@@ -2668,9 +2691,10 @@ func _on_next_day_pressed() -> void:
 					if not bp.get("repair_tiles", []).has(bt): new_broken.append(bt)
 				GameManager.broken_tiles = new_broken
 				GameManager.pending_blueprint.clear()
+			continue
 		
 		# 4. Processa o Contrato do Agiota
-		elif p.has_meta("is_shark") and p.get_meta("is_shark"):
+		if p.has_meta("is_shark") and p.get_meta("is_shark"):
 			if p.has_meta("action") and p.get_meta("action") == "approve":
 				shark_income = 1500
 				income += 1500
@@ -2678,10 +2702,11 @@ func _on_next_day_pressed() -> void:
 				GameManager.loan_shark_days_left = 20
 				GameManager.shark_declined = false
 			else:
-				GameManager.shark_declined = true			
+				GameManager.shark_declined = true
+			continue
 		
-		# 5. Processa os Contratos de Carga
-		elif p.has_meta("action") and p.get_meta("action") == "approve":
+		# 5. Processa os Contratos de Carga (SLA)
+		if p.has_meta("action") and p.get_meta("action") == "approve":
 			if p.has_meta("company_data") and typeof(p.get_meta("company_data")) == TYPE_DICTIONARY:
 				new_c += 1
 				var c_data = p.get_meta("company_data")
@@ -2694,7 +2719,6 @@ func _on_next_day_pressed() -> void:
 				var c_type = c_data.get("type", "Comum")
 				var cargo_name = c_data.get("cargo", "Carga Geral")
 				var duration_est = c_data.get("duration", 5) 
-				# --- NOVO: SALVANDO DADOS VITAIS NO CONTRATO B2B ---
 				var new_contract = {
 					"company_name": comp_name,
 					"route_id": route_id,
@@ -2711,11 +2735,8 @@ func _on_next_day_pressed() -> void:
 					income += reward 
 					new_contract["days_left"] = 1
 					GameManager.active_contracts.append(new_contract)
-				if not is_urg:
-					# --- INÍCIO DA ALTERAÇÃO (RECEBENDO O SUBSÍDIO) ---
+				else:
 					income += c_data.get("upfront_bonus", 0)
-					# --- FIM DA ALTERAÇÃO ---
-					
 					new_contract["days_left"] = randi_range(duration_est, duration_est + 5)
 					GameManager.active_contracts.append(new_contract)
 					
@@ -2723,9 +2744,6 @@ func _on_next_day_pressed() -> void:
 					new_contract["pending_route_days"] = c_data.get("temp_wait_days", 3)
 					
 				GameManager.company_cooldowns[route_id] = 4
-				
-				
-				# --------------------------------------------------
 
 	# === Fim do Processamento dos Papéis ===
 	for p in spawned_papers:
@@ -2735,17 +2753,15 @@ func _on_next_day_pressed() -> void:
 	current_agenda_contacts.clear()
 	current_agenda_page = 0
 	
-	# --- INÍCIO DA ALTERAÇÃO 2 (SOMANDO NO ACUMULADOR) ---
-	pending_upfront_income += income # Usa += para não perder o que já tinha
+	pending_upfront_income += income 
 	daily_new_c += new_c
 	daily_rej_c += rej_c
 	daily_ext_c += ext_c
 	daily_bp_cost += bp_cost
 	daily_shark_income += shark_income
 	daily_upfront_income += income
-	# --- FIM DA ALTERAÇÃO 2 ---
 	
-	# --- NOVO: GERAÇÃO DIÁRIA DE CAIXAS PARA A TARDE (FASE 2) ---
+	# === MUDANÇA DE TURNO PARA A TARDE (FASE 2) ===
 	if GameManager.day_phase == 1:
 		GameManager.day_phase = 2
 		GameManager.money += pending_upfront_income
@@ -2772,25 +2788,19 @@ func _on_next_day_pressed() -> void:
 				}
 				GameManager.package_queue.append(b2b_pkg)
 				
-		_update_report_text()
-		
-		# --- NOVO: DESPEJA O ARMAZÉM NO FIM DA FILA DA ESTEIRA ---
+		# DESPEJA O ARMAZÉM NO FIM DA FILA
 		if GameManager.warehouse.size() > 0:
 			GameManager.package_queue.append_array(GameManager.warehouse.duplicate())
 			GameManager.warehouse.clear()
-		# ---------------------------------------------------------
 		
 		# Força o jogador a ir para a triagem
 		var main_node = get_parent()
 		if main_node.has_method("go_to_inspection"):
 			main_node.go_to_inspection()
 		return
-	# ---------------------------------------------
 	
-	# --- INÍCIO DA ALTERAÇÃO 3 ---
-	_start_eod_animation(daily_new_c, daily_rej_c, daily_ext_c, daily_bp_cost, daily_shark_income)
-	# --- FIM DA ALTERAÇÃO 3 ---
-	
+	# === ANIMAÇÃO DE FIM DE DIA (SE CHEGOU ATÉ AQUI E NÃO É FASE 1) ===
+	_start_eod_animation(daily_new_c, daily_rej_c, daily_ext_c, daily_bp_cost, daily_shark_income)	
 	
 	
 	
@@ -3056,13 +3066,17 @@ func _on_contracts_updated() -> void:
 	_load_agenda_contacts() 
 	_update_task_pad()
 
-func _on_day_changed() -> void:
-	# --- INÍCIO DA ALTERAÇÃO 2 ---
+
+
+
+func _on_day_changed(_new_day: int) -> void:
 	daily_maintenance_called = false
-	# --- FIM DA ALTERAÇÃO 2 ---
 	_update_report_text()
 	_load_agenda_contacts() 
 	_update_task_pad()
+
+
+
 
 func _on_back_map_pressed() -> void: 
 	get_parent().go_to_map()

@@ -141,10 +141,9 @@ var pending_blueprint: Dictionary = {}
 
 
 func _process(delta: float) -> void:
-	if is_game_ended:
-		return
-
-	if current_day > 0 and money > -9999: 
+	if is_game_ended: return
+	
+	if current_day > 0 and money > -9999:
 		if money <= -2000:
 			is_game_ended = true
 			pending_defeat_call = true
@@ -156,17 +155,18 @@ func _process(delta: float) -> void:
 		if not is_first_route_built and routes_under_construction.size() > 0:
 			is_first_route_built = true
 			for k in routes_under_construction.keys():
-				routes_under_construction[k] = 1 
-				
-		if not has_ready_route(): 
-			return
+				routes_under_construction[k] = 1
+		
+		# --- CORREÇÃO DO SOFTLOCK DO MAPA ---
+		var is_first_route_ready = (is_first_route_built and current_day > 1)
 		
 		if not boss_package_intro_done and not pending_boss_package_call:
-			pending_boss_package_call = true
-			
-		# --- INÍCIO DA ALTERAÇÃO: Lógica do Relógio e Esteira Crescente ---
+			if is_first_route_ready:
+				pending_boss_package_call = true
+
+		# --- Lógica do Relógio e Esteira Crescente ---
 		if boss_package_intro_done and not shift_active and day_phase == 0:
-			shift_time_left = 180.0 
+			shift_time_left = 180.0
 			shift_active = true
 			packages_generated_today = 0
 			daily_package_target = get_daily_package_limit()
@@ -186,7 +186,7 @@ func _process(delta: float) -> void:
 					if remaining_packages > 0:
 						# Distribui o resto das caixas no tempo que sobra (com 15s de folga)
 						package_timer = max(1.0, (shift_time_left - 15.0) / remaining_packages)
-			
+						
 			if shift_time_left <= 0:
 				shift_active = false
 				shift_time_left = 0.0
@@ -194,14 +194,12 @@ func _process(delta: float) -> void:
 				shift_ended.emit()
 				
 				if package_queue.size() > 0:
-					if has_method("add_strike"): 
+					if has_method("add_strike"):
 						add_strike("O relógio bateu zero! As encomendas avulsas não processadas foram descartadas.")
-					
-					# --- INÍCIO DA ALTERAÇÃO 1: Limpa a esteira da manhã ---
-					package_queue.clear()
-					package_queue_updated.emit(0)
-					# --- FIM DA ALTERAÇÃO 1 ---
-
+						
+				# Limpa a esteira da manhã
+				package_queue.clear()
+				package_queue_updated.emit(0)
 
 
 
