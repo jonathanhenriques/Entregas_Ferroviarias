@@ -136,6 +136,7 @@ var ideal_maint_lobby: int = 0
 var tile_data: Dictionary = {} 
 var pending_disaster_check: bool = false
 var broken_tiles: Array = []
+var tile_hazards: Dictionary = {}
 var pending_blueprint: Dictionary = {}
 
 
@@ -961,3 +962,22 @@ func generate_daily_ads() -> void:
 		if not comp.has("duration"): comp["duration"] = randi_range(5, 10)
 		todays_ads.append(comp)
 # --- FIM DA CORREÇÃO ---
+
+
+
+# --- INÍCIO DA ADIÇÃO: Função Calculadora de Setores ---
+func get_sector_name(pos: Vector2) -> String:
+	var colors = ["Azul", "Verde", "Amarelo", "Vermelho", "Roxo", "Laranja"]
+	
+	# O mapa tem 60 de largura. 60 / 10 = 6 colunas (Índices de 0 a 5)
+	var col = int(pos.x / 10.0)
+	if col < 0: col = 0
+	if col > 5: col = 5
+		
+	# O mapa tem 34 de altura. 34 / 8.5 = 4 linhas (Índices de 1 a 4)
+	var row = int(pos.y / 8.5) + 1
+	if row < 1: row = 1
+	if row > 4: row = 4
+		
+	return colors[col] + "-" + str(row)
+# --- FIM DA ADIÇÃO ---

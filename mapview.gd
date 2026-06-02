@@ -149,15 +149,17 @@ func _on_visibility_changed() -> void:
 
 
 
+# --- INÍCIO DA ATUALIZAÇÃO: Sistema Híbrido (Desgaste + Rotina) ---
 func _check_disasters() -> void:
 	if not GameManager.pending_disaster_check: return
 	GameManager.pending_disaster_check = false
 	var needs_save = false
-	
 	var valid_built = {}
+	
 	for r in confirmed_routes:
-		for c in r: valid_built[c] = true
-		
+		for c in r:
+			valid_built[c] = true
+			
 	for key in cities.keys():
 		valid_built[cities[key]] = true
 		
@@ -171,20 +173,52 @@ func _check_disasters() -> void:
 			var combo = [CITY_NAMES[k1], CITY_NAMES[k2]]
 			combo.sort()
 			var r_id = combo[0] + "-" + combo[1]
-
+			
 			if GameManager.routes_under_construction.get(r_id, 0) > 0:
 				var p = _bfs_get_path_array(cities[k1], cities[k2], valid_built)
-				for c in p: immune_tiles[c] = true
-	
+				for c in p:
+					immune_tiles[c] = true
+
+	var vulnerable_tiles = []
+	var low_health_count = 0
+
+	# 1. DESGASTE ESTRUTURAL (Falta de Verba / Saúde do Trilho)
 	for route in confirmed_routes:
 		for cell in route:
 			if immune_tiles.has(cell) or GameManager.broken_tiles.has(cell): continue
+			
+			vulnerable_tiles.append(cell)
 			var tile_health = GameManager.tile_data.get(cell, {}).get("h", 1.0)
-			if tile_health <= 0.25 and randf() < 0.15:
-				GameManager.broken_tiles.append(cell)
-				needs_save = true
+			
+			# Se a verba/saúde estiver baixa, conta para a estatística
+			if tile_health <= 0.30:
+				low_health_count += 1
 				
-	if needs_save: GameManager.save_game()
+				# O trilho está tão ruim que pode ceder por conta própria (15% de chance)
+				if randf() < 0.15:
+					_break_tile_with_hazard(cell)
+					needs_save = true
+
+	# 2. MANUTENÇÃO DE ROTINA (Eventos do Dia a Dia)
+	# Só ocorre se nenhum trilho quebrou sozinho por falta de verba
+	if GameManager.broken_tiles.size() == 0 and vulnerable_tiles.size() > 0:
+		
+		# A chance base é 50%, mas sobe 5% para cada trilho com saúde baixa
+		# Ou seja: Trilhos ruins aumentam a chance da manutenção diária aparecer!
+		var daily_chance = 0.50 + (low_health_count * 0.05)
+		
+		if daily_chance > 0.90:
+			daily_chance = 0.90 # Trava em 90% para não ser uma punição infinita
+			
+		if randf() < daily_chance:
+			var target_cell = vulnerable_tiles[randi() % vulnerable_tiles.size()]
+			_break_tile_with_hazard(target_cell)
+			needs_save = true
+				
+	if needs_save: 
+		GameManager.save_game()
+# --- FIM DA ATUALIZAÇÃO ---
+
 
 
 func _generate_biomes() -> void:
@@ -1084,6 +1118,8 @@ func _is_cell_occupied_by_track(cell: Vector2i) -> bool:
 			if cell in draft: return true
 	return false
 
+
+
 func _draw() -> void:
 	for x in range(grid_width):
 		for y in range(grid_height):
@@ -1199,6 +1235,35 @@ func _draw() -> void:
 			draw_line(Vector2(px + 14, py - 14), Vector2(px - 14, py + 14), Color.RED, 4.0)
 		if repair_tiles.has(cell):
 			draw_arc(Vector2(px, py), 18.0, 0, TAU, 16, Color.YELLOW, 3.0)
+			
+	_draw_tactical_grid_and_hazards()
+
+
+
+# --- INÍCIO DA ADIÇÃO: Função Auxiliar de Biomas ---
+func _break_tile_with_hazard(cell: Vector2) -> void:
+	GameManager.broken_tiles.append(cell)
+	
+	var b = biome_map.get(cell, Biome.PLAIN)
+	var hazard = "wear" 
+	
+	if b == Biome.FOREST:
+		var chances = ["tree", "animal"]
+		hazard = chances[randi() % chances.size()]
+	else:
+		if b == Biome.MOUNTAIN:
+			hazard = "rock"
+		else:
+			if b == Biome.RIVER:
+				hazard = "flood"
+			else:
+				var chances = ["wear", "screws"]
+				hazard = chances[randi() % chances.size()]
+				
+	GameManager.tile_hazards[cell] = hazard
+# --- FIM DA ADIÇÃO ---
+
+
 
 
 func _get_track_color(b: int, is_preview: bool, is_construction: bool, is_deleted: bool = false) -> Color:
@@ -1842,3 +1907,75 @@ func _finish_dispatch_operation() -> void:
 	var main_node = get_parent()
 	if main_node.has_method("go_to_desk"):
 		main_node.go_to_desk()
+		
+		
+# --- INÍCIO DA ADIÇÃO: Desenho do Grid Tático e Problemas ---
+func _draw_tactical_grid_and_hazards() -> void:
+	# Define o tamanho do tile. Se o seu projeto usar 16 ou 32, altere este valor.
+	var t_size = 20.0 
+	if "TILE_SIZE" in self:
+		t_size = self.get("TILE_SIZE")
+	else:
+		if "cell_size" in self:
+			t_size = self.get("cell_size")
+			
+	var col_width = 10.0 * t_size
+	var row_height = 8.5 * t_size
+
+	# 1. DESENHAR AS RÉGUAS DE SETORES (CORES)
+	var colors = [Color.BLUE, Color.GREEN, Color.YELLOW, Color.RED, Color.PURPLE, Color.ORANGE]
+	for i in range(6):
+		# Barra de cor no topo do mapa
+		var rect = Rect2(i * col_width, 0, col_width, 6)
+		draw_rect(rect, colors[i])
+		# Linha vertical divisória subtil
+		draw_line(Vector2(i * col_width, 0), Vector2(i * col_width, 34 * t_size), Color(1.0, 1.0, 1.0, 0.15), 1.0)
+
+	# 2. DESENHAR AS LINHAS HORIZONTAIS (1 a 4)
+	for j in range(5):
+		var y_pos = j * row_height
+		draw_line(Vector2(0, y_pos), Vector2(60 * t_size, y_pos), Color(1.0, 1.0, 1.0, 0.15), 1.0)
+
+	# 3. DESENHAR OS PROBLEMAS VISUAIS NOS TRILHOS QUEBRADOS
+	for cell in GameManager.broken_tiles:
+		var hazard = "wear" # Problema padrão
+		if GameManager.tile_hazards.has(cell):
+			hazard = GameManager.tile_hazards[cell]
+
+		var pos = cell * t_size
+		var rect = Rect2(pos, Vector2(t_size, t_size))
+
+		# Fundo de alerta semi-transparente
+		draw_rect(rect, Color(1.0, 0.2, 0.2, 0.4))
+
+		# Desenho lógico de cada tipo de problema
+		if hazard == "tree":
+			# Árvore caída (Tronco castanho e copa verde)
+			draw_rect(Rect2(pos + Vector2(2, 8), Vector2(16, 4)), Color(0.4, 0.2, 0.0))
+			draw_rect(Rect2(pos + Vector2(12, 4), Vector2(6, 12)), Color.DARK_GREEN)
+		else:
+			if hazard == "rock":
+				# Deslizamento (Pedras cinzentas)
+				draw_rect(Rect2(pos + Vector2(2, 10), Vector2(10, 8)), Color.DARK_GRAY)
+				draw_rect(Rect2(pos + Vector2(10, 6), Vector2(8, 12)), Color.GRAY)
+			else:
+				if hazard == "flood":
+					# Inundação (Poça de água azul)
+					draw_rect(Rect2(pos + Vector2(0, 10), Vector2(t_size, 10)), Color(0.2, 0.4, 0.8, 0.9))
+				else:
+					if hazard == "animal":
+						# Animal (Quadrado castanho com dois olhos pretos)
+						draw_rect(Rect2(pos + Vector2(4, 4), Vector2(12, 12)), Color.SADDLE_BROWN)
+						draw_rect(Rect2(pos + Vector2(6, 6), Vector2(2, 2)), Color.BLACK)
+						draw_rect(Rect2(pos + Vector2(12, 6), Vector2(2, 2)), Color.BLACK)
+					else:
+						# "wear" ou "screws" (Desgaste ou pregos soltos) -> Um "X" amarelo
+						draw_line(pos + Vector2(4, 4), pos + Vector2(t_size-4, t_size-4), Color.YELLOW, 2.0)
+						draw_line(pos + Vector2(t_size-4, 4), pos + Vector2(4, t_size-4), Color.YELLOW, 2.0)
+
+		# Borda preta forte para destacar o bloco afetado
+		draw_line(pos, pos + Vector2(t_size, 0), Color.BLACK, 2.0)
+		draw_line(pos + Vector2(t_size, 0), pos + Vector2(t_size, t_size), Color.BLACK, 2.0)
+		draw_line(pos + Vector2(t_size, t_size), pos + Vector2(0, t_size), Color.BLACK, 2.0)
+		draw_line(pos + Vector2(0, t_size), pos, Color.BLACK, 2.0)
+# --- FIM DA ADIÇÃO ---

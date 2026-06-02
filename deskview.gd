@@ -1057,11 +1057,29 @@ func _on_pad_extension_input(event: InputEvent) -> void:
 			_spawn_extension_form()
 
 
+# --- INÍCIO DA ATUALIZAÇÃO: Rádio com Sistema de Setores ---
 func _trigger_morning_radio() -> void:
 	print("[LOG_RADIO] Função chamada! Verificando estado...")
 	var msg = ""
+	
 	if GameManager.broken_tiles.size() > 0:
-		msg = "Tivemos problemas na via na madrugada! Mande a Ordem de Serviço urgente para começarmos os reparos."
+		# Pega o primeiro trilho quebrado para ser o foco do alerta
+		var first_pos = GameManager.broken_tiles[0]
+		var sector = ""
+		
+		if GameManager.has_method("get_sector_name"):
+			sector = GameManager.get_sector_name(first_pos)
+		else:
+			sector = "Desconhecido"
+			
+		var chance = randf()
+		if chance > 0.6:
+			msg = "Chefe, o trem parou no Setor " + sector + "! Dá uma olhada no mapa para ver o estrago e manda a O.S. com a equipe certa."
+		else:
+			if chance > 0.3:
+				msg = "Painel apitando, Chefe! Rompimento na via lá no Setor " + sector + ". Olha no satélite o que é e autoriza o serviço!"
+			else:
+				msg = "Curto-circuito no rastreio, Chefe! A linha caiu na região do Setor " + sector + ". Vai ter que caçar no mapa o local exato!"
 	else:
 		msg = "A via parece limpa hoje. Mande a Ordem de Serviço para a equipe fazer a ronda de manutenção e testes de fluidez."
 		
@@ -1077,39 +1095,56 @@ func _trigger_morning_radio() -> void:
 		print("[LOG_RADIO] Dia normal. Acendendo a LUZ LARANJA do rádio.")
 		pending_radio_msg = "Bom dia, Chefe. " + msg
 		GameManager.pending_radio_event = true
+# --- FIM DA ATUALIZAÇÃO ---
 
 
 
-# --- INÍCIO DA ATUALIZAÇÃO: O.S. na Bandeja ---
+# --- INÍCIO DA ATUALIZAÇÃO: Avaliação da O.S. e Bronca ---
 func _on_morning_ended() -> void:
-	for i in range(spawned_papers.size() - 1, -1, -1):
-		var p = spawned_papers[i]
-		if is_instance_valid(p) and p.get_meta("is_maintenance", false):
-			var center = p.get_global_rect().get_center()
-			var is_in_outbox = outbox_rect.get_global_rect().grow(20).has_point(center)
+	var os_signed = false
+	var selected_idx = -1
+
+	if GameManager.broken_tiles.size() > 0:
+		# Pula o Título e verifica as Checkboxes
+		if task_vbox.get_child_count() > 1:
+			for i in range(1, task_vbox.get_child_count()):
+				var cb = task_vbox.get_child(i)
+				if cb is CheckBox and cb.button_pressed:
+					os_signed = true
+					selected_idx = i - 1
+					break
+
+		var first_tile = GameManager.broken_tiles[0]
+		var hazard = "wear"
+		if GameManager.tile_hazards.has(first_tile):
+			hazard = GameManager.tile_hazards[first_tile]
 			
-			if is_in_outbox and p.get_meta("action", "") == "approve":
-				var total_cost = 0
-				var content = p.get_node("content")
-				for page_node in [content.get_node("page_1"), content.get_node("page_2")]:
-					for child in page_node.get_children():
-						if child.has_meta("is_maint_checkbox"):
-							var mark = child.get_child(1)
-							if mark.visible:
-								total_cost += child.get_meta("cost", 0)
-				
-				GameManager.money -= total_cost
-				GameManager.today_penalties += total_cost # Registra como custo de obras no boletim
-				GameManager.broken_tiles.clear() # Libera a via fisicamente (A lógica fina entraremos depois)
-				GameManager.save_game()
-				
-				spawned_papers.remove_at(i)
-				p.queue_free()
+		# Descobre qual era a caixinha certa baseada no problema
+		var correct_idx = 3 # Padrão: Desgaste / Pregos
+		if hazard == "tree" or hazard == "animal": correct_idx = 0
+		if hazard == "rock": correct_idx = 1
+		if hazard == "flood": correct_idx = 2
+
+		if os_signed and selected_idx == correct_idx:
+			# Sucesso! Mandou a equipe certa.
+			var costs = [200, 500, 300, 150]
+			GameManager.money -= costs[correct_idx]
+			GameManager.broken_tiles.clear()
+			GameManager.tile_hazards.clear()
+		else:
+			# Fracasso! Não assinou ou mandou a equipe errada.
+			GameManager.pending_radio_event = true
+			if not os_signed:
+				pending_radio_msg = "Chefe, a O.S. não chegou na mesa da equipe! Eles ficaram parados na base e a via continua interditada. Os trens da tarde não vão poder passar!"
 			else:
-				# Papel esquecido fora da bandeja, sem assinar ou sem carimbo!
-				# A via continuará quebrada bloqueando os trens. O papel apenas some da mesa.
-				spawned_papers.remove_at(i)
-				p.queue_free()
+				pending_radio_msg = "Chefe, você mandou a equipe errada pro local! Eles não trouxeram o equipamento certo pra resolver isso. A via continua interditada!"
+
+	# Transição para a Tarde
+	GameManager.day_phase = 1
+	_update_report_text()
+# --- FIM DA ATUALIZAÇÃO ---
+
+
 
 func _spawn_maintenance_form() -> void:
 	var paper = ColorRect.new()
@@ -2078,143 +2113,42 @@ func _on_radio_choice(idx: int) -> void:
 	_update_diretrizes()
 	_update_task_pad()
 
+
+
+
+# --- INÍCIO DA ATUALIZAÇÃO: Prancheta da O.S. Específica ---
 func _update_task_pad() -> void:
 	for child in task_vbox.get_children():
 		child.queue_free()
-		
-	var items_per_page = 3 # Limita para não estourar a tela
-	var total_items = GameManager.active_contracts.size()
-	var max_pages = 0
-	if total_items > 0:
-		max_pages = ceil(total_items / float(items_per_page)) - 1
-		
-	if clipboard_page > max_pages:
-		clipboard_page = max_pages
-	if clipboard_page < 0:
-		clipboard_page = 0
-		
-	if total_items == 0:
+
+	var task_title = Label.new()
+	task_title.text = "ORDEM DE SERVIÇO"
+	task_title.add_theme_color_override("font_color", Color.DARK_RED)
+	task_vbox.add_child(task_title)
+
+	if GameManager.broken_tiles.size() == 0:
 		var lbl = Label.new()
-		lbl.text = "Nenhum contrato ativo no momento.\nO pátio está vazio."
-		lbl.add_theme_color_override("font_color", Color.DIM_GRAY)
-		lbl.add_theme_font_size_override("font_size", 14)
+		lbl.text = "Via livre. Nenhuma ação."
+		lbl.add_theme_color_override("font_color", Color.BLACK)
 		task_vbox.add_child(lbl)
 		return
-		
-	var start_idx = clipboard_page * items_per_page
-	var end_idx = min(start_idx + items_per_page, total_items)
-		
-	var i = start_idx
-	while i < end_idx:
-		var c = GameManager.active_contracts[i]
-		var hbox = HBoxContainer.new()
-		hbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		
-		# --- NOVO: O TEXTO AGORA É UM BOTÃO INVISÍVEL E CLICÁVEL ---
-		var btn_info = Button.new()
-		btn_info.flat = true
-		btn_info.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		btn_info.custom_minimum_size = Vector2(300, 0)
-		btn_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		btn_info.add_theme_font_size_override("font_size", 12)
-		
-		var rid = c.get("route_id", "")
-		var is_act = GameManager.is_contract_operating(c)
-		var cargo_name = c.get("cargo", "Carga Geral")
-		var route_name = c.get("route_name", "Desconhecida")
-		var days_left = c.get("days_left", 0)
-		
-		var st = ""
-		var t = "T" + str(i + 1) + " - " + c.get("company_name", "Empresa") + "\nCarga: " + cargo_name + " | Rota: " + route_name + "\nStatus: "
-		
-		# Mantemos a sua lógica original de verificação de erros exata
-		if c.has("pending_route_days"):
-			st = "AGUARDANDO VIA (" + str(c["pending_route_days"]) + "d p/ falha)"
-			btn_info.add_theme_color_override("font_color", Color.DARK_GOLDENROD)
-		else:
-			if is_act: 
-				if c.get("is_urgent", false):
-					st = "OPERACIONAL [PAGO À VISTA]"
-				else:
-					st = "OPERACIONAL (+$" + str(c.get("reward", 0)) + "/dia)"
-				btn_info.add_theme_color_override("font_color", Color.DARK_GREEN)
-			else:
-				btn_info.add_theme_color_override("font_color", Color.INDIAN_RED)
-				if GameManager.routes_under_construction.get(rid, 0) > 0:
-					st = "EM OBRAS (" + str(GameManager.routes_under_construction[rid]) + "d restantes)"
-				else:
-					if not (rid in GameManager.network_connections): 
-						st = "SEM ROTA FÍSICA"
-					else: 
-						var stats = GameManager.network_stats.get(rid, {})
-						if stats.get("is_broken", false):
-							st = "VIA DESTRUÍDA"
-						else:
-							var tp = c.get("type", "")
-							if tp == "Expresso" and stats.get("dist", 999) > c.get("max_dist", 999):
-								st = "PARADO (ROTA LONGA)"
-							else:
-								if tp == "VIP" and GameManager.active_contracts.size() > 1:
-									st = "PARADO (FIM DA EXCLUSIVIDADE)"
-								else:
-									if tp == "VIP" and stats.get("gangs", 0) > 0:
-										st = "PARADO (GANGUES NA LINHA)"
-									else:
-										if tp == "Ecologico" and stats.get("forests", 0) > 0:
-											st = "PARADO (CRIME AMBIENTAL)"
-										else:
-											st = "PARADO (ILEGAL)"
-											
-		t += st + "\nRestam: " + str(days_left) + "d\n[ CLIQUE PARA REVISAR ]"
-		btn_info.text = t
-		
-		# Feedback visual ao passar o mouse e conexão do clique
-		btn_info.add_theme_color_override("font_hover_color", Color.BLACK)
-		btn_info.pressed.connect(_on_active_contract_clicked.bind(i))
-		hbox.add_child(btn_info)
-		
-		var b = Button.new()
-		b.text = "X"
-		b.custom_minimum_size = Vector2(30, 30)
-		b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		b.add_theme_color_override("font_color", Color.INDIAN_RED)
-		b.pressed.connect(_on_cancel_dynamic.bind(i))
-		hbox.add_child(b)
-		
-		task_vbox.add_child(hbox)
-		
-		var sep = ColorRect.new()
-		sep.custom_minimum_size = Vector2(340, 1)
-		sep.color = Color(0.75, 0.75, 0.5)
-		task_vbox.add_child(sep)
-		
-		i += 1
 
-	# --- NOVO: CONTROLES DE PAGINAÇÃO NO FUNDO DA PRANCHETA ---
-	if total_items > items_per_page:
-		var page_hbox = HBoxContainer.new()
-		page_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
-		
-		var btn_prev = Button.new()
-		btn_prev.text = "<-"
-		btn_prev.custom_minimum_size = Vector2(40, 30)
-		btn_prev.disabled = (clipboard_page == 0)
-		btn_prev.pressed.connect(_on_clipboard_prev_pressed)
-		page_hbox.add_child(btn_prev)
-		
-		var lbl_page_info = Label.new()
-		lbl_page_info.text = " Pág " + str(clipboard_page + 1) + "/" + str(max_pages + 1) + " "
-		lbl_page_info.add_theme_color_override("font_color", Color.BLACK)
-		page_hbox.add_child(lbl_page_info)
-		
-		var btn_next = Button.new()
-		btn_next.text = "->"
-		btn_next.custom_minimum_size = Vector2(40, 30)
-		btn_next.disabled = (clipboard_page >= max_pages)
-		btn_next.pressed.connect(_on_clipboard_next_pressed)
-		page_hbox.add_child(btn_next)
-		
-		task_vbox.add_child(page_hbox)
+	var options = [
+		"Limpeza (Árvore/Bicho) -$200",
+		"Engenharia (Pedras) -$500",
+		"Drenagem (Inundação) -$300",
+		"Manut. Básica (Desgaste) -$150"
+	]
+
+	for opt in options:
+		var cb = CheckBox.new()
+		cb.text = opt
+		cb.add_theme_color_override("font_color", Color.BLACK)
+		cb.add_theme_color_override("font_pressed_color", Color.BLACK)
+		cb.add_theme_color_override("font_hover_color", Color.DARK_SLATE_GRAY)
+		task_vbox.add_child(cb)
+# --- FIM DA ATUALIZAÇÃO ---
+
 
 
 func _on_company_selected(data: Dictionary) -> void:
