@@ -454,6 +454,12 @@ func _on_shift_ended() -> void:
 	btn_approve_pkg.disabled = true
 	btn_reject_pkg.disabled = true
 	btn_xray.disabled = true
+	
+	# --- INÍCIO DA CORREÇÃO: Limpa a caixa fisicamente da mesa ---
+	if not current_package.is_empty():
+		current_package = {}
+		_clear_inspection_desk()
+	# --- FIM DA CORREÇÃO ---
 
 func _on_btn_lever_pressed() -> void:
 	if not current_package.is_empty() or GameManager.package_queue.size() == 0: return

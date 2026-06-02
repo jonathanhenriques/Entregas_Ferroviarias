@@ -11,6 +11,11 @@ var btn_ledger_next: Button
 var btn_ledger_close: Button
 var ledger_page: int = 0
 
+
+# --- INÍCIO DA ADIÇÃO: Estado do Rádio ---
+var is_radio_ringing: bool = false
+# --- FIM DA ADIÇÃO ---
+
 # --- NOVO: CONTROLE DE PÁGINA DA PRANCHETA ---
 var clipboard_page: int = 0
 
@@ -84,6 +89,13 @@ var is_newspaper_open: bool = false
 # --- INÍCIO DA ALTERAÇÃO 1: Variáveis do Alerta ---
 var alert_rect: ColorRect
 var alert_label: Label
+	# --- FIM: Variáveis do Alerta Giratório ---
+
+# --- INÍCIO DA ALTERAÇÃO 1: Controle do Rádio ---
+var daily_maintenance_called: bool = false
+var pending_radio_msg: String = ""
+	# --- FIM DA ALTERAÇÃO 1 ---
+
 var alert_blink_timer: float = 0.0
 # --- FIM DA ALTERAÇÃO 1 ---
 
@@ -161,12 +173,22 @@ func _ready() -> void:
 	
 	GameManager.money_changed.connect(_on_stats_changed)
 	GameManager.maintenance_updated.connect(_on_stats_changed)
-	GameManager.contracts_updated.connect(_on_contracts_updated)
-	GameManager.day_changed.connect(_on_day_changed)
 	
 	# --- INÍCIO DA ALTERAÇÃO 3: Ouvindo a Esteira ---
 	GameManager.package_queue_updated.connect(_on_package_queue_updated)
 	# --- FIM DA ALTERAÇÃO 3 ---
+	
+	
+	GameManager.contracts_updated.connect(_on_contracts_updated)
+	GameManager.day_changed.connect(_on_day_changed)
+	
+	# --- INÍCIO DA ALTERAÇÃO 3: Ouvindo a Esteira e Relógio ---
+	GameManager.package_queue_updated.connect(_on_package_queue_updated)
+	GameManager.shift_ended.connect(_on_morning_ended)
+	# --- FIM DA ALTERAÇÃO 3 ---
+	
+	
+	
 	
 	visibility_changed.connect(_on_visibility_changed)
 	
@@ -178,11 +200,37 @@ func _ready() -> void:
 	_update_tokens_visual()
 
 func _process(delta: float) -> void:
-	# --- INÍCIO: Animação do Giroflex ---
+	# --- INÍCIO DA CORREÇÃO: Gatilho Diário Garantido do Rádio ---
+	if GameManager.day_phase == 0:
+		if not daily_maintenance_called:
+			# Usa o timer para esperar 2 segundos após a manhã começar e tocar o rádio
+			alert_blink_timer += delta
+			if alert_blink_timer > 2.0:
+				daily_maintenance_called = true
+				alert_blink_timer = 0.0
+				_trigger_morning_radio()
+	# --- FIM DA CORREÇÃO ---
+
+	# Animação do Giroflex da Mesa
 	if is_instance_valid(alert_container) and alert_container.visible:
-		alert_pivot.rotation += delta * 8.0 # Gira o feixe de luz rapidamente
-		alert_bulb.modulate.a = 0.6 + (sin(Time.get_ticks_msec() * 0.01) * 0.4) # Faz a lâmpada pulsar
-	# --- FIM: Animação do Giroflex ---
+		alert_pivot.rotation += delta * 8.0 
+		alert_bulb.modulate.a = 0.6 + (sin(Time.get_ticks_msec() * 0.01) * 0.4) 
+		
+	# --- INÍCIO DA ATUALIZAÇÃO: Luz do Rádio e Efeito de Brilho ---
+	if is_instance_valid(radio_led):
+		if GameManager.pending_radio_event:
+			# Faz o LED piscar intensamente
+			var alpha = 0.6 + (sin(Time.get_ticks_msec() * 0.008) * 0.4)
+			radio_led.color = Color(1.0, 0.2, 0.2, alpha)
+			
+			# Modifica a cor do Rádio Inteiro para um tom de vermelho/laranja emitindo luz
+			radio_rect.modulate = Color(1.8, 1.2, 1.2)
+		else:
+			# Retorna ao normal quando não há evento
+			radio_led.color = Color(0.2, 0.05, 0.05, 1.0) 
+			radio_rect.modulate = Color.WHITE
+	# --- FIM DA ATUALIZAÇÃO ---
+
 	if not visible: return
 	
 	if not is_dial_dragging:
@@ -234,6 +282,7 @@ func _process(delta: float) -> void:
 	if GameManager.pending_shark_paper:
 			GameManager.pending_shark_paper = false
 			_spawn_shark_paper()
+
 
 
 func _setup_ui() -> void:
@@ -616,39 +665,13 @@ func _setup_ui() -> void:
 	task_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	task_pad_rect.add_child(task_vbox)
 
-	radio_rect = ColorRect.new()
-	radio_rect.color = Color(0.2, 0.2, 0.25)
-	radio_rect.size = Vector2(140, 320)
-	radio_rect.position = Vector2(420, 690)
-	ui_layer.add_child(radio_rect)
-	_make_draggable(radio_rect, "radio")
-	
-	var radio_antenna = ColorRect.new()
-	radio_antenna.color = Color(0.1, 0.1, 0.1)
-	radio_antenna.size = Vector2(16, 80)
-	radio_antenna.position = Vector2(20, -70)
-	radio_antenna.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	radio_rect.add_child(radio_antenna)
-	
-	var radio_speaker = ColorRect.new()
-	radio_speaker.color = Color(0.1, 0.1, 0.1)
-	radio_speaker.size = Vector2(100, 100)
-	radio_speaker.position = Vector2(20, 120)
-	radio_speaker.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	radio_rect.add_child(radio_speaker)
-	
-	var radio_lbl = Label.new()
-	radio_lbl.text = "RÁDIO PTT\nFREQ 104.2"
-	radio_lbl.add_theme_color_override("font_color", Color.WHITE)
-	radio_lbl.position = Vector2(20, 20)
-	radio_rect.add_child(radio_lbl)
-	
-	radio_led = ColorRect.new()
-	radio_led.color = Color(0.2, 0.05, 0.05) 
-	radio_led.size = Vector2(24, 24)
-	radio_led.position = Vector2(96, 70)
-	radio_led.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	radio_rect.add_child(radio_led)
+	# (O código da sua prancheta task_vbox termina aqui em cima...)
+
+	# --- INÍCIO DA ATUALIZAÇÃO: Chamada modular do Rádio ---
+	_setup_radio()
+	# --- FIM DA ATUALIZAÇÃO ---
+
+	# (O código da criação do telefone phone_rect começa logo aqui embaixo...)
 
 	phone_rect = ColorRect.new()
 	phone_rect.color = Color(0.1, 0.25, 0.15) 
@@ -845,6 +868,62 @@ func _setup_ui() -> void:
 
 
 
+# --- INÍCIO DA ADIÇÃO: Função modular exclusiva para criar o Rádio ---
+func _setup_radio() -> void:
+	radio_rect = ColorRect.new()
+	radio_rect.color = Color(0.15, 0.18, 0.22)
+	radio_rect.size = Vector2(130, 260) 
+	radio_rect.position = Vector2(430, 480) 
+	ui_layer.add_child(radio_rect)
+	_make_draggable(radio_rect, "radio")
+	
+	var radio_border = ReferenceRect.new()
+	radio_border.set_anchors_preset(Control.PRESET_FULL_RECT)
+	radio_border.border_color = Color(0.1, 0.1, 0.1)
+	radio_border.border_width = 4
+	radio_border.mouse_filter = Control.MOUSE_FILTER_IGNORE 
+	radio_rect.add_child(radio_border)
+	
+	var radio_antenna = ColorRect.new()
+	radio_antenna.color = Color(0.08, 0.08, 0.08)
+	radio_antenna.size = Vector2(10, 90)
+	radio_antenna.position = Vector2(15, -80)
+	radio_antenna.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	radio_rect.add_child(radio_antenna)
+	
+	var radio_speaker = ColorRect.new()
+	radio_speaker.color = Color(0.08, 0.08, 0.08)
+	radio_speaker.size = Vector2(100, 100)
+	radio_speaker.position = Vector2(15, 140)
+	radio_speaker.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	radio_rect.add_child(radio_speaker)
+	
+	var radio_lbl = Label.new()
+	radio_lbl.text = "RÁDIO PTT\nFREQ 104.2"
+	radio_lbl.add_theme_color_override("font_color", Color.WHITE)
+	radio_lbl.add_theme_font_size_override("font_size", 12)
+	radio_lbl.position = Vector2(15, 15)
+	radio_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE 
+	radio_rect.add_child(radio_lbl)
+	
+	radio_led = ColorRect.new()
+	radio_led.color = Color(0.2, 0.05, 0.05) 
+	radio_led.size = Vector2(60, 35)
+	radio_led.position = Vector2(35, 75)
+	radio_led.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	radio_rect.add_child(radio_led)
+	
+	var led_lbl = Label.new()
+	led_lbl.text = "CHAMAR"
+	led_lbl.add_theme_font_size_override("font_size", 10)
+	led_lbl.add_theme_color_override("font_color", Color.WHITE)
+	led_lbl.position = Vector2(8, 10)
+	led_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE 
+	radio_led.add_child(led_lbl)
+# --- FIM DA ADIÇÃO ---
+
+
+
 
 func _process_call() -> void:
 	var rid = pending_company_data["route_id"]
@@ -973,6 +1052,222 @@ func _on_pad_extension_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_LEFT and event.is_pressed():
 			_spawn_extension_form()
+
+# --- INÍCIO DA ALTERAÇÃO 4: A Tela do Rádio ---
+func _trigger_morning_radio() -> void:
+	var msg = ""
+	if GameManager.broken_tiles.size() > 0:
+		msg = "Tivemos problemas na via na madrugada! Mande a Ordem de Serviço urgente para começarmos os reparos."
+	else:
+		msg = "A via parece limpa hoje. Mande a Ordem de Serviço para a equipe fazer a ronda de manutenção e testes de fluidez."
+		
+	var is_first_time = not GameManager.has_meta("radio_tutorial_done")
+	phone_cutscene.current_mode = "RADIO_DISASTER"
+	
+	if is_first_time:
+		GameManager.set_meta("radio_tutorial_done", true)
+		msg = "Chefe, sou eu, o Maquinista! A partir de amanhã, vou apenas acender a luz do rádio na sua mesa. Você precisará clicar nele para me atender!\n\n" + msg
+		
+		phone_cutscene.start_badger_radio(msg)
+	else:
+		# Pós-Tutorial: Apenas salva o texto e liga a LUZ AMARELA do rádio na mesa!
+		pending_radio_msg = "Bom dia, Chefe. " + msg
+		GameManager.pending_radio_event = true
+# --- FIM DA ALTERAÇÃO 4 ---
+
+
+# --- INÍCIO DA ATUALIZAÇÃO: O.S. na Bandeja ---
+func _on_morning_ended() -> void:
+	for i in range(spawned_papers.size() - 1, -1, -1):
+		var p = spawned_papers[i]
+		if is_instance_valid(p) and p.get_meta("is_maintenance", false):
+			var center = p.get_global_rect().get_center()
+			var is_in_outbox = outbox_rect.get_global_rect().grow(20).has_point(center)
+			
+			if is_in_outbox and p.get_meta("action", "") == "approve":
+				var total_cost = 0
+				var content = p.get_node("content")
+				for page_node in [content.get_node("page_1"), content.get_node("page_2")]:
+					for child in page_node.get_children():
+						if child.has_meta("is_maint_checkbox"):
+							var mark = child.get_child(1)
+							if mark.visible:
+								total_cost += child.get_meta("cost", 0)
+				
+				GameManager.money -= total_cost
+				GameManager.today_penalties += total_cost # Registra como custo de obras no boletim
+				GameManager.broken_tiles.clear() # Libera a via fisicamente (A lógica fina entraremos depois)
+				GameManager.save_game()
+				
+				spawned_papers.remove_at(i)
+				p.queue_free()
+			else:
+				# Papel esquecido fora da bandeja, sem assinar ou sem carimbo!
+				# A via continuará quebrada bloqueando os trens. O papel apenas some da mesa.
+				spawned_papers.remove_at(i)
+				p.queue_free()
+
+func _spawn_maintenance_form() -> void:
+	var paper = ColorRect.new()
+	paper.color = Color(0.9, 0.85, 0.75) 
+	paper.size = Vector2(340, 480)
+	paper.pivot_offset = paper.size / 2.0 
+	paper.position = Vector2(500 + randf_range(-30, 30), 200 + randf_range(-30, 30))
+	paper.rotation_degrees = randf_range(-4, 4)
+
+	var content = Control.new()
+	content.name = "content"
+	content.set_anchors_preset(Control.PRESET_FULL_RECT)
+	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	paper.add_child(content)
+
+	var title_lbl = Label.new()
+	title_lbl.text = "ORDEM DE SERVIÇO (O.S.)\nManutenção de Malha"
+	title_lbl.add_theme_color_override("font_color", Color.BLACK)
+	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title_lbl.position = Vector2(0, 15)
+	title_lbl.size = Vector2(340, 40)
+	content.add_child(title_lbl)
+	
+	var page_1 = Control.new()
+	page_1.name = "page_1"
+	page_1.set_anchors_preset(Control.PRESET_FULL_RECT)
+	page_1.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(page_1)
+	
+	var page_2 = Control.new()
+	page_2.name = "page_2"
+	page_2.set_anchors_preset(Control.PRESET_FULL_RECT)
+	page_2.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	page_2.visible = false
+	content.add_child(page_2)
+
+	# As opções lúdicas que combinamos
+	# (Código de criação das páginas page_1 e page_2 acima...)
+
+	# --- INÍCIO DA ATUALIZAÇÃO: Inspeção Básica Adicionada ---
+	var all_tasks = [
+		{"page": 1, "cat": "[ Limpeza e Rotina ]", "desc": "Inspeção e Limpeza Básica", "cost": 20},
+		{"page": 1, "cat": "", "desc": "Passar graxa nas engrenagens", "cost": 50},
+		{"page": 1, "cat": "", "desc": "Lavar a base de madeira", "cost": 50},
+		{"page": 1, "cat": "", "desc": "Arrancar mato alto", "cost": 50},
+		{"page": 1, "cat": "", "desc": "Varrer lixo e folhas", "cost": 30},
+		{"page": 1, "cat": "[ Martelo e Ferro ]", "desc": "Trocar trilhos tortos", "cost": 150},
+		{"page": 1, "cat": "", "desc": "Repor pedras no chão", "cost": 100},
+		{"page": 1, "cat": "", "desc": "Marretar pregos soltos", "cost": 80},
+		
+		{"page": 2, "cat": "[ Problemas na Natureza ]", "desc": "Cortar árvore caída", "cost": 200},
+		{"page": 2, "cat": "", "desc": "Espantar bicho teimoso", "cost": 100},
+		{"page": 2, "cat": "", "desc": "Secar poça d'água gigante", "cost": 250},
+		{"page": 2, "cat": "", "desc": "Tapar buracos no túnel", "cost": 400},
+		{"page": 2, "cat": "", "desc": "Explodir pedra (dinamite)", "cost": 500},
+		{"page": 2, "cat": "[ Tranqueiras e Segurança ]", "desc": "Apagar fogueira bandidos", "cost": 150},
+		{"page": 2, "cat": "", "desc": "Consertar placa roubada", "cost": 100}
+	]
+	# --- FIM DA ATUALIZAÇÃO ---
+	
+
+	var y_offset_1 = 60
+	var y_offset_2 = 60
+
+	for i in range(all_tasks.size()):
+		var t = all_tasks[i]
+		var current_page = page_1
+		var current_y = y_offset_1
+		
+		if t["page"] == 2:
+			current_page = page_2
+			current_y = y_offset_2
+		
+		if t["cat"] != "":
+			var cat_lbl = Label.new()
+			cat_lbl.text = t["cat"]
+			cat_lbl.add_theme_color_override("font_color", Color(0.2, 0.2, 0.5))
+			cat_lbl.add_theme_font_size_override("font_size", 13)
+			cat_lbl.position = Vector2(15, current_y)
+			current_page.add_child(cat_lbl)
+			current_y += 25
+			
+		var cb_box = ColorRect.new()
+		cb_box.color = Color.WHITE
+		cb_box.size = Vector2(20, 20)
+		cb_box.position = Vector2(15, current_y)
+		cb_box.set_meta("is_maint_checkbox", true)
+		cb_box.set_meta("cb_idx", i)
+		cb_box.set_meta("cost", t["cost"])
+		
+		var cb_border = ReferenceRect.new()
+		cb_border.border_color = Color.BLACK
+		cb_border.border_width = 2
+		cb_border.set_anchors_preset(Control.PRESET_FULL_RECT)
+		cb_box.add_child(cb_border)
+		
+		var check_mark = Label.new()
+		check_mark.text = "X"
+		check_mark.add_theme_color_override("font_color", Color(0.1, 0.1, 0.8))
+		check_mark.add_theme_font_size_override("font_size", 20)
+		check_mark.position = Vector2(2, -5)
+		check_mark.visible = false
+		cb_box.add_child(check_mark)
+		
+		current_page.add_child(cb_box)
+		
+		var lbl = Label.new()
+		lbl.text = t["desc"] + " [-$" + str(t["cost"]) + "]"
+		lbl.add_theme_color_override("font_color", Color.BLACK)
+		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.position = Vector2(42, current_y + 2)
+		current_page.add_child(lbl)
+		
+		if t["page"] == 1:
+			y_offset_1 = current_y + 30
+		else:
+			y_offset_2 = current_y + 30
+
+	for p_node in [page_1, page_2]:
+		var is_p1 = (p_node == page_1)
+		var info = Label.new()
+		info.text = "Marque os serviços com a CANETA.\nBata o SELO CIA e deixe na Bandeja de Saída."
+		info.add_theme_color_override("font_color", Color(0.6, 0.1, 0.1))
+		info.add_theme_font_size_override("font_size", 11)
+		info.position = Vector2(15, 390)
+		p_node.add_child(info)
+		
+		var btn_page = Button.new()
+		if is_p1:
+			btn_page.text = "Ir para Pág 2 ->"
+		else:
+			btn_page.text = "<- Voltar Pág 1"
+			
+		btn_page.add_theme_color_override("font_color", Color(0.2, 0.5, 0.2)) 
+		btn_page.size = Vector2(140, 35)
+		btn_page.position = Vector2(100, 435)
+		btn_page.add_theme_font_size_override("font_size", 13)
+		btn_page.pressed.connect(_on_os_page_toggle.bind(page_1, page_2))
+		p_node.add_child(btn_page)
+
+	paper.set_meta("is_paper", true)
+	paper.set_meta("is_maintenance", true)
+	paper.set_meta("action", "")
+
+	_make_draggable(paper, "paper")
+	
+	if has_method("_add_ball_visual"):
+		_add_ball_visual(paper)
+
+	ui_layer.add_child(paper)
+	spawned_papers.append(paper)
+# --- FIM DA ATUALIZAÇÃO ---
+
+
+
+# --- INÍCIO DA ADIÇÃO: Alternar Páginas da O.S. ---
+func _on_os_page_toggle(page_1: Control, page_2: Control) -> void:
+	page_1.visible = not page_1.visible
+	page_2.visible = not page_1.visible
+# --- FIM DA ADIÇÃO ---
+
+
 
 func _spawn_extension_form() -> void:
 	var paper = ColorRect.new()
@@ -1202,6 +1497,8 @@ func _make_draggable(panel: Control, type: String = "panel") -> void:
 	if type == "panel" or type == "radio" or type.begins_with("tool"):
 		original_transforms[panel] = panel.position
 
+
+
 func _on_panel_gui_input(event: InputEvent, panel: Control) -> void:
 	var type = panel.get_meta("drag_type")
 	if event is InputEventMouseButton:
@@ -1237,11 +1534,17 @@ func _on_panel_gui_input(event: InputEvent, panel: Control) -> void:
 						else:
 							tw.tween_property(panel, "position", original_transforms[panel], 0.2)
 					else:
+						# --- CORREÇÃO DO CLIQUE NO RÁDIO AQUI ---
 						if type == "radio":
 							if GameManager.pending_radio_event:
-								phone_cutscene.start_badger_radio()
+								GameManager.pending_radio_event = false # Apaga a luz de alerta do rádio
+								# Chama o maquinista com a mensagem que estava salva
+								phone_cutscene.start_badger_radio(pending_radio_msg)
+								pending_radio_msg = ""
+								
 							panel.rotation_degrees = randf_range(-3.0, 3.0) 
 							_clamp_to_screen(panel)
+						# ---------------------------------------
 						else:
 							if type == "paper":
 								panel.rotation_degrees = randf_range(-4.0, 4.0) 
@@ -1277,7 +1580,6 @@ func _on_panel_gui_input(event: InputEvent, panel: Control) -> void:
 					_clamp_to_screen(panel) 
 				else:
 					_clamp_to_screen(panel)
-
 
 
 func _on_trash_yes() -> void:
@@ -1341,6 +1643,24 @@ func _try_apply_tool(pos: Vector2, tool_type: String) -> void:
 			
 			if tool_type == "tool_pen":
 				var hit_checkbox = false
+				
+				# --- INÍCIO DA ATUALIZAÇÃO: Caneta nas Páginas da O.S. ---
+				if p.get_meta("is_maintenance", false):
+					for page_node in [content.get_node("page_1"), content.get_node("page_2")]:
+						if not page_node.visible: 
+							continue
+						for child in page_node.get_children():
+							if child.has_meta("is_maint_checkbox"):
+								if child.get_global_rect().has_point(pos):
+									var mark = child.get_child(1) # O Label com o 'X'
+									if not mark.visible:
+										mark.visible = true
+									hit_checkbox = true
+									break
+						if hit_checkbox: 
+							break
+				# --- FIM DA ATUALIZAÇÃO ---
+				
 				if p.get_meta("is_extension", false):
 					for child in content.get_children():
 						if child.has_meta("is_checkbox"):
@@ -1398,6 +1718,11 @@ func _try_apply_tool(pos: Vector2, tool_type: String) -> void:
 				p.set_meta("action", "reject")
 				
 			if tool_type == "tool_cia":
+				# --- INÍCIO DA ATUALIZAÇÃO: Carimbo livre na O.S. ---
+				if p.get_meta("is_maintenance", false):
+					p.set_meta("action", "approve")
+				# --- FIM DA ATUALIZAÇÃO ---
+				
 				if not p.has_meta("node_cia"):
 					var seal = Label.new()
 					seal.text = "( SELO DA CIA )"
@@ -1728,7 +2053,9 @@ func _on_radio_choice(idx: int) -> void:
 	GameManager.pending_radio_event = false
 	
 	if phone_cutscene.current_mode == "RADIO_DISASTER":
-		pass 
+		# --- INÍCIO DA ALTERAÇÃO 5: Gera o Papel ao Fim da Chamada ---
+		_spawn_maintenance_form()
+		# --- FIM DA ALTERAÇÃO 5 ---
 	else:
 		if idx == 0:
 			GameManager.money -= 150
@@ -2729,7 +3056,10 @@ func _on_contracts_updated() -> void:
 	_load_agenda_contacts() 
 	_update_task_pad()
 
-func _on_day_changed(_v) -> void: 
+func _on_day_changed() -> void:
+	# --- INÍCIO DA ALTERAÇÃO 2 ---
+	daily_maintenance_called = false
+	# --- FIM DA ALTERAÇÃO 2 ---
 	_update_report_text()
 	_load_agenda_contacts() 
 	_update_task_pad()

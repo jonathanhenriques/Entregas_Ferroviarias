@@ -265,37 +265,37 @@ func start_cancel_warning(company_name: String, idx: int) -> void:
 	
 	_type_next_char(true)
 
-func start_badger_radio() -> void:
+
+
+
+func start_badger_radio(custom_msg: String = "") -> void:
 	_reset_ui()
-	# --- NOVO: Troca para a arte do Maquinista
+	# Troca para a arte do Maquinista
 	character_portrait.texture = tex_badger
 	
 	name_label.text = "[ FREQUÊNCIA 104.2: MAQUINISTA BADGER ]"
 	name_label.add_theme_color_override("font_color", Color.SKY_BLUE)
 	
-	name_label.text = "[ FREQUÊNCIA 104.2: MAQUINISTA BADGER ]"
-	name_label.add_theme_color_override("font_color", Color.SKY_BLUE)
-	
-	if GameManager.broken_tiles.size() > 0:
+	if custom_msg != "":
 		current_mode = "RADIO_DISASTER"
-		full_text = "ALERTA VERMELHO CHEFE! A via cedeu logo à frente do nosso trem!\n\n"
-		full_text += "A composição está parada e não podemos avançar. Precisamos que o senhor entre no Mapa, "
-		full_text += "ative o Modo de Obras e reconstrua o trecho destruído imediatamente!\n\n"
-		full_text += "A carga vai apodrecer aqui se não formos rápidos!"
-		
-		btn_opt_1.text = "[ Entendido. Preparando obras. ]"
+		full_text = custom_msg
+		btn_opt_1.text = "[ Entendido. ]"
 	else:
-		current_mode = "RADIO_EVENT"
-		full_text = "Chefe. Aqui é o Badger. Motoqueiros trancaram a linha na planície de novo.\n"
-		full_text += "O povo das cidades tá esperando esses suprimentos pra comer hoje, mas se eu passar com o trem "
-		full_text += "por cima desses bandidos, eles vão atirar contra a carga. E se a gente recuar, a carga atrasa e a empresa perde moral.\n"
-		full_text += "Aguardo ordens, Chefe."
-		
-		btn_opt_1.text = "[ Pagar Pedágio ($150) ]"
-		btn_opt_2.text = "[ Recuar (Atrasa a Carga) ]"
-		btn_opt_3.text = "[ Avançar à Força (Risco) ]"
+		if GameManager.broken_tiles.size() > 0:
+			current_mode = "RADIO_DISASTER"
+			full_text = "ALERTA VERMELHO CHEFE! A via cedeu logo à frente do nosso trem!\n\nA composição está parada e não podemos avançar. Precisamos que o senhor entre no Mapa, ative o Modo de Obras e reconstrua o trecho destruído imediatamente!\n\nA carga vai apodrecer aqui se não formos rápidos!"
+			btn_opt_1.text = "[ Entendido. Preparando obras. ]"
+		else:
+			current_mode = "RADIO_EVENT"
+			full_text = "Chefe. Aqui é o Badger. Motoqueiros trancaram a linha na planície de novo.\nO povo das cidades tá esperando esses suprimentos pra comer hoje, mas se eu passar com o trem por cima desses bandidos, eles vão atirar contra a carga. E se a gente recuar, a carga atrasa e a empresa perde moral.\nAguardo ordens, Chefe."
+			btn_opt_1.text = "[ Pagar Pedágio ($150) ]"
+			btn_opt_2.text = "[ Recuar (Atrasa a Carga) ]"
+			btn_opt_3.text = "[ Avançar à Força (Risco) ]"
 		
 	_type_next_char(false)
+
+
+
 
 func _reset_ui() -> void:
 	visible = true

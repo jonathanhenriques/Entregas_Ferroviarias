@@ -195,9 +195,12 @@ func _process(delta: float) -> void:
 				
 				if package_queue.size() > 0:
 					if has_method("add_strike"): 
-						add_strike("O relógio bateu zero e " + str(package_queue.size()) + " encomendas ficaram atrasadas na plataforma!")
-					package_queue_updated.emit(package_queue.size())
-		# --- FIM DA ALTERAÇÃO ---
+						add_strike("O relógio bateu zero! As encomendas avulsas não processadas foram descartadas.")
+					
+					# --- INÍCIO DA ALTERAÇÃO 1: Limpa a esteira da manhã ---
+					package_queue.clear()
+					package_queue_updated.emit(0)
+					# --- FIM DA ALTERAÇÃO 1 ---
 
 
 
@@ -309,16 +312,10 @@ func end_day(upfront_income: int = 0) -> void:
 	today_broken_contracts = 0
 	today_penalties = 0
 	pending_radio_event = false
-	var has_op_train = false
-	for c in active_contracts:
-		if is_contract_operating(c): 
-			has_op_train = true
-			
-	if has_op_train and randf() < 0.3:
-		pending_radio_event = true
-			
-	if not pending_radio_event:
-		_roll_fiscal_audit()
+	
+	# Removido o evento antigo e aleatório de gangues do rádio.
+	# Agora o rádio é exclusivo da Ordem de Serviço da Manhã.
+	_roll_fiscal_audit()
 	
 	_generate_daily_generics()
 	
